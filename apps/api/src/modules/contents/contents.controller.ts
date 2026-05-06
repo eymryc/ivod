@@ -4,9 +4,10 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ContentsService } from './contents.service';
-import { QueryContentsDto, CreateContentDto, UpdateContentDto } from './dto/contents.dto';
+import { QueryContentsDto, CreateContentDto, UpdateContentDto, CreateSeasonDto, UpdateSeasonDto, UpdateProgressDto } from './dto/contents.dto';
 import { CreateEpisodeDto, UpdateEpisodeDto } from './dto/episodes.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -21,7 +22,6 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { UpdateProgressDto } from './dto/contents.dto';
 import { ApiErrorResponse, ApiSuccessResponse } from '../../common/swagger/api-response.decorator';
 
 @ApiTags('Contents')
@@ -29,6 +29,32 @@ import { ApiErrorResponse, ApiSuccessResponse } from '../../common/swagger/api-r
 @Controller('contents')
 export class ContentsController {
   constructor(private readonly contentsService: ContentsService) {}
+
+  @Get('featured')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Get featured contents (exclusive + top viewed)' })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  getFeatured(@Query('limit') limit?: string) {
+    return this.contentsService.getFeatured(limit ? Math.min(+limit, 50) : 10);
+  }
+
+  @Get('trending')
+  @ApiOperation({ summary: 'Get trending contents (by view count)' })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  getTrending(@Query('limit') limit?: string) {
+    return this.contentsService.getTrending(limit ? Math.min(+limit, 50) : 20);
+  }
+
+  @Get('recommended')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get recommended contents for current user' })
+  @ApiQuery({ name: 'limit', required: false, example: 12 })
+  getRecommended(
+    @CurrentUser('id') userId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.contentsService.getRecommended(userId, limit ? Math.min(+limit, 50) : 12);
+  }
 
   @Get()
   @ApiOperation({ summary: 'List contents' })
@@ -38,6 +64,8 @@ export class ContentsController {
   @ApiQuery({ name: 'status', required: false, example: 'PUBLISHED' })
   @ApiQuery({ name: 'search', required: false, example: 'marvel' })
   @ApiQuery({ name: 'creatorId', required: false, example: 'cm9z2f5k10001x123abcd4567' })
+  @ApiQuery({ name: 'sortBy', required: false, enum: ['latest', 'trending', 'oldest'] })
+  @ApiQuery({ name: 'exclusive', required: false, example: true })
   @ApiSuccessResponse({
     description: 'Paginated content list',
     example: {
@@ -122,11 +150,14 @@ export class ContentsController {
   }
 
   @Get(':id/episodes')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'List episodes for content' })
   @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
   @ApiNotFoundResponse({ description: 'Content not found' })
-  getEpisodes(@Param('id') id: string) {
-    return this.contentsService.getEpisodes(id);
+  getEpisodes(@Param('id') id: string, @Req() req: Request) {
+    const userId = (req as { user?: { id?: string } }).user?.id;
+    const role = (req as { user?: { role?: string } }).user?.role;
+    return this.contentsService.getEpisodes(id, userId, role);
   }
 
   @Post(':id/episodes')
@@ -178,6 +209,44 @@ export class ContentsController {
     return this.contentsService.deleteEpisode(episodeId, userId);
   }
 
+  @Post(':id/rate')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Like or dislike a content (up/down)' })
+  @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
+  @ApiBody({ schema: { example: { value: 'up' } } })
+  @ApiUnauthorizedResponse({ description: 'JWT required' })
+  rateContent(
+    @Param('id') contentId: string,
+    @CurrentUser('id') userId: string,
+    @Body('value') value: 'up' | 'down',
+  ) {
+    return this.contentsService.rateContent(userId, contentId, value);
+  }
+
+  @Delete(':id/rate')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Remove like/dislike for a content' })
+  @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
+  @ApiUnauthorizedResponse({ description: 'JWT required' })
+  removeRating(
+    @Param('id') contentId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.contentsService.removeRating(userId, contentId);
+  }
+
+  @Get(':id/rate')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get current user rating for a content' })
+  @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
+  @ApiUnauthorizedResponse({ description: 'JWT required' })
+  getMyRating(
+    @Param('id') contentId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.contentsService.getMyRating(userId, contentId);
+  }
+
   @Post(':id/progress')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Update watch progress' })
@@ -202,5 +271,66 @@ export class ContentsController {
     @CurrentUser('id') userId: string,
   ) {
     return this.contentsService.getEntitlement(contentId, userId);
+  }
+
+  @Get(':id/detail')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('CREATOR', 'ADMIN')
+  @ApiOperation({ summary: 'Get full content detail with seasons & episodes (creator/admin)' })
+  @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
+  getContentDetail(
+    @Param('id') contentId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.contentsService.getContentDetail(contentId, userId);
+  }
+
+  @Get(':id/seasons')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('CREATOR', 'ADMIN')
+  @ApiOperation({ summary: 'List seasons for a content (creator/admin)' })
+  @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
+  getSeasons(@Param('id') contentId: string) {
+    return this.contentsService.getSeasons(contentId);
+  }
+
+  @Post(':id/seasons')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('CREATOR', 'ADMIN')
+  @ApiOperation({ summary: 'Create a season (creator/admin)' })
+  @ApiBody({ type: CreateSeasonDto })
+  @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
+  createSeason(
+    @Param('id') contentId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreateSeasonDto,
+  ) {
+    return this.contentsService.createSeason(contentId, userId, dto);
+  }
+
+  @Put('seasons/:seasonId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('CREATOR', 'ADMIN')
+  @ApiOperation({ summary: 'Update a season (creator/admin)' })
+  @ApiBody({ type: UpdateSeasonDto })
+  @ApiParam({ name: 'seasonId', example: 'cm9z2f5k10001x123season1' })
+  updateSeason(
+    @Param('seasonId') seasonId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateSeasonDto,
+  ) {
+    return this.contentsService.updateSeason(seasonId, userId, dto);
+  }
+
+  @Delete('seasons/:seasonId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('CREATOR', 'ADMIN')
+  @ApiOperation({ summary: 'Delete a season (creator/admin)' })
+  @ApiParam({ name: 'seasonId', example: 'cm9z2f5k10001x123season1' })
+  deleteSeason(
+    @Param('seasonId') seasonId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.contentsService.deleteSeason(seasonId, userId);
   }
 }

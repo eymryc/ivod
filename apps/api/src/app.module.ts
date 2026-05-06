@@ -20,6 +20,11 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RightsModule } from './modules/rights/rights.module';
 import { RevenueSharingModule } from './modules/revenue-sharing/revenue-sharing.module';
 import { RightsholdersModule } from './modules/rightsholders/rightsholders.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
+import { MediaJobsModule } from './modules/media-jobs/media-jobs.module';
+import { MediaAssetsModule } from './modules/media-assets/media-assets.module';
+import { OtpStoreModule } from './common/otp-store/otp-store.module';
+import { RefDataGuardService } from './common/services/ref-data-guard.service';
 
 @Module({
   imports: [
@@ -27,6 +32,7 @@ import { RightsholdersModule } from './modules/rightsholders/rightsholders.modul
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 20 }]),
     PrismaModule,
+    OtpStoreModule,
     AuthModule,
     UsersModule,
     ContentsModule,
@@ -42,12 +48,16 @@ import { RightsholdersModule } from './modules/rightsholders/rightsholders.modul
     RightsModule,
     RevenueSharingModule,
     RightsholdersModule,
+    UploadsModule,
+    MediaJobsModule,
+    MediaAssetsModule,
   ],
   providers: [
     {
       provide: APP_INTERCEPTOR,
       useClass: MustChangePasswordInterceptor,
     },
+    RefDataGuardService,
   ],
 })
 export class AppModule {}

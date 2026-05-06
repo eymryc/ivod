@@ -20,34 +20,15 @@ import {
   ResetPasswordDto,
 } from './dto/auth.dto';
 import { MailService } from '../mail/mail.service';
+import { OtpStoreService } from '../../common/otp-store/otp-store.service';
 
-interface OtpEntry {
-  code: string;
-  expiresAt: number;
-  attempts: number;
-}
-
-interface RegisterOtpEntry extends OtpEntry {
-  firstName: string;
-  lastName: string;
-}
-
-interface ResetPasswordEntry {
-  token: string;
-  expiresAt: number;
-  attempts: number;
-}
-
-const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const OTP_TTL_SEC = 10 * 60; // 10 minutes
 const OTP_MAX_ATTEMPTS = 5;
-const RESET_PASSWORD_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const RESET_PASSWORD_TTL_SEC = 15 * 60; // 15 minutes
 const RESET_PASSWORD_MAX_ATTEMPTS = 5;
 
 @Injectable()
 export class AuthService {
-  private otpStore = new Map<string, OtpEntry>();
-  private registerOtpStore = new Map<string, RegisterOtpEntry>();
-  private resetPasswordStore = new Map<string, ResetPasswordEntry>();
   private logger = new Logger('AuthService');
 
   constructor(
@@ -55,6 +36,7 @@ export class AuthService {
     private prisma: PrismaService,
     private config: ConfigService,
     private mailService: MailService,
+    private otpStore: OtpStoreService,
   ) {}
 
   private generateOtp(): string {
@@ -176,7 +158,7 @@ export class AuthService {
     if (!role) {
       throw new InternalServerErrorException({
         code: 'RBAC_001',
-        message: `Rôle référentiel introuvable : ${fallbackRole}. Exécuter les seeds RBAC (prisma:seed:rbac).`,
+        message: `Rôle référentiel introuvable : ${fallbackRole}. Exécuter les seeds RBAC (npm run prisma:seed:all).`,
       });
     }
 
@@ -188,16 +170,7 @@ export class AuthService {
   }
 
   private cleanExpired() {
-    const now = Date.now();
-    for (const [key, entry] of this.otpStore) {
-      if (entry.expiresAt < now) this.otpStore.delete(key);
-    }
-    for (const [key, entry] of this.registerOtpStore) {
-      if (entry.expiresAt < now) this.registerOtpStore.delete(key);
-    }
-    for (const [key, entry] of this.resetPasswordStore) {
-      if (entry.expiresAt < now) this.resetPasswordStore.delete(key);
-    }
+    this.otpStore.cleanExpiredMemory();
   }
 
   private generateResetToken(): string {
@@ -208,45 +181,44 @@ export class AuthService {
     this.cleanExpired();
 
     const code = this.generateOtp();
-    this.otpStore.set(email, {
+    await this.otpStore.setOtp(email, {
       code,
-      expiresAt: Date.now() + OTP_TTL_MS,
+      expiresAt: Date.now() + OTP_TTL_SEC * 1000,
       attempts: 0,
-    });
+    }, OTP_TTL_SEC);
 
     try {
       await this.mailService.sendOtpEmail(email, code);
     } catch (err) {
       this.logger.error(`Erreur envoi OTP à ${email}`, err);
-      // En dev, on log le code pour faciliter les tests
       if (this.config.get('NODE_ENV') !== 'production') {
         this.logger.warn(`[DEV] Code OTP pour ${email}: ${code}`);
       }
     }
 
-    return { message: `Code OTP envoyé à ${email}`, expiresIn: 600 };
+    return { message: `Code OTP envoyé à ${email}`, expiresIn: OTP_TTL_SEC };
   }
 
   async verifyOTP(email: string, token: string) {
-    const entry = this.otpStore.get(email);
+    const entry = await this.otpStore.getOtp(email);
 
     if (!entry || entry.expiresAt < Date.now()) {
-      this.otpStore.delete(email);
+      await this.otpStore.deleteOtp(email);
       throw new UnauthorizedException({ code: 'AUTH_003', message: 'Code OTP invalide ou expiré' });
     }
 
     entry.attempts += 1;
     if (entry.attempts > OTP_MAX_ATTEMPTS) {
-      this.otpStore.delete(email);
+      await this.otpStore.deleteOtp(email);
       throw new UnauthorizedException({ code: 'AUTH_004', message: 'Trop de tentatives, demandez un nouveau code' });
     }
 
     if (entry.code !== token) {
+      await this.otpStore.updateOtp(email, entry, OTP_TTL_SEC);
       throw new UnauthorizedException({ code: 'AUTH_003', message: 'Code OTP invalide ou expiré' });
     }
 
-    // Code valide — supprimer de la mémoire
-    this.otpStore.delete(email);
+    await this.otpStore.deleteOtp(email);
 
     let user = await this.prisma.user.findUnique({ where: { email } });
     let justCreated = false;
@@ -267,7 +239,7 @@ export class AuthService {
     if (justCreated) {
       try {
         await this.mailService.sendWelcomeEmail(user.email, user.name);
-      } catch (err) {
+      } catch (_err) {
         this.logger.warn(`Impossible d'envoyer l'email de bienvenue à ${user.email}`);
       }
     }
@@ -293,13 +265,13 @@ export class AuthService {
     }
 
     const code = this.generateOtp();
-    this.registerOtpStore.set(normalizedEmail, {
+    await this.otpStore.setRegisterOtp(normalizedEmail, {
       firstName: normalizedFirstName,
       lastName: normalizedLastName,
       code,
-      expiresAt: Date.now() + OTP_TTL_MS,
+      expiresAt: Date.now() + OTP_TTL_SEC * 1000,
       attempts: 0,
-    });
+    }, OTP_TTL_SEC);
 
     try {
       await this.mailService.sendOtpEmail(normalizedEmail, code);
@@ -310,7 +282,7 @@ export class AuthService {
       }
     }
 
-    return { message: `Code OTP envoyé à ${normalizedEmail}`, expiresIn: 600 };
+    return { message: `Code OTP envoyé à ${normalizedEmail}`, expiresIn: OTP_TTL_SEC };
   }
 
   async verifyRegisterOTP(email: string, token: string, firstName: string, lastName?: string) {
@@ -320,16 +292,16 @@ export class AuthService {
 
     this.cleanExpired();
     const normalizedEmail = email.toLowerCase().trim();
-    const entry = this.registerOtpStore.get(normalizedEmail);
+    const entry = await this.otpStore.getRegisterOtp(normalizedEmail);
 
     if (!entry || entry.expiresAt < Date.now()) {
-      this.registerOtpStore.delete(normalizedEmail);
+      await this.otpStore.deleteRegisterOtp(normalizedEmail);
       throw new UnauthorizedException({ code: 'AUTH_003', message: 'Code OTP invalide ou expiré' });
     }
 
     entry.attempts += 1;
     if (entry.attempts > OTP_MAX_ATTEMPTS) {
-      this.registerOtpStore.delete(normalizedEmail);
+      await this.otpStore.deleteRegisterOtp(normalizedEmail);
       throw new UnauthorizedException({
         code: 'AUTH_004',
         message: 'Trop de tentatives, demandez un nouveau code',
@@ -337,16 +309,17 @@ export class AuthService {
     }
 
     if (entry.code !== token) {
+      await this.otpStore.updateRegisterOtp(normalizedEmail, entry, OTP_TTL_SEC);
       throw new UnauthorizedException({ code: 'AUTH_003', message: 'Code OTP invalide ou expiré' });
     }
 
     const existing = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
-      this.registerOtpStore.delete(normalizedEmail);
+      await this.otpStore.deleteRegisterOtp(normalizedEmail);
       throw new ConflictException({ code: 'AUTH_007', message: 'Email déjà utilisé' });
     }
 
-    this.registerOtpStore.delete(normalizedEmail);
+    await this.otpStore.deleteRegisterOtp(normalizedEmail);
     const user = await this.prisma.user.create({
       data: {
         email: normalizedEmail,
@@ -359,7 +332,7 @@ export class AuthService {
 
     try {
       await this.mailService.sendWelcomeEmail(user.email, user.name);
-    } catch (err) {
+    } catch (_err) {
       this.logger.warn(`Impossible d'envoyer l'email de bienvenue à ${user.email}`);
     }
 
@@ -398,7 +371,7 @@ export class AuthService {
 
     try {
       await this.mailService.sendWelcomeEmail(user.email, user.name);
-    } catch (err) {
+    } catch (_err) {
       this.logger.warn(`Impossible d'envoyer l'email de bienvenue à ${user.email}`);
     }
 
@@ -460,11 +433,11 @@ export class AuthService {
 
     if (user) {
       const token = this.generateResetToken();
-      this.resetPasswordStore.set(email, {
+      await this.otpStore.setResetPassword(email, {
         token,
-        expiresAt: Date.now() + RESET_PASSWORD_TTL_MS,
+        expiresAt: Date.now() + RESET_PASSWORD_TTL_SEC * 1000,
         attempts: 0,
-      });
+      }, RESET_PASSWORD_TTL_SEC);
 
       try {
         await this.mailService.sendResetPasswordEmail(email, token);
@@ -477,19 +450,18 @@ export class AuthService {
     }
 
     return {
-      message:
-        'Si un compte existe avec cet email, un code de réinitialisation a été envoyé.',
-      expiresIn: 900,
+      message: 'Si un compte existe avec cet email, un code de réinitialisation a été envoyé.',
+      expiresIn: RESET_PASSWORD_TTL_SEC,
     };
   }
 
   async resetPassword(dto: ResetPasswordDto) {
     this.cleanExpired();
     const email = dto.email.toLowerCase().trim();
-    const entry = this.resetPasswordStore.get(email);
+    const entry = await this.otpStore.getResetPassword(email);
 
     if (!entry || entry.expiresAt < Date.now()) {
-      this.resetPasswordStore.delete(email);
+      await this.otpStore.deleteResetPassword(email);
       throw new UnauthorizedException({
         code: 'AUTH_010',
         message: 'Code de réinitialisation invalide ou expiré',
@@ -498,7 +470,7 @@ export class AuthService {
 
     entry.attempts += 1;
     if (entry.attempts > RESET_PASSWORD_MAX_ATTEMPTS) {
-      this.resetPasswordStore.delete(email);
+      await this.otpStore.deleteResetPassword(email);
       throw new UnauthorizedException({
         code: 'AUTH_011',
         message: 'Trop de tentatives, demandez un nouveau code',
@@ -506,6 +478,7 @@ export class AuthService {
     }
 
     if (entry.token !== dto.token.toUpperCase()) {
+      await this.otpStore.updateResetPassword(email, entry, RESET_PASSWORD_TTL_SEC);
       throw new UnauthorizedException({
         code: 'AUTH_010',
         message: 'Code de réinitialisation invalide ou expiré',
@@ -514,7 +487,7 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) {
-      this.resetPasswordStore.delete(email);
+      await this.otpStore.deleteResetPassword(email);
       throw new UnauthorizedException({
         code: 'AUTH_010',
         message: 'Code de réinitialisation invalide ou expiré',
@@ -526,7 +499,7 @@ export class AuthService {
       where: { id: user.id },
       data: { passwordHash, mustChangePassword: false },
     });
-    this.resetPasswordStore.delete(email);
+    await this.otpStore.deleteResetPassword(email);
 
     return { message: 'Mot de passe réinitialisé avec succès' };
   }

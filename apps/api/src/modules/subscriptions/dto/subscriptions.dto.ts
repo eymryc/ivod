@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsUrl } from 'class-validator';
+import { IsString, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export enum SubscriptionPlan {

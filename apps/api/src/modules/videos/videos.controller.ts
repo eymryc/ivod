@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, UseGuards, RawBodyRequest, Req, Headers } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Query, UseGuards, RawBodyRequest, Req, Headers } from '@nestjs/common';
 import { VideosService } from './videos.service';
 import { CreateEpisodeUploadDto, CreateUploadDto } from './dto/videos.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -11,6 +11,7 @@ import {
   ApiNotFoundResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -27,7 +28,11 @@ export class VideosController {
 
   @Post('upload-url')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Create direct upload URL (Mux)' })
+  @ApiOperation({
+    summary: 'Préparer upload vidéo (MinIO ou Mux)',
+    description:
+      'Selon `VIDEO_UPLOAD_PROVIDER` : MinIO → création `VideoAsset` + `putUrl` (envoyer aussi uploadFilename, uploadContentType) ; Mux → upload direct + champs historiques.',
+  })
   @ApiBody({ type: CreateUploadDto })
   @ApiUnauthorizedResponse({ description: 'JWT required' })
   @ApiSuccessResponse({
@@ -41,16 +46,18 @@ export class VideosController {
   })
   createUploadUrl(
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
     @Body() dto: CreateUploadDto,
   ) {
-    return this.videosService.createDirectUpload(userId, dto);
+    return this.videosService.createDirectUpload(userId, role, dto);
   }
 
   @Post('episodes/upload-url')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({
-    summary: 'Upload Mux pour un épisode (série)',
-    description: 'Crée l’épisode et retourne l’URL d’upload direct. Le contenu parent doit être de type SERIES.',
+    summary: 'Préparer upload d’un épisode (MinIO ou Mux)',
+    description:
+      'Contenu parent SERIES/WEB_SERIES. MinIO : métadonnées fichier requises (`uploadFilename`, `uploadContentType`). Mux : comportement historique (URL Mux).',
   })
   @ApiBody({ type: CreateEpisodeUploadDto })
   @ApiUnauthorizedResponse({ description: 'JWT required' })
@@ -65,9 +72,10 @@ export class VideosController {
   })
   createEpisodeUploadUrl(
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
     @Body() dto: CreateEpisodeUploadDto,
   ) {
-    return this.videosService.createEpisodeDirectUpload(userId, dto);
+    return this.videosService.createEpisodeDirectUpload(userId, role, dto);
   }
 
   @Get('episodes/:episodeId/status')
@@ -90,8 +98,26 @@ export class VideosController {
   getEpisodeStream(
     @Param('episodeId') episodeId: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
   ) {
-    return this.videosService.getSignedPlaybackUrlForEpisode(episodeId, userId);
+    return this.videosService.getSignedPlaybackUrlForEpisode(episodeId, userId, userRole);
+  }
+
+  @Get('hls-proxy/:videoAssetId')
+  @ApiOperation({
+    summary: 'Proxy HLS (MinIO) — segments + playlists',
+    description:
+      'Lecture avec `path` relatif au dossier `video/hls/{assetId}/` et jeton `pt` (JWT) retourné sur GET .../stream. Les playlists sont réécrites pour pointer vers ce proxy.',
+  })
+  @ApiParam({ name: 'videoAssetId', example: 'cm9z2f5k10001x123asset1' })
+  @ApiQuery({ name: 'path', required: false, example: 'master.m3u8' })
+  @ApiQuery({ name: 'pt', required: true })
+  hlsProxy(
+    @Param('videoAssetId') videoAssetId: string,
+    @Query('path') path: string | undefined,
+    @Query('pt') pt: string | undefined,
+  ) {
+    return this.videosService.streamHlsThroughProxy(videoAssetId, path?.trim() || 'master.m3u8', pt);
   }
 
   @Get(':id/status')
@@ -137,8 +163,23 @@ export class VideosController {
   getStream(
     @Param('id') contentId: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
   ) {
-    return this.videosService.getSignedPlaybackUrl(contentId, userId);
+    return this.videosService.getSignedPlaybackUrl(contentId, userId, userRole);
+  }
+
+  @Get('playback/:assetId/master.m3u8')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get signed HLS master URL by pipeline asset' })
+  @ApiParam({ name: 'assetId', example: 'cm9z2f5k10001x123asset1' })
+  @ApiUnauthorizedResponse({ description: 'JWT required' })
+  @ApiNotFoundResponse({ description: 'Media asset not found' })
+  getAssetPlayback(
+    @Param('assetId') assetId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.videosService.getSignedPlaybackUrlByAsset(assetId, userId, userRole);
   }
 
   @Post('downloads/:contentId')
@@ -176,7 +217,7 @@ export class VideosController {
   })
   async muxWebhook(
     @Req() req: RawBodyRequest<Request>,
-    @Headers('mux-signature') sig: string,
+    @Headers('mux-signature') _sig: string,
   ) {
     const webhookSecret = this.config.get('MUX_WEBHOOK_SECRET')!;
     this.videosService.verifyAndHandleMuxWebhook((req.rawBody as Buffer).toString('utf8'), req.headers as any, webhookSecret);

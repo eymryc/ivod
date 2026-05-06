@@ -38,6 +38,7 @@ model User {
   watchHistory  WatchHistory[]
   downloads     Download[]
   favorites     Favorite[]
+  contentRatings ContentRating[]
   follows       Follow[]
   notifications Notification[]
   uploadedContents Content[] @relation("UploadedByUser")
@@ -202,6 +203,9 @@ model ContentTypeRef {
   id        String   @id @default(cuid())
   code      String   @unique
   label     String
+  // Code “app”/backend-families used by the app logic (ex: SINGLE, SERIES, WEB_SERIES).
+  // This avoids relying on the human/display `code` field (which might be legacy like `SERIE` / `WEB SERIE`).
+  typeCode  String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -300,7 +304,9 @@ model Content {
   muxAssetId    String?
   muxPlaybackId String?
 
-  publishedAt DateTime?
+  releaseDate     DateTime?
+  publishedAt     DateTime?
+  rejectionReason String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -309,13 +315,109 @@ model Content {
   primaryRightsholder Rightsholder @relation("ContentPrimaryRightsholder", fields: [primaryRightsholderId], references: [id], onDelete: Restrict)
   distributor  Rightsholder?  @relation("ContentDistributor", fields: [distributorId], references: [id], onDelete: SetNull)
   episodes     Episode[]
+  seasons      Season[]
   watchHistory WatchHistory[]
   downloads    Download[]
   favorites    Favorite[]
   contentRights ContentRight[]
   revenueStatements RevenueStatement[]
+  videoAssets VideoAsset[]
+  ratings      ContentRating[]
 
   @@map("contents")
+}
+
+model Season {
+  id          String    @id @default(cuid())
+  contentId   String
+  number      Int
+  title       String?
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  content     Content   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episodes    Episode[]
+
+  @@unique([contentId, number])
+  @@map("seasons")
+}
+
+enum VideoAssetStatus {
+  CREATED
+  UPLOADED
+  PROBING
+  TRANSCODING
+  PACKAGING
+  READY
+  PUBLISHED
+  FAILED
+}
+
+model VideoAsset {
+  id              String           @id @default(cuid())
+  contentId       String
+  episodeId       String?
+  sourceObjectKey String
+  sourceChecksum  String?
+  sourceMimeType  String?
+  sourceSizeBytes BigInt?
+  status          VideoAssetStatus @default(CREATED)
+  errorCode       String?
+  errorMessage    String?
+  profileVersion  String           @default("v1")
+  manifestPath    String?
+  durationSec     Int?
+  width           Int?
+  height          Int?
+  frameRate       Float?
+  /// miniature générée (JPEG dans MinIO, clé S3)
+  posterObjectKey String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  content    Content          @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episode    Episode?         @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  renditions VideoRendition[]
+  jobs       VideoJob[]
+
+  @@index([contentId, status])
+  @@index([episodeId, status])
+  @@map("video_assets")
+}
+
+model VideoRendition {
+  id           String   @id @default(cuid())
+  assetId      String
+  name         String
+  width        Int
+  height       Int
+  videoBitrate Int
+  audioBitrate Int
+  playlistPath String
+  createdAt    DateTime @default(now())
+
+  asset VideoAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@map("video_renditions")
+}
+
+model VideoJob {
+  id         String   @id @default(cuid())
+  assetId    String
+  type       String
+  status     String
+  attempts   Int      @default(0)
+  lastError  String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  asset VideoAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId, type])
+  @@map("video_jobs")
 }
 
 model RightsContract {
@@ -411,9 +513,11 @@ model RevenueStatement {
 model Episode {
   id           String        @id @default(cuid())
   contentId    String
+  seasonId     String?
   season       Int
   episode      Int
   title        String
+  description  String?
   thumbnailUrl String?
   duration     Int // En secondes
   statusId     String
@@ -425,11 +529,14 @@ model Episode {
   muxAssetId    String?
   muxPlaybackId String?
 
-  publishedAt DateTime?
+  publishedAt     DateTime?
+  rejectionReason String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   content      Content        @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  seasonRef    Season?        @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  videoAssets  VideoAsset[]
   watchHistory WatchHistory[]
 
   @@unique([contentId, season, episode])
@@ -526,6 +633,21 @@ model Favorite {
 
   @@unique([userId, contentId])
   @@map("favorites")
+}
+
+model ContentRating {
+  id        String   @id @default(cuid())
+  userId    String
+  contentId String
+  value     String   // "up" | "down"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentId])
+  @@map("content_ratings")
 }
 
 model Follow {

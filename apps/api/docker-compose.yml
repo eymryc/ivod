@@ -1,0 +1,50 @@
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio_init:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ivod}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ivod}
+      REDIS_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PRESIGN_ENDPOINT: ${MINIO_PRESIGN_ENDPOINT:-http://localhost:9000}
+      MINIO_PUBLIC_BASE_URL: ${MINIO_PRESIGN_ENDPOINT:-http://localhost:9000}/${MINIO_BUCKET:-ivod}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-ivod}
+      VIDEO_UPLOAD_PROVIDER: minio
+      PORT: 3000
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    command: >
+      sh -c "
+        mkdir -p /var/log/ivod &&
+        npx prisma migrate deploy &&
+        npm run prisma:seed:all &&
+        node dist/main 2>&1 | tee -a /var/log/ivod/api.log
+      "
+    restart: unless-stopped
+    volumes:
+      - ../../logs/api:/var/log/ivod
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('net').connect(3000,'127.0.0.1',()=>process.exit(0)).on('error',()=>process.exit(1));\""
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s

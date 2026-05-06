@@ -1,47 +1,17 @@
 const { PrismaClient } = require('@prisma/client');
+const {
+  CATEGORY_CODES,
+  USER_ROLES,
+  USER_PLANS,
+  CONTENT_TYPES,
+  CONTENT_STATUSES,
+  CONTENT_VISIBILITIES,
+  SUBSCRIPTION_STATUSES,
+  PAYMENT_PROVIDERS,
+  PAYMENT_STATUSES,
+} = require('./ref-data');
 
 const prisma = new PrismaClient();
-
-const CATEGORY_CODES = ['Comédie', 'Drame', 'Action', 'Romance','Famille'];
-const USER_ROLES = ['VIEWER', 'CREATOR', 'ADMIN'];
-const USER_PLANS = [
-  {
-    code: 'FREE',
-    label: 'FREE',
-    priceFcfaMonthly: 0,
-    maxScreens: 1,
-    videoQuality: 'SD',
-    hasAds: true,
-    maxOfflineDownloads: 0,
-    hasExclusiveAccess: false,
-  },
-  {
-    code: 'PREMIUM',
-    label: 'PREMIUM',
-    priceFcfaMonthly: 1000,
-    maxScreens: 1,
-    videoQuality: 'HD',
-    hasAds: false,
-    maxOfflineDownloads: 5,
-    hasExclusiveAccess: true,
-  },
-  {
-    code: 'PREMIUM_PLUS',
-    label: 'PREMIUM_PLUS',
-    priceFcfaMonthly: 2000,
-    maxScreens: 3,
-    videoQuality: 'FULL_HD',
-    hasAds: false,
-    maxOfflineDownloads: 20,
-    hasExclusiveAccess: true,
-  },
-];
-const CONTENT_TYPES = ['FILM', 'WEB SERIE','SERIE'];
-const CONTENT_STATUSES = ['UPLOADING', 'PROCESSING', 'PUBLISHED', 'REJECTED', 'ARCHIVED'];
-const CONTENT_VISIBILITIES = ['PUBLIC', 'PREMIUM_ONLY', 'PPV', 'PRIVATE'];
-const SUBSCRIPTION_STATUSES = ['ACTIVE', 'CANCELLED', 'EXPIRED', 'PENDING'];
-const PAYMENT_PROVIDERS = ['CINETPAY', 'STRIPE', 'WAVE', 'ORANGE_MONEY', 'MTN_MOMO'];
-const PAYMENT_STATUSES = ['PENDING', 'SUCCEEDED', 'FAILED', 'REFUNDED'];
 
 async function main() {
   for (const code of CATEGORY_CODES) {
@@ -74,18 +44,20 @@ async function main() {
       create: plan,
     });
   }
-  for (const code of CONTENT_TYPES) {
+  for (const { code, typeCode } of CONTENT_TYPES) {
     await prisma.contentTypeRef.upsert({
       where: { code },
-      update: { label: code },
-      create: { code, label: code },
+      update: { label: code, typeCode },
+      create: { code, label: code, typeCode },
     });
   }
-  for (const code of CONTENT_STATUSES) {
+  for (const item of CONTENT_STATUSES) {
+    const code = typeof item === 'string' ? item : item.code;
+    const label = typeof item === 'string' ? item : item.label;
     await prisma.contentStatusRef.upsert({
       where: { code },
-      update: { label: code },
-      create: { code, label: code },
+      update: { label },
+      create: { code, label },
     });
   }
   for (const code of CONTENT_VISIBILITIES) {

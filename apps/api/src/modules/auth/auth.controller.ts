@@ -23,6 +23,8 @@ import {
   ResetPasswordDto,
   SendOtpDto,
   VerifyOtpDto,
+  RegisterSendOtpDto,
+  RegisterVerifyOtpDto,
 } from './dto/auth.dto';
 
 @ApiTags('Auth')
@@ -30,6 +32,49 @@ import {
 @UseGuards(ThrottlerGuard)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Post('register/send-otp')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @ApiOperation({ summary: 'Envoyer OTP pour inscription (email + prénom)' })
+  @ApiBody({ type: RegisterSendOtpDto })
+  @ApiSuccessResponse({
+    description: 'OTP envoyé',
+    example: {
+      success: true,
+      data: { message: 'Code OTP envoyé à user@ivod.ci', expiresIn: 600 },
+      error: null,
+      meta: { timestamp: '2026-03-23T16:30:00.000Z', version: 'v1' },
+    },
+  })
+  sendRegisterOtp(@Body() dto: RegisterSendOtpDto) {
+    return this.authService.sendRegisterOTP(dto.email, dto.firstName, dto.lastName);
+  }
+
+  @Post('register/verify-otp')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @ApiOperation({ summary: 'Vérifier OTP inscription et créer le compte' })
+  @ApiBody({ type: RegisterVerifyOtpDto })
+  @ApiSuccessResponse({
+    description: 'Compte créé et JWT émis',
+    example: {
+      success: true,
+      data: {
+        accessToken: '<jwt>',
+        tokenType: 'Bearer',
+        expiresIn: 604800,
+        user: { id: 'cmxxx', email: 'user@ivod.ci', role: 'VIEWER', plan: 'FREE' },
+      },
+      error: null,
+      meta: { timestamp: '2026-03-23T16:30:00.000Z', version: 'v1' },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: 'OTP invalide ou expiré' })
+  @ApiConflictResponse({ description: 'Email déjà utilisé' })
+  verifyRegisterOtp(@Body() dto: RegisterVerifyOtpDto) {
+    return this.authService.verifyRegisterOTP(dto.email, dto.otp, dto.firstName, dto.lastName);
+  }
 
   @Post('send-otp')
   @HttpCode(200)
@@ -167,9 +212,9 @@ export class AuthController {
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 8 } })
   @ApiOperation({
-    summary: 'Définir le mot de passe (lien d’invitation)',
+    summary: "Définir le mot de passe (lien d'invitation)",
     description:
-      'Public : consomme le jeton reçu par e-mail lors de la création du compte par un administrateur (sans mot de passe en clair). Émet un JWT.',
+      "Public : consomme le jeton reçu par e-mail lors de la création du compte par un administrateur (sans mot de passe en clair). Émet un JWT.",
   })
   @ApiBody({ type: SetupPasswordDto })
   @ApiSuccessResponse({
@@ -186,7 +231,7 @@ export class AuthController {
     status: 401,
     description: 'Jeton manquant, invalide ou expiré',
     exampleCode: 'AUTH_014',
-    exampleMessage: 'Lien d’invitation invalide ou expiré',
+    exampleMessage: "Lien d'invitation invalide ou expiré",
   })
   setupPassword(@Body() dto: SetupPasswordDto) {
     return this.authService.setupPasswordFromInvite(dto);
@@ -219,7 +264,7 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({ description: 'JWT ou mot de passe actuel invalide' })
   @ApiForbiddenResponse({
-    description: 'Si mustChangePassword, les autres routes restent bloquées jusqu’à succès ici',
+    description: "Si mustChangePassword, les autres routes restent bloquées jusqu'à succès ici",
   })
   @ApiErrorResponse({
     status: 401,

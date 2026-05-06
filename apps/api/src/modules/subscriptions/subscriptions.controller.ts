@@ -22,6 +22,21 @@ import { ApiErrorResponse, ApiSuccessResponse } from '../../common/swagger/api-r
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
+  @Get('plans')
+  @ApiOperation({ summary: 'Liste les plans disponibles (public)' })
+  @ApiSuccessResponse({
+    description: 'Liste des plans',
+    example: {
+      success: true,
+      data: [{ code: 'FREE', label: 'Gratuit', priceFcfaMonthly: 0 }, { code: 'PREMIUM', label: 'Premium', priceFcfaMonthly: 1000 }],
+      error: null,
+      meta: { timestamp: '2026-04-09T00:00:00.000Z', version: 'v1' },
+    },
+  })
+  getPlans() {
+    return this.subscriptionsService.getPlans();
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get current user subscription' })

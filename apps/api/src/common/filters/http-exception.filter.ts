@@ -31,8 +31,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         field = exceptionResponse.message[0]?.property;
       } else {
         code = exceptionResponse.code ?? this.statusToCode(status);
-        message = exceptionResponse.message ?? message;
+        message =
+          typeof exceptionResponse.message === 'string'
+            ? exceptionResponse.message
+            : (exceptionResponse.message ?? message);
+        if (exceptionResponse.details !== undefined) {
+          details = exceptionResponse.details;
+        }
       }
+    } else {
+      this.logger.error(
+        exception instanceof Error ? exception.stack ?? exception.message : String(exception),
+      );
     }
 
     this.logger.error(`${request.method} ${request.url} — ${status} ${code}`);
@@ -44,7 +54,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         code,
         message,
         field,
-        details: process.env.NODE_ENV === 'development' ? details : undefined,
+        details:
+          process.env.NODE_ENV === 'development' && details !== undefined ? details : undefined,
       },
       meta: {
         timestamp: new Date().toISOString(),
@@ -62,6 +73,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       403: 'FORBIDDEN',
       404: 'NOT_FOUND',
       409: 'CONFLICT',
+      503: 'SERVICE_UNAVAILABLE',
       422: 'UNPROCESSABLE',
       429: 'RATE_LIMITED',
       500: 'INTERNAL_ERROR',

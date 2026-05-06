@@ -4,6 +4,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class CreateEpisodeDto {
   @ApiProperty({ example: 'Episode 1 - Le retour' })
   @IsString() title: string;
+  @ApiPropertyOptional({ example: 'Résumé de l’épisode, synopsis court, enjeux.' })
+  @IsOptional() @IsString() description?: string;
   @ApiProperty({ example: 1, minimum: 1 })
   @IsInt() @Min(1) season: number;
   @ApiProperty({ example: 1, minimum: 1 })
@@ -25,6 +27,8 @@ export class CreateEpisodeDto {
 export class UpdateEpisodeDto {
   @ApiPropertyOptional({ example: 'Episode 1 - Director Cut' })
   @IsOptional() @IsString() title?: string;
+  @ApiPropertyOptional({ example: 'Version finale du synopsis épisode.' })
+  @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional({ example: 'https://cdn.ivod.ci/thumbs/e1-v2.jpg' })
   @IsOptional() @IsString() thumbnailUrl?: string;
   @ApiPropertyOptional({ example: 1900, minimum: 0 })

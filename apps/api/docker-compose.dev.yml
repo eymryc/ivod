@@ -1,0 +1,32 @@
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: deps
+    command: >
+      sh -c "
+        mkdir -p /var/log/ivod &&
+        cd apps/api &&
+        npx prisma generate &&
+        npx prisma migrate deploy &&
+        npm run prisma:seed:all &&
+        npm run dev 2>&1 | tee -a /var/log/ivod/api.log
+      "
+    environment:
+      NODE_ENV: development
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      # Force OtpStoreService to use in-memory fallback (Upstash is cloud-only, unreachable from Docker)
+      UPSTASH_REDIS_REST_URL: ""
+      UPSTASH_REDIS_REST_TOKEN: ""
+    volumes:
+      - ./:/app/apps/api
+      - ../../packages/types:/app/packages/types
+      - ../../logs/api:/var/log/ivod
+      - api_node_modules:/app/apps/api/node_modules
+      - types_node_modules:/app/packages/types/node_modules
+
+volumes:
+  api_node_modules:
+  types_node_modules:

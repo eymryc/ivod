@@ -1,11 +1,13 @@
 import {
-  Injectable, NotFoundException, BadRequestException, ForbiddenException,
+  Injectable, NotFoundException, BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import axios from 'axios';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CheckoutCinetpayDto, CheckoutStripeDto } from './dto/subscriptions.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
 
 const PLANS = {
   PREMIUM: { amount: 1000, label: 'iVOD Premium' },
@@ -16,7 +18,12 @@ const PLANS = {
 export class SubscriptionsService {
   private stripe: Stripe;
 
-  constructor(private prisma: PrismaService, private config: ConfigService) {
+  constructor(
+    private prisma: PrismaService,
+    private config: ConfigService,
+    private notificationsService: NotificationsService,
+    private notificationsGateway: NotificationsGateway,
+  ) {
     this.stripe = new Stripe(this.config.get('STRIPE_SECRET_KEY')!, {
       apiVersion: '2024-04-10' as any,
     });
@@ -38,6 +45,23 @@ export class SubscriptionsService {
     const ref = await this.prisma.paymentProviderRef.findUnique({ where: { code } });
     if (!ref) throw new BadRequestException({ code: 'REF_001', message: `Provider inconnu: ${code}` });
     return ref.id;
+  }
+
+  private async notifyPaymentConfirmed(userId: string, plan: 'PREMIUM' | 'PREMIUM_PLUS') {
+    const title = 'Paiement confirmé';
+    const body = `Votre abonnement ${plan} a été activé avec succès.`;
+    await this.notificationsService.create(userId, 'payment_confirmed', title, body, { plan });
+    this.notificationsGateway.emitPaymentConfirmed(userId, plan);
+  }
+
+  private async notifyPaymentFailed(userId: string, plan?: 'PREMIUM' | 'PREMIUM_PLUS' | null) {
+    await this.notificationsService.create(
+      userId,
+      'payment_failed',
+      'Paiement échoué',
+      'Votre paiement a échoué. Veuillez réessayer ou changer de méthode de paiement.',
+      { plan: plan ?? null, href: '/abonnements' },
+    );
   }
 
   // ── CinetPay ──────────────────────────────────────────────────────────────
@@ -161,12 +185,17 @@ export class SubscriptionsService {
           },
         });
       }
+      await this.notifyPaymentConfirmed(payment.userId, plan);
     } else if (verifiedStatus === 'REFUSED' || verifiedStatus === 'CANCELLED') {
       const failedStatusId = await this.getPaymentStatusId('FAILED');
       await this.prisma.payment.update({
         where: { id: payment.id },
         data: { statusId: failedStatusId },
       });
+      await this.notifyPaymentFailed(
+        payment.userId,
+        (((payment.metadata as any)?.plan as 'PREMIUM' | 'PREMIUM_PLUS' | undefined) ?? null),
+      );
     }
     // Si le statut est PENDING on ignore — CinetPay renverra un webhook
   }
@@ -207,8 +236,11 @@ export class SubscriptionsService {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.metadata?.userId!;
-      const plan = session.metadata?.plan as 'PREMIUM' | 'PREMIUM_PLUS';
+      const userId = session.metadata?.userId;
+      const plan = session.metadata?.plan as 'PREMIUM' | 'PREMIUM_PLUS' | undefined;
+      if (!userId || (plan !== 'PREMIUM' && plan !== 'PREMIUM_PLUS')) {
+        throw new BadRequestException({ code: 'PAYMENT_003', message: 'Metadata Stripe invalide' });
+      }
       const planRef = await this.prisma.userPlanRef.findUnique({ where: { code: plan } });
       if (!planRef) throw new BadRequestException({ code: 'PLAN_001', message: 'Plan invalide' });
       const succeededStatusId = await this.getPaymentStatusId('SUCCEEDED');
@@ -265,6 +297,7 @@ export class SubscriptionsService {
           },
         });
       }
+      await this.notifyPaymentConfirmed(userId, plan);
     }
 
     if (event.type === 'customer.subscription.deleted') {
@@ -275,6 +308,27 @@ export class SubscriptionsService {
         data: { statusId: cancelledStatusId, cancelAtPeriodEnd: true },
       });
     }
+
+    if (event.type === 'invoice.payment_failed') {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subId = typeof invoice.subscription === 'string' ? invoice.subscription : undefined;
+      if (subId) {
+        const sub = await this.prisma.subscription.findFirst({
+          where: { externalId: subId },
+          include: { plan: { select: { code: true } } },
+        });
+        if (sub) {
+          const plan = (sub.plan?.code as 'PREMIUM' | 'PREMIUM_PLUS' | undefined) ?? null;
+          await this.notifyPaymentFailed(sub.userId, plan);
+        }
+      }
+    }
+  }
+
+  // ── Plans ──────────────────────────────────────────────────────────────────
+
+  async getPlans() {
+    return this.prisma.userPlanRef.findMany({ orderBy: { priceFcfaMonthly: 'asc' } });
   }
 
   // ── Consultation ──────────────────────────────────────────────────────────
@@ -323,6 +377,14 @@ export class SubscriptionsService {
       where: { id: sub.id },
       data: { cancelAtPeriodEnd: true },
     });
+
+    await this.notificationsService.create(
+      userId,
+      'subscription_cancel_scheduled',
+      'Annulation programmée',
+      'Votre abonnement sera annulé à la fin de la période en cours.',
+      { subscriptionId: sub.id, href: '/abonnements' },
+    );
 
     return { message: 'Abonnement annulé en fin de période', cancelAtPeriodEnd: true };
   }

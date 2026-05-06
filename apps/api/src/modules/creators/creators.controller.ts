@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, Query, UseGuards, Patch, Delete, ForbiddenException } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CreatorsService } from './creators.service';
 import { CreateCreatorDto, CreateCreatorFullAdminDto, UpdateCreatorDto } from './dto/creators.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -84,7 +84,7 @@ export class CreatorsController {
     status: 500,
     description: 'Rôle CREATOR absent du référentiel roles (seeds RBAC non exécutés)',
     exampleCode: 'RBAC_001',
-    exampleMessage: 'Rôle référentiel introuvable : CREATOR. Exécuter les seeds RBAC (prisma:seed:rbac).',
+    exampleMessage: 'Rôle référentiel introuvable : CREATOR. Exécuter les seeds RBAC (npm run prisma:seed:all).',
   })
   create(@Body() dto: CreateCreatorFullAdminDto) {
     return this.creatorsService.createFullForAdmin(dto);
@@ -257,7 +257,7 @@ export class CreatorsController {
     status: 500,
     description: 'Rôle VIEWER absent du référentiel roles',
     exampleCode: 'RBAC_001',
-    exampleMessage: 'Rôle référentiel introuvable : VIEWER. Exécuter les seeds RBAC (prisma:seed:rbac).',
+    exampleMessage: 'Rôle référentiel introuvable : VIEWER. Exécuter les seeds RBAC (npm run prisma:seed:all).',
   })
   remove(@Param('id') id: string) {
     return this.creatorsService.remove(id);

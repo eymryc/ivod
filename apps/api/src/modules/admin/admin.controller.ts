@@ -45,11 +45,85 @@ export class AdminController {
     return this.adminService.getDashboard();
   }
 
+  @Get('video-pipeline/assets')
+  @ApiOperation({
+    summary: 'Lister les assets vidéo (pipeline MinIO)',
+    description: 'Supervision : statut, erreurs, jobs récents. Filtre optionnel par statut Prisma (ex. FAILED, READY).',
+  })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({ name: 'status', required: false, example: 'FAILED' })
+  listVideoPipelineAssets(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.listVideoPipelineAssets(+page, +limit, status);
+  }
+
+  /** Segment `by-id` évite tout chevauchement de routage avec `GET contents`. */
+  @Get('contents/by-id/:contentId/episodes')
+  @ApiOperation({
+    summary: 'Épisodes d’un contenu (modération)',
+    description:
+      'Liste tous les épisodes du contenu (statut parent quelconque : UPLOADING, etc.). Pour un non-série, `episodes` est vide et `episodic` vaut false.',
+  })
+  @ApiParam({ name: 'contentId', example: 'cm9z2f5k10001x123abcd4567' })
+  listContentEpisodesByContentId(@Param('contentId') contentId: string) {
+    return this.adminService.listContentEpisodesForModeration(contentId);
+  }
+
+  @Put('contents/by-id/:contentId/episodes/:episodeId/approve')
+  @ApiOperation({ summary: 'Valider et publier un épisode' })
+  @ApiParam({ name: 'contentId', description: 'ID contenu parent' })
+  @ApiParam({ name: 'episodeId', description: 'ID épisode' })
+  approveEpisodeByContentId(
+    @Param('contentId') contentId: string,
+    @Param('episodeId') episodeId: string,
+  ) {
+    return this.adminService.moderateEpisode(contentId, episodeId, 'approve');
+  }
+
+  @Put('contents/by-id/:contentId/episodes/:episodeId/reject')
+  @ApiOperation({ summary: 'Rejeter un épisode' })
+  @ApiParam({ name: 'contentId', description: 'ID contenu parent' })
+  @ApiParam({ name: 'episodeId', description: 'ID épisode' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        rejectionReason: { type: 'string', example: 'Contenu non conforme à la charte éditoriale.', minLength: 5 },
+      },
+    },
+    required: false,
+  })
+  rejectEpisodeByContentId(
+    @Param('contentId') contentId: string,
+    @Param('episodeId') episodeId: string,
+    @Body() body: { rejectionReason?: string },
+  ) {
+    return this.adminService.moderateEpisode(contentId, episodeId, 'reject', body?.rejectionReason);
+  }
+
+  @Post('video-pipeline/assets/:assetId/retry-probe')
+  @ApiOperation({
+    summary: 'Relancer probe + transcode (asset FAILED)',
+    description:
+      'Réinitialise métadonnées / renditions locales, supprime les objets MinIO `video/hls/{assetId}/` et `video/posters/{assetId}.jpg`, puis ré-enfile `video.probe`.',
+  })
+  @ApiParam({ name: 'assetId', example: 'cm9z2f5k10001x123asset1' })
+  retryVideoPipeline(@Param('assetId') assetId: string) {
+    return this.adminService.retryVideoPipelineFromFailure(assetId);
+  }
+
   @Get('contents')
   @ApiOperation({ summary: 'List contents for moderation' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'status', required: false, example: 'PROCESSING' })
+  @ApiQuery({ name: 'search', required: false, example: 'iron legacy' })
+  @ApiQuery({ name: 'contentType', required: false, example: 'SERIES' })
+  @ApiQuery({ name: 'creatorId', required: false, example: 'cm9z2f5k10001x123creator1' })
   @ApiSuccessResponse({
     description: 'Moderation list',
     example: {
@@ -63,8 +137,11 @@ export class AdminController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
     @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('contentType') contentType?: string,
+    @Query('creatorId') creatorId?: string,
   ) {
-    return this.adminService.listContents(+page, +limit, status);
+    return this.adminService.listContents(+page, +limit, status, search, contentType, creatorId);
   }
 
   @Put('contents/:id/approve')
@@ -86,6 +163,15 @@ export class AdminController {
   @Put('contents/:id/reject')
   @ApiOperation({ summary: 'Reject content publication' })
   @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        rejectionReason: { type: 'string', example: 'La qualité vidéo est insuffisante pour la plateforme.', minLength: 5 },
+      },
+    },
+    required: false,
+  })
   @ApiSuccessResponse({
     description: 'Content rejected',
     example: {
@@ -95,8 +181,8 @@ export class AdminController {
       meta: { timestamp: '2026-03-23T16:30:00.000Z', version: 'v1' },
     },
   })
-  rejectContent(@Param('id') id: string) {
-    return this.adminService.moderateContent(id, 'reject');
+  rejectContent(@Param('id') id: string, @Body() body: { rejectionReason?: string }) {
+    return this.adminService.moderateContent(id, 'reject', body?.rejectionReason);
   }
 
   @Get('users')

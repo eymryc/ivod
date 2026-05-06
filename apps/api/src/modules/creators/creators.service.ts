@@ -41,7 +41,7 @@ export class CreatorsService {
     if (!role) {
       throw new InternalServerErrorException({
         code: 'RBAC_001',
-        message: `Rôle référentiel introuvable : ${roleCode}. Exécuter les seeds RBAC (prisma:seed:rbac).`,
+        message: `Rôle référentiel introuvable : ${roleCode}. Exécuter les seeds RBAC (npm run prisma:seed:all).`,
       });
     }
     return role.id;
@@ -79,7 +79,16 @@ export class CreatorsService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.creator.findMany({
         include: {
-          user: { select: { email: true, passwordHash: true } },
+          user: {
+            select: {
+              id: true,
+              email: true,
+              phone: true,
+              firstName: true,
+              lastName: true,
+              passwordHash: true,
+            },
+          },
           _count: { select: { contents: true } },
         },
         skip,
@@ -90,7 +99,15 @@ export class CreatorsService {
     ]);
     const items = rows.map(({ user, ...c }) => ({
       ...c,
-      user: user ? { email: user.email } : undefined,
+      user: user
+        ? {
+            id: user.id,
+            email: user.email,
+            phone: user.phone,
+            firstName: user.firstName,
+            lastName: user.lastName,
+          }
+        : undefined,
       invitePending: !user?.passwordHash,
     }));
     return { items, total, page, limit };
@@ -294,6 +311,8 @@ export class CreatorsService {
           userId: user.id,
           stageName: dto.stageName.trim(),
           bio: dto.bio?.trim() || null,
+          avatarUrl: dto.avatarUrl?.trim() || null,
+          bannerUrl: dto.bannerUrl?.trim() || null,
           verified,
         },
       });
@@ -400,7 +419,7 @@ export class CreatorsService {
         include: {
           category: { select: { code: true } },
           status: { select: { code: true } },
-          contentType: { select: { code: true } },
+          contentType: { select: { code: true, typeCode: true } },
           _count: { select: { episodes: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -412,7 +431,7 @@ export class CreatorsService {
     const normalized = items.map((item: any) => {
       const category = item.category?.code;
       const status = item.status?.code;
-      const contentKind = item.contentType?.code;
+      const contentKind = item.contentType?.typeCode ?? item.contentType?.code;
       const episodeCount = item._count?.episodes ?? 0;
       const { category: _c, status: _s, contentType: _t, _count: _cnt, ...rest } = item;
       return {
@@ -465,6 +484,18 @@ export class CreatorsService {
     const avgPercentage = watchRecords.length > 0
       ? Math.round((watchRecords.reduce((sum, w) => sum + w.percentage, 0) / watchRecords.length) * 10) / 10
       : 0;
+
+    // Nouveaux abonnés dans la période (Follow.createdAt >= since)
+    const newFollowersCount = await this.prisma.follow.count({
+      where: { creatorId: creator.id, createdAt: { gte: since } },
+    });
+
+    // Contenus par statut
+    const [publishedCount, processingCount, rejectedCount] = await Promise.all([
+      this.prisma.content.count({ where: { creatorId: creator.id, status: { code: 'PUBLISHED' } } }),
+      this.prisma.content.count({ where: { creatorId: creator.id, status: { code: { in: ['UPLOADING', 'PROCESSING'] } } } }),
+      this.prisma.content.count({ where: { creatorId: creator.id, status: { code: 'REJECTED' } } }),
+    ]);
 
     // Top contenus (basé sur les vues réelles)
     const viewsByContent = new Map<string, { views: number; seconds: number }>();
@@ -523,7 +554,8 @@ export class CreatorsService {
         uniqueViewers: uniqueViewerIds.size,
         watchTimeHours: Math.round(totalWatchSeconds / 3600),
         averageWatchPercentage: avgPercentage,
-        newFollowers: creator.subscriberCount,
+        newFollowers: newFollowersCount,
+        totalFollowers: creator.subscriberCount,
         totalEarned: creator.totalEarned,
         currency: 'XOF',
       },
@@ -534,6 +566,12 @@ export class CreatorsService {
         split: { creator: 0.6, platform: 0.4 },
         pending: 0,
         nextPayout: nextPayout.toISOString(),
+      },
+      contentStats: {
+        published: publishedCount,
+        processing: processingCount,
+        rejected: rejectedCount,
+        total: publishedCount + processingCount + rejectedCount,
       },
       topContents,
     };

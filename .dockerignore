@@ -1,0 +1,32 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.gitignore
+.turbo
+*.log
+logs/
+.DS_Store
+apps/web/.next
+
+# Secrets — never ship to build context
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Tests & coverage
+coverage/
+**/coverage/
+**/*.test.ts
+**/*.spec.ts
+**/*.e2e-spec.ts
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
+README.md
+CHANGELOG.md

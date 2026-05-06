@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, Min, ValidateIf } from 'class-validator';
+import { IsString, IsOptional, IsInt, Min, ValidateIf, IsNumber } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateUploadDto {
@@ -10,7 +10,8 @@ export class CreateUploadDto {
 
   @ApiPropertyOptional({
     example: 'SINGLE',
-    description: 'Ignoré si contentId est fourni. Ne pas utiliser SERIES ici — créer la série via POST /contents.',
+    description:
+      'Ignoré si contentId est fourni. Ne pas utiliser SERIES/WEB_SERIES ici — créer la série/web-série via POST /contents.',
   })
   @IsOptional()
   @IsString()
@@ -40,6 +41,24 @@ export class CreateUploadDto {
   @IsOptional()
   @IsString()
   distributorId?: string;
+
+  /** Requis si `VIDEO_UPLOAD_PROVIDER=minio` : nom du fichier source. */
+  @ApiPropertyOptional({ example: 'film.mp4' })
+  @IsOptional()
+  @IsString()
+  uploadFilename?: string;
+
+  /** Requis si `VIDEO_UPLOAD_PROVIDER=minio` : type MIME (ex. video/mp4). */
+  @ApiPropertyOptional({ example: 'video/mp4' })
+  @IsOptional()
+  @IsString()
+  uploadContentType?: string;
+
+  @ApiPropertyOptional({ example: 482001234 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  uploadSizeBytes?: number;
 }
 
 export class CreateEpisodeUploadDto {
@@ -47,9 +66,19 @@ export class CreateEpisodeUploadDto {
   @IsString()
   contentId: string;
 
+  @ApiPropertyOptional({ example: 'cm9z2f5k10001x123season1', description: 'ID de la saison (optionnel)' })
+  @IsOptional()
+  @IsString()
+  seasonId?: string;
+
   @ApiProperty({ example: 'Episode 1 - Le retour' })
   @IsString()
   title: string;
+
+  @ApiPropertyOptional({ example: 'Synopsis de l’épisode, arc narratif, éléments clés.' })
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @ApiProperty({ example: 1, minimum: 1 })
   @IsInt()
@@ -71,4 +100,22 @@ export class CreateEpisodeUploadDto {
   @IsOptional()
   @IsString()
   thumbnailUrl?: string;
+
+  /** Requis si `VIDEO_UPLOAD_PROVIDER=minio`. */
+  @ApiPropertyOptional({ example: 'episode-01.mp4' })
+  @IsOptional()
+  @IsString()
+  uploadFilename?: string;
+
+  /** Requis si `VIDEO_UPLOAD_PROVIDER=minio`. */
+  @ApiPropertyOptional({ example: 'video/mp4' })
+  @IsOptional()
+  @IsString()
+  uploadContentType?: string;
+
+  @ApiPropertyOptional({ example: 482001234 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  uploadSizeBytes?: number;
 }

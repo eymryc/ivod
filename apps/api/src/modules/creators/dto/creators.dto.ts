@@ -65,6 +65,16 @@ export class CreateCreatorFullAdminDto {
   @IsString()
   bio?: string;
 
+  @ApiPropertyOptional({ example: 'https://cdn.ivod.ci/creator/avatar.jpg' })
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
+
+  @ApiPropertyOptional({ example: 'https://cdn.ivod.ci/creator/banner.jpg' })
+  @IsOptional()
+  @IsString()
+  bannerUrl?: string;
+
   @ApiPropertyOptional({ example: true, description: 'Compte créateur marqué vérifié (défaut : true)' })
   @IsOptional()
   @IsBoolean()

@@ -1,0 +1,94 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAGING — Images buildées, environnement production-like
+# ═══════════════════════════════════════════════════════════════════════════════
+# Prérequis : .env.staging (copier .env.staging.example → .env.staging)
+# Démarrage : make staging
+# ───────────────────────────────────────────────────────────────────────────────
+# Différences vs dev :
+#   • Images buildées via Dockerfile (target: runner/builder) — pas de hot reload
+#   • NODE_ENV=staging
+#   • Migrations + seeds lancés au démarrage
+#   • Ports exposés (utile pour tests E2E / QA)
+# ───────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── API NestJS — image buildée ──────────────────────────────────────────────
+  api:
+    container_name: ivod-staging-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runner        # Image de prod minimale (dist + prod node_modules)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio_init:
+        condition: service_completed_successfully
+    env_file:
+      - .env.staging        # Toutes les variables (infra + secrets API)
+    environment:
+      NODE_ENV: staging
+      PORT: 3000
+      DATABASE_URL:           postgresql://${POSTGRES_USER:-ivod}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ivod}
+      REDIS_URL:              redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379
+      MINIO_ENDPOINT:         http://minio:9000
+      MINIO_PRESIGN_ENDPOINT: ${MINIO_PRESIGN_ENDPOINT:-http://localhost:9000}
+      MINIO_PUBLIC_BASE_URL:  ${MINIO_PUBLIC_BASE_URL:-http://localhost:9000/ivod}
+      MINIO_ACCESS_KEY:       ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY:       ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET:           ${MINIO_BUCKET:-ivod}
+      VIDEO_UPLOAD_PROVIDER:  minio
+      FRONTEND_URL:           ${FRONTEND_URL:-http://localhost:3001}
+      API_PUBLIC_URL:         ${API_PUBLIC_URL:-http://localhost:3000}
+      HLS_PLAYBACK_MODE:      proxy
+    # Le WORKDIR dans le runner est /app/apps/api
+    command: >
+      sh -c "
+        npx prisma migrate deploy &&
+        npm run prisma:seed:all &&
+        node dist/main
+      "
+    ports:
+      - "${API_PORT:-3000}:3000"
+    volumes:
+      - ./logs/api:/var/log/ivod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('net').connect(3000,'127.0.0.1',()=>process.exit(0)).on('error',()=>process.exit(1));\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ── Web Next.js — image buildée ─────────────────────────────────────────────
+  web:
+    container_name: ivod-staging-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # NEXT_PUBLIC_* sont "baked" au moment du build — doit pointer vers l'URL publique
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api/v1}
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      PORT: 3001
+      HOSTNAME: 0.0.0.0
+      API_INTERNAL_URL: http://api:3000/api/v1
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('net').connect(3001,'127.0.0.1',()=>process.exit(0)).on('error',()=>process.exit(1));\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

@@ -8,20 +8,14 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "test": "jest",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:reset": "prisma migrate reset --force",
-    "prisma:refresh": "prisma migrate reset --force && npm run prisma:seed:all",
-    "prisma:seed:categories": "node prisma/seed-categories.js",
-    "prisma:seed:rbac": "node prisma/seed-rbac.js",
-    "prisma:seed:rightsholders": "node prisma/seed-rightsholders.js",
-    "prisma:seed:users": "node prisma/seed-users.js",
     "prisma:seed:all": "node prisma/seed-categories.js && node prisma/seed-rbac.js && node prisma/seed-rightsholders.js && node prisma/seed-users.js",
-    "prisma:studio": "prisma studio",
-    "clean": "rm -rf dist tsconfig.build.tsbuildinfo"
+    "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1017.0",
+    "@aws-sdk/s3-request-presigner": "^3.1017.0",
     "@ivod/types": "*",
     "@mux/mux-node": "^12.8.1",
     "@nestjs/common": "^10.3.0",
@@ -54,14 +48,18 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@nestjs/cli": "^10.3.2",
     "@nestjs/schematics": "^10.1.1",
     "@nestjs/testing": "^10.3.0",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.0",
     "@types/passport-jwt": "^4.0.1",
+    "eslint": "^10.1.0",
+    "globals": "^17.4.0",
     "prisma": "^5.14.0",
     "ts-jest": "^29.1.4",
-    "typescript": "^5.4.5"
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.57.2"
   }
 }

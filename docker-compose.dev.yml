@@ -1,0 +1,136 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# DÉVELOPPEMENT — API (hot-reload NestJS) + Web (hot-reload Next.js)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Prérequis : .env (infra) + apps/api/.env (secrets API)
+# Démarrage : make dev
+# ───────────────────────────────────────────────────────────────────────────────
+# Stratégie volumes :
+#   • Code source monté depuis l'hôte → modifications visibles instantanément
+#   • node_modules dans des volumes nommés → isolation cross-platform, I/O rapide
+#   • .next dans un volume nommé → cache de build Next.js persistant entre restarts
+# ───────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── API NestJS — hot reload ─────────────────────────────────────────────────
+  api:
+    container_name: ivod-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: deps          # Stage "deps" : node_modules + ffmpeg, sans build
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio_init:
+        condition: service_completed_successfully
+    env_file:
+      - .env                # Infra vars (POSTGRES_PASSWORD, MINIO_ROOT_PASSWORD…)
+      - apps/api/.env       # Secrets API (JWT_SECRET, STRIPE_*, MUX_*, SMTP…)
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      # ── Connexions vers les services Docker ──
+      DATABASE_URL:           postgresql://${POSTGRES_USER:-ivod}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ivod}
+      REDIS_URL:              redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379
+      MINIO_ENDPOINT:         http://minio:9000
+      # Endpoint public pour les presigned URLs (accessible depuis le navigateur)
+      MINIO_PRESIGN_ENDPOINT: http://localhost:${MINIO_PORT:-9000}
+      MINIO_PUBLIC_BASE_URL:  http://localhost:${MINIO_PORT:-9000}/${MINIO_BUCKET:-ivod}
+      MINIO_ACCESS_KEY:       ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY:       ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET:           ${MINIO_BUCKET:-ivod}
+      VIDEO_UPLOAD_PROVIDER:  minio
+      FRONTEND_URL:           http://localhost:${WEB_PORT:-3001}
+      API_PUBLIC_URL:         http://localhost:${API_PORT:-3000}
+      HLS_PLAYBACK_MODE:      proxy
+      # OTP store en mémoire en dev (Upstash non accessible depuis Docker)
+      UPSTASH_REDIS_REST_URL:   ""
+      UPSTASH_REDIS_REST_TOKEN: ""
+      # Polling fichiers (nécessaire sur macOS/Windows avec Docker Desktop)
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING:   "true"
+    command: >
+      sh -c "
+        cd /app/apps/api &&
+        npx prisma generate &&
+        npx prisma migrate deploy &&
+        npm run prisma:seed:all &&
+        npm run dev
+      "
+    ports:
+      - "${API_PORT:-3000}:3000"
+      - "5555:5555"         # Prisma Studio (make studio)
+    volumes:
+      # Source code — toute l'app API depuis l'hôte
+      - ./apps/api:/app/apps/api
+      # Types partagés
+      - ./packages/types:/app/packages/types
+      # node_modules en volumes nommés (isolation, perf)
+      - dev_api_root_nm:/app/node_modules
+      - dev_api_nm:/app/apps/api/node_modules
+      - dev_api_types_nm:/app/packages/types/node_modules
+    restart: unless-stopped
+
+  # ── Web Next.js — hot reload ────────────────────────────────────────────────
+  web:
+    container_name: ivod-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: deps          # Stage "deps" : node_modules uniquement, sans build
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      PORT: 3001
+      # URL publique (accessible depuis le navigateur)
+      NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-3000}/api/v1
+      # URL interne pour le SSR / API routes Next.js
+      API_INTERNAL_URL: http://api:3000/api/v1
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING:   "true"
+    command: npm run dev:docker --workspace @ivod/web
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    volumes:
+      # Source code — toute l'app Web depuis l'hôte
+      - ./apps/web:/app/apps/web
+      # Types partagés
+      - ./packages/types:/app/packages/types
+      # node_modules + .next en volumes nommés
+      - dev_web_root_nm:/app/node_modules
+      - dev_web_nm:/app/apps/web/node_modules
+      - dev_web_next:/app/apps/web/.next
+      - dev_web_types_nm:/app/packages/types/node_modules
+    restart: unless-stopped
+
+  # ── Adminer — interface base de données ─────────────────────────────────────
+  adminer:
+    container_name: ivod-adminer
+    image: adminer:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    restart: unless-stopped
+
+volumes:
+  # Volumes API dev
+  dev_api_root_nm:
+  dev_api_nm:
+  dev_api_types_nm:
+  # Volumes Web dev
+  dev_web_root_nm:
+  dev_web_nm:
+  dev_web_next:
+  dev_web_types_nm:

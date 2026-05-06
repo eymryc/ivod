@@ -24,7 +24,7 @@ const allowedOrigins = Array.from(
   namespace: 'notifications',
 })
 export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  @WebSocketServer() server: Server;
+  @WebSocketServer() server!: Server;
   private logger = new Logger('NotificationsGateway');
 
   constructor(
@@ -73,15 +73,39 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     });
   }
 
-  emitVideoReady(userId: string, contentId: string, title: string) {
-    this.server.to(`user:${userId}`).emit('video_ready', {
-      contentId, title, timestamp: new Date(),
+  emitPipelineProgress(
+    userId: string,
+    assetId: string,
+    stage: 'probe' | 'transcode',
+    pct: number,
+    episodeId?: string | null,
+  ) {
+    this.server.to(`user:${userId}`).emit('pipeline:progress', {
+      assetId,
+      stage,
+      pct: Math.max(0, Math.min(100, Math.round(pct))),
+      episodeId: episodeId ?? null,
+      timestamp: new Date(),
     });
   }
 
+  emitVideoReady(userId: string, contentId: string, title: string) {
+    const payload = {
+      contentId, title, timestamp: new Date(),
+    };
+    this.server.to(`user:${userId}`).emit('video_ready', payload);
+    this.server.to(`user:${userId}`).emit('notification:new', { type: 'video_ready', ...payload });
+  }
+
   emitPaymentConfirmed(userId: string, plan: string) {
-    this.server.to(`user:${userId}`).emit('payment_confirmed', {
+    const payload = {
       plan, timestamp: new Date(),
-    });
+    };
+    this.server.to(`user:${userId}`).emit('payment_confirmed', payload);
+    this.server.to(`user:${userId}`).emit('notification:new', { type: 'payment_confirmed', ...payload });
+  }
+
+  emitNotificationCreated(userId: string, notification: Record<string, unknown>) {
+    this.server.to(`user:${userId}`).emit('notification:new', notification);
   }
 }

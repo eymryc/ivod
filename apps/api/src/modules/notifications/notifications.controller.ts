@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Delete, Param, Query, UseGuards } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -24,6 +24,7 @@ export class NotificationsController {
   @ApiOperation({ summary: 'List current user notifications' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({ name: 'type', required: false, example: 'payment_confirmed', description: 'Filtrer par type de notification' })
   @ApiSuccessResponse({
     description: 'Notifications list',
     example: {
@@ -37,8 +38,9 @@ export class NotificationsController {
     @CurrentUser('id') userId: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
+    @Query('type') type?: string,
   ) {
-    return this.notificationsService.list(userId, +page, +limit);
+    return this.notificationsService.list(userId, +page, +limit, type);
   }
 
   @Put(':id/read')
@@ -73,5 +75,24 @@ export class NotificationsController {
   })
   markAllAsRead(@CurrentUser('id') userId: string) {
     return this.notificationsService.markAllAsRead(userId);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a notification' })
+  @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123notif1' })
+  @ApiSuccessResponse({
+    description: 'Notification deleted',
+    example: {
+      success: true,
+      data: { message: 'Notification supprimée' },
+      error: null,
+      meta: { timestamp: '2026-04-09T00:00:00.000Z', version: 'v1' },
+    },
+  })
+  delete(
+    @CurrentUser('id') userId: string,
+    @Param('id') notificationId: string,
+  ) {
+    return this.notificationsService.delete(userId, notificationId);
   }
 }
