@@ -4,7 +4,7 @@
 # Services Docker :  API + worker vidéo + PostgreSQL + Redis + MinIO + Adminer
 # Web Next.js     :  lancé LOCALEMENT → cd apps/web && npm run dev  (port 3001)
 #
-# Démarrage : make dev-up   (ou docker compose -f docker-compose.dev.yml up -d)
+# Démarrage : make dev-up   (ou docker compose -f apps/api/docker-compose.dev.yml up -d)
 # =============================================================================
 
 services:
@@ -13,12 +13,12 @@ services:
   api:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: Dockerfile
       target: development
     container_name: ivod-api-dev
     # Clés Paystack, SMTP détaillé, etc. — lus depuis apps/api/.env (pas le .env racine)
     env_file:
-      - ./apps/api/.env
+      - .env
     ports:
       - "${API_PORT:-3000}:3000"
     environment:
@@ -37,7 +37,7 @@ services:
       MINIO_USE_SSL: "false"
       MINIO_BUCKET_VIDEOS: ${MINIO_BUCKET_VIDEOS:-ivod-videos}
       MINIO_BUCKET_ASSETS: ${MINIO_BUCKET_ASSETS:-ivod-assets}
-      # JWT, FRONTEND_URL, CORS, MAIL, Paystack → apps/api/.env (env_file)
+      # JWT, FRONTEND_URL, CORS, MAIL, Paystack → .env (env_file)
       # Polling chokidar — nécessaire pour que nest --watch détecte les
       # changements de fichiers via les volumes Docker sur macOS/Windows
       CHOKIDAR_USEPOLLING: "true"
@@ -52,10 +52,10 @@ services:
       VIDEO_FAST_MODE: ${VIDEO_FAST_MODE:-false}
       VIDEO_SINGLE_PASS_LADDER: ${VIDEO_SINGLE_PASS_LADDER:-true}
     volumes:
-      - ./apps/api/src:/app/src
-      - ./apps/api/prisma:/app/prisma
+      - ./src:/app/src
+      - ./prisma:/app/prisma
       # Client Prisma généré — monté pour que l'IDE local voie les types sans npm install
-      - ./apps/api/node_modules/.prisma/client:/app/node_modules/.prisma/client
+      - ./node_modules/.prisma/client:/app/node_modules/.prisma/client
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,7 +71,7 @@ services:
   video-worker:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: Dockerfile
       target: development
     container_name: ivod-video-worker-dev
     environment:
@@ -103,8 +103,8 @@ services:
       # VIDEO_HW_ACCEL=videotoolbox  # Mac hors Docker uniquement
     entrypoint: ["./docker-entrypoint-worker.sh"]
     volumes:
-      - ./apps/api/src:/app/src
-      - ./apps/api/prisma:/app/prisma
+      - ./src:/app/src
+      - ./prisma:/app/prisma
     depends_on:
       postgres:
         condition: service_healthy

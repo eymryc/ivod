@@ -280,7 +280,10 @@ export class VideosService {
       throw new BadRequestException({ code: 'ASSET_003', message: 'Chemin média invalide' });
     }
     const exists = await this.minio.exists(this.minio.bucketVideos, key);
-    if (!exists) throw new NotFoundException({ code: 'ASSET_002', message: 'Fichier introuvable' });
+    if (!exists) {
+      this.logger.warn(`Media introuvable episode=${episodeId} key=${key}`);
+      throw new NotFoundException({ code: 'ASSET_002', message: 'Fichier introuvable' });
+    }
 
     if (key.endsWith('.m3u8')) {
       let buffer = await this.minio.getObjectBuffer(this.minio.bucketVideos, key);
@@ -308,6 +311,7 @@ export class VideosService {
     const stat = await this.minio.statObject(bucket, key);
     const size = stat.size;
     const contentType = this.contentTypeForKey(key);
+    const isSegment = key.endsWith('.ts') || key.endsWith('.m4s') || key.endsWith('.vtt');
     const cacheControl = key.endsWith('.ts')
       ? 'public, max-age=31536000, immutable'
       : 'private, max-age=3600';
@@ -317,7 +321,9 @@ export class VideosService {
     res.setHeader('Accept-Ranges', 'bytes');
 
     const range = req?.headers?.range;
-    if (typeof range === 'string' && range.startsWith('bytes=') && size > 0) {
+    // Segments HLS : certains clients envoient des Range peu compatibles avec MinIO/proxy.
+    // Les segments sont petits → streamer l'objet complet est plus robuste.
+    if (!isSegment && typeof range === 'string' && range.startsWith('bytes=') && size > 0) {
       const match = range.match(/bytes=(\d*)-(\d*)/);
       if (match) {
         const start = match[1] ? parseInt(match[1], 10) : 0;

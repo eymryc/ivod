@@ -98,6 +98,54 @@ Objectif : **solution maison durable** (ingest → encode → package → delive
 | `VIDEO_FAST_MODE` | Tests rapides |
 | `VIDEO_DEV_PROFILES` | Allowlist manuelle profils |
 
+## Recommandations prod (VPS CPU Intel)
+
+Le transcodage HLS est **CPU-bound** sans GPU (NVENC/VAAPI). Sur VPS Intel “CPU only”, la stratégie optimale est :
+
+- **Conserver `VIDEO_TWO_PHASE=true`** : une preview 720p rend la lecture disponible (`READY_PREVIEW`) avant le ladder complet.
+- **Séparer API et `video-worker`** (idéal) : éviter qu’un transcode saturant dégrade la latence API.
+- **Ne pas “sur-paralléliser”** : chaque `ffmpeg` utilise plusieurs threads (`-threads 0`). Monter trop haut `VIDEO_CPU_PARALLEL` peut *ralentir* le total (oversubscription).
+
+### Tailles de VPS recommandées
+
+- **Minimum viable (démarrage)** : 8 vCPU Intel / 16 GB RAM / NVMe
+- **Recommandé (prod stable)** : 16 vCPU Intel / 32 GB RAM / NVMe
+- **Débit élevé** : 32 vCPU Intel / 64 GB RAM / NVMe
+
+### Réglages conseillés (`video-worker`)
+
+#### 8 vCPU / 16 GB (minimum)
+
+```env
+VIDEO_WORKER_CONCURRENCY=1
+VIDEO_CPU_PARALLEL=2
+VIDEO_TWO_PHASE=true
+VIDEO_SINGLE_PASS_LADDER=true
+```
+
+#### 16 vCPU / 32 GB (recommandé)
+
+```env
+VIDEO_WORKER_CONCURRENCY=1
+VIDEO_CPU_PARALLEL=3
+VIDEO_TWO_PHASE=true
+VIDEO_SINGLE_PASS_LADDER=true
+```
+
+#### 32 vCPU / 64 GB (débit élevé)
+
+```env
+VIDEO_WORKER_CONCURRENCY=2
+VIDEO_CPU_PARALLEL=2
+VIDEO_TWO_PHASE=true
+VIDEO_SINGLE_PASS_LADDER=true
+```
+
+### Notes importantes
+
+- `VIDEO_CPU_PARALLEL` n’accélère pas `TRANSCODE_PREVIEW` (un seul profil) ; il joue surtout sur le fallback séquentiel (multi-profils).
+- La reprise après crash/redémarrage est gérée par BullMQ (attempts/backoff + lock/renew). Les jobs sont retentés jusqu’à `attempts=3` par défaut.
+
 ## Endpoints clés
 
 | Méthode | Route | Description |

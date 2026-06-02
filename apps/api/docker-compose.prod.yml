@@ -1,12 +1,13 @@
 # =============================================================================
-# IVOD — Environnement de production
+# IVOD — API en production
 #
 # Prérequis sur le serveur :
-#   cp apps/api/.env.example apps/api/.env   # puis remplir avec les vraies valeurs
-#   cp .env.example .env                     # postgres / redis / minio credentials
+#   cp .env.example .env   # puis remplir avec les vraies valeurs
 #
-# Variables injectées depuis le .env racine : POSTGRES_*, MINIO_ROOT_*, ports
-# Variables sensibles (JWT, Paystack, SMTP…) : dans apps/api/.env (non committé)
+# Variables injectées depuis .env : POSTGRES_*, MINIO_ROOT_*, ports
+# Variables sensibles (JWT, Paystack, SMTP…) : dans .env (non committé)
+#
+# Démarrage : make prod-up   (ou docker compose -f apps/api/docker-compose.prod.yml up -d)
 # =============================================================================
 
 services:
@@ -15,18 +16,18 @@ services:
   api:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: Dockerfile
       target: production
     container_name: ivod-api-prod
     env_file:
-      - ./apps/api/.env
+      - .env
     ports:
       - "${API_PORT:-3000}:3000"
     environment:
       NODE_ENV: production
       PORT: 3000
       IVOD_APP_MODE: api
-      # Surcharge des hostnames Docker (remplace localhost de apps/api/.env)
+      # Surcharge des hostnames Docker (remplace localhost du .env)
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ivod}?schema=public
       REDIS_URL: redis://redis:6379
       MINIO_ENDPOINT: minio
@@ -57,12 +58,12 @@ services:
   video-worker:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: Dockerfile
       target: production
     container_name: ivod-video-worker-prod
     entrypoint: ["./docker-entrypoint-worker-prod.sh"]
     env_file:
-      - ./apps/api/.env
+      - .env
     environment:
       NODE_ENV: production
       IVOD_APP_MODE: worker
@@ -75,7 +76,7 @@ services:
       MINIO_USE_SSL: "false"
       MINIO_BUCKET_VIDEOS: ${MINIO_BUCKET_VIDEOS:-ivod-videos}
       MINIO_BUCKET_ASSETS: ${MINIO_BUCKET_ASSETS:-ivod-assets}
-      # Pipeline vidéo — surcharger au besoin dans .env racine
+      # Pipeline vidéo — surcharger au besoin dans .env
       VIDEO_TWO_PHASE: ${VIDEO_TWO_PHASE:-true}
       VIDEO_CPU_PARALLEL: ${VIDEO_CPU_PARALLEL:-2}
       VIDEO_WORKER_CONCURRENCY: ${VIDEO_WORKER_CONCURRENCY:-1}
@@ -101,36 +102,6 @@ services:
     networks:
       - ivod-prod
     restart: unless-stopped
-
-  # ─── Web Service (Next.js) ───────────────────────────────────────────────────
-  web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      target: runner
-      args:
-        # Baked dans le bundle JS au build — doit pointer vers l'URL publique de l'API
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-    container_name: ivod-web-prod
-    ports:
-      - "${WEB_PORT:-3001}:3001"
-    environment:
-      NODE_ENV: production
-      NEXT_TELEMETRY_DISABLED: "1"
-      # Rewrite serveur interne → API Docker (jamais localhost ici)
-      API_REWRITE_ORIGIN: http://api:3000
-    depends_on:
-      api:
-        condition: service_healthy
-    networks:
-      - ivod-prod
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
   # ─── PostgreSQL ───────────────────────────────────────────────────────────────
   postgres:
