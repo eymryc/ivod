@@ -1,10 +1,21 @@
 {
-  "compilerOptions": {},
   "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "module": "esnext",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "src/*"
+      ]
+    }
+  },
   "include": [
     "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "**/*.tsx"
+  ],
+  "exclude": [
+    ".expo",
+    "node_modules"
   ]
 }

@@ -1,329 +1,487 @@
-import {
-  Injectable, NotFoundException, BadRequestException, ForbiddenException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import Stripe from 'stripe';
-import axios from 'axios';
+import { Injectable, BadRequestException, Logger, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CheckoutCinetpayDto, CheckoutStripeDto } from './dto/subscriptions.dto';
-
-const PLANS = {
-  PREMIUM: { amount: 1000, label: 'iVOD Premium' },
-  PREMIUM_PLUS: { amount: 2000, label: 'iVOD Premium+' },
-};
+import { CreateSubscriptionDto, CancelSubscriptionDto } from './dto/subscriptions.dto';
+import { NotificationType } from '@/common/types';
+import { NotificationsService } from '../notifications/notifications.service';
+import { MailService } from '../mail/mail.service';
+import { isPaidSvodPlan } from '../../common/constants/plans';
+import { PaymentsService } from '../payments/payments.service';
 
 @Injectable()
 export class SubscriptionsService {
-  private stripe: Stripe;
+  private readonly logger = new Logger(SubscriptionsService.name);
 
-  constructor(private prisma: PrismaService, private config: ConfigService) {
-    this.stripe = new Stripe(this.config.get('STRIPE_SECRET_KEY')!, {
-      apiVersion: '2024-04-10' as any,
-    });
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+    private mail: MailService,
+    private paymentsService: PaymentsService,
+  ) {}
+
+  // ── Helpers référentiels ────────────────────────────────────────────────────
+
+  private async requirePlan(code: string) {
+    const plan = await this.prisma.refUserPlan.findUnique({ where: { code } });
+    if (!plan) throw new NotFoundException({ code: 'PLAN_001', message: `Plan inconnu: ${code}` });
+    return plan;
   }
 
-  private async getSubscriptionStatusId(code: string) {
-    const ref = await this.prisma.subscriptionStatusRef.findUnique({ where: { code } });
-    if (!ref) throw new BadRequestException({ code: 'REF_001', message: `Status inconnu: ${code}` });
-    return ref.id;
+  private async requireProvider(code: string) {
+    const provider = await this.prisma.refPaymentProvider.findUnique({ where: { code } });
+    if (!provider || !provider.isActive) throw new NotFoundException({ code: 'PROVIDER_001', message: `Fournisseur inconnu ou inactif: ${code}` });
+    return provider;
   }
 
-  private async getPaymentStatusId(code: string) {
-    const ref = await this.prisma.paymentStatusRef.findUnique({ where: { code } });
-    if (!ref) throw new BadRequestException({ code: 'REF_001', message: `Status paiement inconnu: ${code}` });
-    return ref.id;
+  private async requireStatus(code: string) {
+    const status = await this.prisma.refSubscriptionStatus.findUnique({ where: { code } });
+    if (!status) throw new NotFoundException({ code: 'STATUS_001', message: `Statut inconnu: ${code}` });
+    return status;
   }
 
-  private async getPaymentProviderId(code: string) {
-    const ref = await this.prisma.paymentProviderRef.findUnique({ where: { code } });
-    if (!ref) throw new BadRequestException({ code: 'REF_001', message: `Provider inconnu: ${code}` });
-    return ref.id;
+  private async requirePaymentStatus(code: string) {
+    const status = await this.prisma.refPaymentStatus.findUnique({ where: { code } });
+    if (!status) throw new NotFoundException({ code: 'STATUS_001', message: `Statut paiement inconnu: ${code}` });
+    return status;
   }
 
-  // ── CinetPay ──────────────────────────────────────────────────────────────
+  // ── Abonnement actif ────────────────────────────────────────────────────────
 
-  async checkoutCinetpay(userId: string, dto: CheckoutCinetpayDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException({ code: 'USER_001', message: 'Utilisateur introuvable' });
-
-    const plan = PLANS[dto.plan];
-    const transactionId = `ivod_${userId}_${Date.now()}`;
-
-    const pendingStatusId = await this.getPaymentStatusId('PENDING');
-    const cinetpayProviderId = await this.getPaymentProviderId('CINETPAY');
-
-    // Créer un paiement pending
-    await this.prisma.payment.create({
-      data: {
-        userId,
-        amount: plan.amount,
-        currency: 'XOF',
-        statusId: pendingStatusId,
-        providerId: cinetpayProviderId,
-        transactionId,
-        metadata: { plan: dto.plan },
+  async getActive(userId: string) {
+    const sub = await this.prisma.userSubscription.findFirst({
+      where: { userId, status: { code: 'ACTIVE' } },
+      orderBy: { currentPeriodEnd: 'desc' },
+      include: {
+        plan: {
+          select: {
+            code: true,
+            label: true,
+            tagline: true,
+            priceFcfaMonthly: true,
+            billingDays: true,
+            maxScreens: true,
+            videoQuality: true,
+            hasAds: true,
+            hasExclusiveAccess: true,
+            maxOfflineDownloads: true,
+          },
+        },
+        status: { select: { code: true, label: true } },
+        provider: { select: { code: true, label: true } },
       },
     });
 
-    const response = await axios.post('https://api-checkout.cinetpay.com/v2/payment', {
-      apikey: this.config.get('CINETPAY_API_KEY'),
-      site_id: this.config.get('CINETPAY_SITE_ID'),
-      transaction_id: transactionId,
-      amount: plan.amount,
-      currency: 'XOF',
-      description: `Abonnement ${plan.label}`,
-      return_url: dto.returnUrl,
-      notify_url: dto.notifyUrl,
-      customer_email: user.email,
-      customer_name: user.name,
-      channels: 'ALL',
-      lang: 'FR',
-    });
-
-    if (response.data.code !== '201') {
-      throw new BadRequestException({ code: 'PAYMENT_FAILED', message: 'Erreur lors de la création du paiement' });
-    }
+    if (!sub) return { hasActiveSubscription: false, plan: 'FREE' };
 
     return {
-      paymentUrl: response.data.data.payment_url,
-      transactionId,
-      amount: plan.amount,
-      currency: 'XOF',
-      plan: dto.plan,
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      hasActiveSubscription: true,
+      id: sub.id,
+      plan: sub.plan.code,
+      planDetails: sub.plan,
+      status: sub.status.code,
+      provider: sub.provider.code,
+      currentPeriodStart: sub.currentPeriodStart,
+      currentPeriodEnd: sub.currentPeriodEnd,
+      cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+      daysRemaining: Math.max(0, Math.ceil((sub.currentPeriodEnd.getTime() - Date.now()) / 86400000)),
     };
   }
 
-  async handleCinetpayWebhook(body: any) {
-    const { cpm_trans_id } = body;
-
-    const payment = await this.prisma.payment.findUnique({
-      where: { transactionId: cpm_trans_id },
-    });
-    if (!payment) return;
-
-    // Vérifier le statut réel auprès de CinetPay (ne jamais faire confiance au body du webhook)
-    const verification = await axios.post('https://api-checkout.cinetpay.com/v2/payment/check', {
-      apikey: this.config.get('CINETPAY_API_KEY'),
-      site_id: this.config.get('CINETPAY_SITE_ID'),
-      transaction_id: cpm_trans_id,
-    });
-
-    const verifiedStatus = verification.data?.data?.status;
-    const verifiedAmount = Number(verification.data?.data?.amount);
-
-    if (verifiedStatus === 'ACCEPTED' && verifiedAmount === payment.amount) {
-      const succeededStatusId = await this.getPaymentStatusId('SUCCEEDED');
-      await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: { statusId: succeededStatusId, paidAt: new Date() },
-      });
-
-      const plan = (payment.metadata as any)?.plan as 'PREMIUM' | 'PREMIUM_PLUS';
-      const planRef = await this.prisma.userPlanRef.findUnique({ where: { code: plan } });
-      if (!planRef) throw new BadRequestException({ code: 'PLAN_001', message: 'Plan invalide' });
-      const activeSubStatusId = await this.getSubscriptionStatusId('ACTIVE');
-      const cinetpayProviderId = await this.getPaymentProviderId('CINETPAY');
-      const now = new Date();
-
-      // Prolonger l'abonnement existant ou en créer un nouveau
-      const existingSub = await this.prisma.subscription.findFirst({
-        where: { userId: payment.userId, status: { code: 'ACTIVE' } },
-      });
-
-      const periodStart = existingSub && existingSub.currentPeriodEnd > now
-        ? existingSub.currentPeriodEnd
-        : now;
-      const periodEnd = new Date(periodStart);
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-      if (existingSub) {
-        await this.prisma.subscription.update({
-          where: { id: existingSub.id },
-          data: {
-            planId: planRef.id,
-            statusId: activeSubStatusId,
-            providerId: cinetpayProviderId,
-            currentPeriodEnd: periodEnd,
-            payments: { connect: { id: payment.id } },
-          },
-        });
-      } else {
-        await this.prisma.subscription.create({
-          data: {
-            userId: payment.userId,
-            planId: planRef.id,
-            statusId: activeSubStatusId,
-            providerId: cinetpayProviderId,
-            currentPeriodStart: now,
-            currentPeriodEnd: periodEnd,
-            payments: { connect: { id: payment.id } },
-          },
-        });
-      }
-    } else if (verifiedStatus === 'REFUSED' || verifiedStatus === 'CANCELLED') {
-      const failedStatusId = await this.getPaymentStatusId('FAILED');
-      await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: { statusId: failedStatusId },
-      });
-    }
-    // Si le statut est PENDING on ignore — CinetPay renverra un webhook
-  }
-
-  // ── Stripe ─────────────────────────────────────────────────────────────────
-
-  async checkoutStripe(userId: string, dto: CheckoutStripeDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException({ code: 'USER_001', message: 'Utilisateur introuvable' });
-
-    const priceId = dto.plan === 'PREMIUM'
-      ? this.config.get('STRIPE_PRICE_PREMIUM')!
-      : this.config.get('STRIPE_PRICE_PREMIUM_PLUS')!;
-
-    const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      customer_email: user.email,
-      line_items: [{ price: priceId, quantity: 1 }],
-      mode: 'subscription',
-      success_url: dto.successUrl,
-      cancel_url: dto.cancelUrl,
-      metadata: { userId, plan: dto.plan },
-      locale: 'fr',
-    });
-
-    return { paymentUrl: session.url, sessionId: session.id };
-  }
-
-  async handleStripeWebhook(payload: Buffer, sig: string) {
-    const secret = this.config.get('STRIPE_WEBHOOK_SECRET')!;
-    let event: Stripe.Event;
-
-    try {
-      event = this.stripe.webhooks.constructEvent(payload, sig, secret);
-    } catch {
-      throw new BadRequestException('Signature webhook invalide');
-    }
-
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.metadata?.userId!;
-      const plan = session.metadata?.plan as 'PREMIUM' | 'PREMIUM_PLUS';
-      const planRef = await this.prisma.userPlanRef.findUnique({ where: { code: plan } });
-      if (!planRef) throw new BadRequestException({ code: 'PLAN_001', message: 'Plan invalide' });
-      const succeededStatusId = await this.getPaymentStatusId('SUCCEEDED');
-      const stripeProviderId = await this.getPaymentProviderId('STRIPE');
-      const activeSubStatusId = await this.getSubscriptionStatusId('ACTIVE');
-
-      const now = new Date();
-
-      await this.prisma.payment.create({
-        data: {
-          userId,
-          amount: plan === 'PREMIUM' ? 1000 : 2000,
-          currency: 'XOF',
-          statusId: succeededStatusId,
-          providerId: stripeProviderId,
-          transactionId: session.id,
-          paidAt: new Date(),
-          metadata: { plan, stripeSessionId: session.id },
-        },
-      });
-
-      // Prolonger ou créer
-      const existingSub = await this.prisma.subscription.findFirst({
-        where: { userId, status: { code: 'ACTIVE' } },
-      });
-
-      const periodStart = existingSub && existingSub.currentPeriodEnd > now
-        ? existingSub.currentPeriodEnd
-        : now;
-      const periodEnd = new Date(periodStart);
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-      if (existingSub) {
-        await this.prisma.subscription.update({
-          where: { id: existingSub.id },
-          data: {
-            planId: planRef.id,
-            statusId: activeSubStatusId,
-            providerId: stripeProviderId,
-            externalId: session.subscription as string,
-            currentPeriodEnd: periodEnd,
-          },
-        });
-      } else {
-        await this.prisma.subscription.create({
-          data: {
-            userId,
-            planId: planRef.id,
-            statusId: activeSubStatusId,
-            providerId: stripeProviderId,
-            externalId: session.subscription as string,
-            currentPeriodStart: now,
-            currentPeriodEnd: periodEnd,
-          },
-        });
-      }
-    }
-
-    if (event.type === 'customer.subscription.deleted') {
-      const sub = event.data.object as Stripe.Subscription;
-      const cancelledStatusId = await this.getSubscriptionStatusId('CANCELLED');
-      await this.prisma.subscription.updateMany({
-        where: { externalId: sub.id },
-        data: { statusId: cancelledStatusId, cancelAtPeriodEnd: true },
-      });
-    }
-  }
-
-  // ── Consultation ──────────────────────────────────────────────────────────
-
-  async getMySubscription(userId: string) {
-    const sub = await this.prisma.subscription.findFirst({
-      where: { userId, status: { code: 'ACTIVE' } },
+  async getHistory(userId: string) {
+    const subs = await this.prisma.userSubscription.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
-      include: { plan: { select: { code: true } }, status: { select: { code: true } } },
+      include: {
+        plan: { select: { code: true, label: true, priceFcfaMonthly: true } },
+        status: { select: { code: true } },
+        provider: { select: { code: true, label: true } },
+        payments: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { amount: true, currency: true, paidAt: true, status: { select: { code: true } } },
+        },
+      },
     });
-
-    const payments = await this.prisma.payment.findMany({
-      where: { userId, status: { code: 'SUCCEEDED' } },
-      orderBy: { paidAt: 'desc' },
-      take: 10,
-      include: { status: { select: { code: true } }, provider: { select: { code: true } } },
-    });
-
-    const renewsIn = sub
-      ? Math.ceil((sub.currentPeriodEnd.getTime() - Date.now()) / 86400000)
-      : 0;
-
-    if (!sub) return null;
-    const { plan, status, ...rest } = sub as any;
-    const paymentHistory = payments.map((p: any) => {
-      const { status: payStatus, provider: payProvider, ...pr } = p;
-      return { ...pr, status: payStatus?.code, provider: payProvider?.code };
-    });
-    return { ...rest, plan: plan?.code ?? 'FREE', status: status?.code, renewsIn, paymentHistory };
+    return subs;
   }
 
-  async cancel(userId: string) {
-    const sub = await this.prisma.subscription.findFirst({
-      where: { userId, status: { code: 'ACTIVE' } },
-    });
-    if (!sub) throw new NotFoundException({ code: 'SUB_001', message: 'Aucun abonnement actif' });
+  // ── Créer un abonnement ─────────────────────────────────────────────────────
 
-    const provider = await this.prisma.paymentProviderRef.findUnique({ where: { id: sub.providerId } });
-    if (sub.externalId && provider?.code === 'STRIPE') {
-      await this.stripe.subscriptions.update(sub.externalId, {
-        cancel_at_period_end: true,
+  async subscribe(userId: string, dto: CreateSubscriptionDto) {
+    const plan = await this.requirePlan(dto.planCode);
+
+    const existingActive = await this.prisma.userSubscription.findFirst({
+      where: { userId, status: { code: 'ACTIVE' }, plan: { code: { not: 'FREE' } } },
+      include: { plan: { select: { code: true, label: true } } },
+    });
+    if (existingActive) {
+      if (existingActive.plan.code === plan.code) {
+        return {
+          message: 'Abonnement déjà actif',
+          subscriptionId: existingActive.id,
+          plan: plan.code,
+          status: 'ACTIVE',
+          paymentPending: false,
+          alreadyActive: true,
+        };
+      }
+      throw new ConflictException({
+        code: 'SUB_001',
+        message: "Un abonnement actif existe déjà. Annulez-le avant d'en créer un nouveau.",
       });
     }
 
-    await this.prisma.subscription.update({
-      where: { id: sub.id },
-      data: { cancelAtPeriodEnd: true },
+    const pendingTrial = await this.prisma.userSubscription.findFirst({
+      where: { userId, status: { code: 'TRIAL' }, planId: plan.id },
+      include: {
+        plan: { select: { code: true, label: true, priceFcfaMonthly: true } },
+        payments: {
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+          include: { status: { select: { code: true } } },
+        },
+      },
     });
 
-    return { message: 'Abonnement annulé en fin de période', cancelAtPeriodEnd: true };
+    if (pendingTrial?.payments?.length) {
+      const completedPay = pendingTrial.payments.find((p) => p.status.code === 'COMPLETED');
+      if (completedPay) {
+        const genuinelyPaid = await this.paymentsService.isGenuineCompletedPayment(completedPay.id);
+        if (genuinelyPaid) {
+          const activeStatus = await this.requireStatus('ACTIVE');
+          const now = new Date();
+          const days = plan.billingDays > 0 ? plan.billingDays : 30;
+          const periodEnd = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+          await this.prisma.userSubscription.update({
+            where: { id: pendingTrial.id },
+            data: {
+              statusId: activeStatus.id,
+              currentPeriodStart: now,
+              currentPeriodEnd: periodEnd,
+            },
+          });
+          return {
+            message: 'Paiement déjà confirmé — abonnement activé',
+            subscriptionId: pendingTrial.id,
+            plan: plan.code,
+            status: 'ACTIVE',
+            paymentPending: false,
+            alreadyCompleted: true,
+          };
+        }
+      }
+
+      const pendingPay = pendingTrial.payments.find((p) => p.status.code === 'PENDING');
+      if (pendingPay) {
+        const checkout = await this.paymentsService.resumeCheckout(userId, pendingPay.id, {
+          email: dto.email,
+          phoneNumber: dto.phoneNumber,
+        });
+        if (checkout.alreadyCompleted) {
+          const activeStatus = await this.requireStatus('ACTIVE');
+          const now = new Date();
+          const days = plan.billingDays > 0 ? plan.billingDays : 30;
+          const periodEnd = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+          await this.prisma.userSubscription.update({
+            where: { id: pendingTrial.id },
+            data: {
+              statusId: activeStatus.id,
+              currentPeriodStart: now,
+              currentPeriodEnd: periodEnd,
+            },
+          });
+          return {
+            message: 'Paiement déjà confirmé — abonnement activé',
+            subscriptionId: pendingTrial.id,
+            plan: plan.code,
+            status: 'ACTIVE',
+            paymentPending: false,
+            alreadyCompleted: true,
+          };
+        }
+        return {
+          message: 'Reprise du paiement en cours',
+          subscriptionId: pendingTrial.id,
+          plan: plan.code,
+          status: 'PENDING_PAYMENT',
+          paymentPending: true,
+          payment: {
+            id: checkout.paymentId,
+            redirectUrl: checkout.redirectUrl,
+            reference: checkout.reference,
+          },
+          instructions: this.getPaymentInstructions(
+            dto.providerCode.toUpperCase() === 'PAYSTACK' ? 'PAYSTACK' : dto.providerCode,
+            dto.phoneNumber,
+            plan.priceFcfaMonthly,
+          ),
+          simulationMode: checkout.simulationMode === true,
+        };
+      }
+
+      const providerCode = dto.providerCode.toUpperCase() === 'PAYSTACK' ? 'PAYSTACK' : dto.providerCode;
+      const checkout = await this.paymentsService.initiatePayment(userId, {
+        providerCode,
+        amount: plan.priceFcfaMonthly,
+        email: dto.email,
+        phoneNumber: dto.phoneNumber,
+        planCode: plan.code,
+        userSubscriptionId: pendingTrial.id,
+      });
+      return {
+        message: checkout.simulationMode
+          ? 'Mode simulation — aucun débit réel'
+          : 'Redirection vers le paiement sécurisé Paystack',
+        subscriptionId: pendingTrial.id,
+        plan: plan.code,
+        status: 'PENDING_PAYMENT',
+        paymentPending: true,
+        payment: {
+          id: checkout.paymentId,
+          redirectUrl: checkout.redirectUrl,
+          reference: checkout.reference,
+        },
+        simulationMode: checkout.simulationMode === true,
+        instructions: this.getPaymentInstructions(providerCode, dto.phoneNumber, plan.priceFcfaMonthly),
+      };
+    }
+
+    const otherTrial = await this.prisma.userSubscription.findFirst({
+      where: { userId, status: { code: 'TRIAL' }, planId: { not: plan.id } },
+    });
+    if (otherTrial) {
+      const cancelledStatus = await this.requireStatus('CANCELLED');
+      await this.prisma.userSubscription.update({
+        where: { id: otherTrial.id },
+        data: { statusId: cancelledStatus.id },
+      });
+    }
+
+    const [provider, trialStatus] = await Promise.all([
+      this.requireProvider(dto.providerCode),
+      this.requireStatus('TRIAL'),
+    ]);
+
+    if (plan.code === 'FREE') {
+      throw new BadRequestException({
+        code: 'SUB_002',
+        message: 'Le plan gratuit ne nécessite pas de souscription explicite.',
+      });
+    }
+
+    const now = new Date();
+    const days = plan.billingDays > 0 ? plan.billingDays : 30;
+    const periodEnd = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+    const sub = await this.prisma.userSubscription.create({
+      data: {
+        userId,
+        planId: plan.id,
+        statusId: trialStatus.id,
+        providerId: provider.id,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+    });
+
+    const providerCode = dto.providerCode.toUpperCase() === 'PAYSTACK' ? 'PAYSTACK' : dto.providerCode;
+
+    const checkout = await this.paymentsService.initiatePayment(userId, {
+      providerCode,
+      amount: plan.priceFcfaMonthly,
+      email: dto.email,
+      phoneNumber: dto.phoneNumber,
+      planCode: plan.code,
+      userSubscriptionId: sub.id,
+    });
+
+    return {
+      message: checkout.simulationMode
+        ? 'Mode simulation — aucun débit réel'
+        : 'Redirection vers le paiement sécurisé Paystack',
+      subscriptionId: sub.id,
+      plan: plan.code,
+      status: 'PENDING_PAYMENT',
+      paymentPending: true,
+      payment: {
+        id: checkout.paymentId,
+        redirectUrl: checkout.redirectUrl,
+        reference: checkout.reference,
+      },
+      simulationMode: checkout.simulationMode === true,
+      instructions: this.getPaymentInstructions(providerCode, dto.phoneNumber, plan.priceFcfaMonthly),
+    };
+  }
+
+  // ── Annuler ─────────────────────────────────────────────────────────────────
+
+  async cancel(userId: string, subscriptionId: string, dto: CancelSubscriptionDto) {
+    const sub = await this.prisma.userSubscription.findFirst({
+      where: { id: subscriptionId, userId },
+      include: { status: { select: { code: true } }, plan: { select: { code: true, label: true } } },
+    });
+    if (!sub) throw new NotFoundException({ code: 'SUB_003', message: 'Abonnement introuvable' });
+    if (sub.status.code !== 'ACTIVE') throw new BadRequestException({ code: 'SUB_004', message: 'Seul un abonnement actif peut être annulé' });
+
+    const atPeriodEnd = dto.atPeriodEnd !== false; // défaut: true
+
+    if (atPeriodEnd) {
+      await this.prisma.userSubscription.update({
+        where: { id: subscriptionId },
+        data: { cancelAtPeriodEnd: true },
+      });
+      const cancelUser = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, firstName: true },
+      });
+      if (cancelUser?.email) {
+        this.mail.sendSubscriptionCancelledEmail({
+          to: cancelUser.email,
+          firstName: cancelUser.firstName ?? cancelUser.email,
+          planLabel: sub.plan.label,
+          cancelAtPeriodEnd: true,
+          periodEnd: sub.currentPeriodEnd,
+        }).catch((err: Error) => this.logger.error('Erreur email annulation abonnement', err.message));
+      }
+      return { message: `Abonnement annulé à la fin de la période (${sub.currentPeriodEnd.toLocaleDateString('fr-FR')})`, cancelAtPeriodEnd: true };
+    }
+
+    const cancelledStatus = await this.requireStatus('CANCELLED');
+    await this.prisma.userSubscription.update({
+      where: { id: subscriptionId },
+      data: { statusId: cancelledStatus.id, cancelAtPeriodEnd: false },
+    });
+
+    await this.notifications.dispatch({
+      userId,
+      type: NotificationType.PAYMENT_CONFIRMED,
+      title: 'Abonnement annulé',
+      body: `Votre abonnement ${sub.plan.label} a été annulé immédiatement.`,
+      data: { subscriptionId: sub.id, planCode: sub.plan.code },
+    });
+
+    const cancelUserImmediate = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, firstName: true },
+    });
+    if (cancelUserImmediate?.email) {
+      this.mail.sendSubscriptionCancelledEmail({
+        to: cancelUserImmediate.email,
+        firstName: cancelUserImmediate.firstName ?? cancelUserImmediate.email,
+        planLabel: sub.plan.label,
+        cancelAtPeriodEnd: false,
+      }).catch((err: Error) => this.logger.error('Erreur email annulation immédiate', err.message));
+    }
+
+    return { message: 'Abonnement annulé immédiatement' };
+  }
+
+  // ── Webhook paiement Mobile Money ───────────────────────────────────────────
+
+  async confirmPayment(transactionId: string, providerCode: string, status: 'success' | 'failed', metadata?: any) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { metadata: { path: ['providerCode'], equals: providerCode } },
+      include: {
+        userSubscription: true,
+        status: { select: { code: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!payment) return { handled: false };
+
+    const newStatusCode = status === 'success' ? 'COMPLETED' : 'FAILED';
+    const paymentStatus = await this.requirePaymentStatus(newStatusCode);
+
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        statusId: paymentStatus.id,
+        transactionId,
+        paidAt: status === 'success' ? new Date() : null,
+        metadata: { ...(payment.metadata as any), transactionId, ...metadata },
+      },
+    });
+
+    if (status === 'failed' && payment.userSubscriptionId) {
+      const failedStatus = await this.requireStatus('CANCELLED');
+      await this.prisma.userSubscription.update({
+        where: { id: payment.userSubscriptionId },
+        data: { statusId: failedStatus.id },
+      });
+    }
+
+    return { handled: true, paymentId: payment.id, status: newStatusCode };
+  }
+
+  // ── Plans disponibles ───────────────────────────────────────────────────────
+
+  async listPlans(includeFree = false) {
+    const where: any = { isActive: true, showInStore: true };
+    if (!includeFree) where.code = { not: 'FREE' };
+    return this.prisma.refUserPlan.findMany({
+      where,
+      orderBy: [{ sortOrder: 'asc' }, { priceFcfaMonthly: 'asc' }],
+      select: {
+        code: true,
+        label: true,
+        tagline: true,
+        priceFcfaMonthly: true,
+        billingDays: true,
+        maxScreens: true,
+        videoQuality: true,
+        hasAds: true,
+        maxOfflineDownloads: true,
+        hasExclusiveAccess: true,
+      },
+    });
+  }
+
+  // ── Renouvellement automatique (appelé par cron) ────────────────────────────
+
+  async renewExpiredSubscriptions() {
+    const now = new Date();
+    const expiredSubs = await this.prisma.userSubscription.findMany({
+      where: { status: { code: 'ACTIVE' }, currentPeriodEnd: { lte: now } },
+      include: { plan: true, provider: true },
+    });
+
+    const expiredStatus = await this.requireStatus('EXPIRED');
+    const renewedCount = { expired: 0, renewedAttempts: 0 };
+
+    for (const sub of expiredSubs) {
+      if (sub.cancelAtPeriodEnd) {
+        await this.prisma.userSubscription.update({
+          where: { id: sub.id },
+          data: { statusId: expiredStatus.id },
+        });
+        renewedCount.expired++;
+      } else {
+        // Tentative de renouvellement automatique
+        renewedCount.renewedAttempts++;
+        await this.notifications.dispatch({
+          userId: sub.userId,
+          type: NotificationType.SUB_EXPIRING,
+          title: 'Renouvellement en cours',
+          body: `Votre abonnement ${sub.plan.label} est en cours de renouvellement.`,
+          data: { subscriptionId: sub.id, planCode: sub.plan.code },
+        });
+      }
+    }
+
+    return renewedCount;
+  }
+
+  // ── Instructions paiement ───────────────────────────────────────────────────
+
+  private getPaymentInstructions(providerCode: string, phone?: string, amount?: number): string {
+    const map: Record<string, string> = {
+      PAYSTACK: `Finalisez votre paiement de ${amount ?? '...'} FCFA sur la page sécurisée Paystack (carte, Mobile Money, virement).`,
+      ORANGE_MONEY: `Composez #144# ou utilisez l'app Orange Money pour payer ${amount ?? '...'} FCFA.`,
+      WAVE: `Ouvrez l'app Wave et envoyez ${amount ?? '...'} FCFA au marchand IVOD.`,
+      MTN_MONEY: `Composez *133# pour payer ${amount ?? '...'} FCFA.`,
+      MOOV_MONEY: `Composez *555# pour payer ${amount ?? '...'} FCFA.`,
+      STRIPE: 'Paiement par carte bancaire.',
+    };
+    return map[providerCode] ?? 'Suivez les instructions de votre fournisseur de paiement.';
   }
 }

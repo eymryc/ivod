@@ -6,6 +6,7 @@ export enum RightsholderTypeDto {
   PRODUCTION_COMPANY = 'PRODUCTION_COMPANY',
   DISTRIBUTOR = 'DISTRIBUTOR',
   DIRECTOR = 'DIRECTOR',
+  CO_PRODUCER = 'CO_PRODUCER',
 }
 
 export class CreateRightsholderDto {

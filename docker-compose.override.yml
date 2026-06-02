@@ -1,0 +1,40 @@
+# =============================================================================
+# Surcharges locales — chargé automatiquement par `docker compose up` (sans -f).
+# Décommentez ce dont vous avez besoin. Ne PAS commiter avec des valeurs réelles.
+# =============================================================================
+
+# services:
+
+  # ─── Port alternatif si 3000 est déjà occupé ────────────────────────────────
+  # api:
+  #   ports:
+  #     - "3002:3000"
+
+  # ─── Débogueur Node.js (VS Code / WebStorm) ─────────────────────────────────
+  # api:
+  #   ports:
+  #     - "3000:3000"
+  #     - "9229:9229"           # port debugger
+  #   command: >
+  #     sh -c "node --inspect=0.0.0.0:9229 node_modules/.bin/nest start --watch"
+
+  # ─── Logs Prisma détaillés ───────────────────────────────────────────────────
+  # api:
+  #   environment:
+  #     DEBUG: "prisma:*"
+
+  # ─── Port alternatif PostgreSQL ──────────────────────────────────────────────
+  # postgres:
+  #   ports:
+  #     - "5433:5432"
+
+  # ─── Port alternatif Redis ───────────────────────────────────────────────────
+  # redis:
+  #   ports:
+  #     - "6380:6379"
+
+  # ─── Ports alternatifs MinIO ─────────────────────────────────────────────────
+  # minio:
+  #   ports:
+  #     - "9002:9000"
+  #     - "9003:9001"

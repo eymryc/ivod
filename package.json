@@ -1,25 +1,12 @@
 {
-  "name": "ivod",
+  "name": "ivod-root",
   "version": "1.0.0",
   "private": true,
-  "packageManager": "npm@10.0.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "description": "Dépôt IVOD — chaque app est indépendante avec ses propres node_modules.",
   "scripts": {
-    "dev": "turbo run dev",
-    "dev:web-api": "turbo run dev --filter=@ivod/api --filter=@ivod/web",
-    "build": "turbo run build",
-    "lint": "turbo run lint",
-    "test": "turbo run test",
-    "clean": "turbo run clean && rm -rf node_modules"
-  },
-  "devDependencies": {
-    "turbo": "^2.0.0",
-    "typescript": "^5.4.0",
-    "prettier": "^3.2.0",
-    "eslint": "^8.57.0"
+    "api": "cd apps/api && npm run dev",
+    "web": "cd apps/web && npm run dev",
+    "mobile": "cd apps/mobile && npm run dev"
   },
   "engines": {
     "node": ">=20.0.0",

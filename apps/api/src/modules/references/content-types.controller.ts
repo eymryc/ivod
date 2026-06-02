@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 import { ContentTypesService } from './content-types.service';
 import { CreateReferenceDto, UpdateReferenceDto } from './dto/references.dto';
 
@@ -9,6 +10,7 @@ export class ContentTypesController {
   constructor(private readonly contentTypesService: ContentTypesService) {}
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'List content types' })
   list() {
     return this.contentTypesService.list();

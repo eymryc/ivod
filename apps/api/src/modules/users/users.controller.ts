@@ -1,6 +1,6 @@
-import { Controller, Get, Put, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Patch, Post, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { UpdateProfileDto } from './dto/users.dto';
+import { UpdateProfileDto, UpdateUserPreferencesDto } from './dto/users.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
@@ -70,6 +70,54 @@ export class UsersController {
     @Body() dto: UpdateProfileDto,
   ) {
     return this.usersService.updateProfile(userId, dto);
+  }
+
+  @Patch('me')
+  @ApiOperation({ summary: 'Update current user profile (partial)' })
+  @ApiBody({ type: UpdateProfileDto })
+  updateProfilePatch(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.usersService.updateProfile(userId, dto);
+  }
+
+  @Get('me/preferences')
+  @ApiOperation({ summary: 'Get current user communication preferences' })
+  getPreferences(@CurrentUser('id') userId: string) {
+    return this.usersService.getPreferences(userId);
+  }
+
+  @Patch('me/preferences')
+  @ApiOperation({ summary: 'Update current user communication preferences' })
+  @ApiBody({ type: UpdateUserPreferencesDto })
+  updatePreferences(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateUserPreferencesDto,
+  ) {
+    return this.usersService.updatePreferences(userId, dto);
+  }
+
+  @Put('me/preferences')
+  @ApiOperation({ summary: 'Update current user communication preferences (full)' })
+  @ApiBody({ type: UpdateUserPreferencesDto })
+  updatePreferencesPut(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateUserPreferencesDto,
+  ) {
+    return this.usersService.updatePreferences(userId, dto);
+  }
+
+  @Post('me/export-data')
+  @ApiOperation({ summary: 'Request GDPR data export by email' })
+  requestDataExport(@CurrentUser('id') userId: string) {
+    return this.usersService.requestDataExport(userId);
+  }
+
+  @Delete('me')
+  @ApiOperation({ summary: 'Permanently delete current user account' })
+  deleteAccount(@CurrentUser('id') userId: string) {
+    return this.usersService.deleteAccount(userId);
   }
 
   @Get('me/history')

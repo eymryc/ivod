@@ -22,6 +22,10 @@ import {
 
 const PASSWORD_SETUP_TTL_MS = 72 * 3600 * 1000;
 
+import { ContentDurationService } from '../../common/services/content-duration.service';
+import { isSeriesType } from '../../common/constants/content-types';
+import { PlaybackQoEService } from '../watch-sessions/playback-qoe.service';
+
 @Injectable()
 export class CreatorsService {
   private readonly logger = new Logger(CreatorsService.name);
@@ -30,9 +34,9 @@ export class CreatorsService {
     private prisma: PrismaService,
     private mailService: MailService,
     private config: ConfigService,
+    private readonly contentDuration: ContentDurationService,
+    private readonly playbackQoE: PlaybackQoEService,
   ) {}
-  private static readonly CREATOR_REVENUE_SHARE = 0.6;
-
   private async requireRoleId(roleCode: string) {
     const role = await this.prisma.role.findUnique({
       where: { code: roleCode },
@@ -79,8 +83,22 @@ export class CreatorsService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.creator.findMany({
         include: {
-          user: { select: { email: true, passwordHash: true } },
-          _count: { select: { contents: true } },
+          user: {
+            select: {
+              id: true,
+              email: true,
+              phone: true,
+              firstName: true,
+              lastName: true,
+              isActive: true,
+              createdAt: true,
+              passwordHash: true,
+              userRoles: {
+                include: { role: { select: { code: true, label: true } } },
+              },
+            },
+          },
+          _count: { select: { contents: true, followers: true } },
         },
         skip,
         take: limit,
@@ -88,12 +106,97 @@ export class CreatorsService {
       }),
       this.prisma.creator.count(),
     ]);
-    const items = rows.map(({ user, ...c }) => ({
+    const items = rows.map(({ user, _count, ...c }) => ({
       ...c,
-      user: user ? { email: user.email } : undefined,
+      user: user
+        ? {
+            id: user.id,
+            email: user.email,
+            phone: user.phone,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            isActive: user.isActive,
+            createdAt: user.createdAt,
+            roles: user.userRoles?.map((ur) => ur.role) ?? [],
+          }
+        : undefined,
       invitePending: !user?.passwordHash,
+      contentCount: _count?.contents ?? 0,
+      followerCount: _count?.followers ?? 0,
     }));
     return { items, total, page, limit };
+  }
+
+  async findOneForAdmin(creatorId: string) {
+    const creator = await this.prisma.creator.findUnique({
+      where: { id: creatorId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            firstName: true,
+            lastName: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true,
+            passwordHash: true,
+            mustChangePassword: true,
+            userRoles: {
+              include: { role: { select: { code: true, label: true } } },
+            },
+          },
+        },
+        contents: {
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            status: { select: { code: true, label: true } },
+            contentType: { select: { code: true, label: true } },
+            viewCount: true,
+            duration: true,
+            createdAt: true,
+            publishedAt: true,
+          },
+        },
+        _count: { select: { contents: true, followers: true } },
+      },
+    });
+    if (!creator) throw new NotFoundException({ code: 'CREATOR_001', message: 'Créateur introuvable' });
+
+    const { user, contents, _count, ...rest } = creator;
+    return {
+      ...rest,
+      invitePending: !user?.passwordHash,
+      contentCount: _count.contents,
+      followerCount: _count.followers,
+      user: user
+        ? {
+            id: user.id,
+            email: user.email,
+            phone: user.phone,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            isActive: user.isActive,
+            mustChangePassword: user.mustChangePassword,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+            roles: user.userRoles.map((ur) => ur.role),
+            hasPassword: !!user.passwordHash,
+          }
+        : null,
+      contents: contents.map((c) => ({
+        ...c,
+        status: c.status?.code,
+        statusLabel: c.status?.label,
+        contentType: c.contentType?.code,
+        contentTypeLabel: c.contentType?.label,
+      })),
+    };
   }
 
   /**
@@ -131,7 +234,7 @@ export class CreatorsService {
 
     const base = this.config.get<string>('FRONTEND_URL') ?? '';
     const front = base.replace(/\/$/, '');
-    const setupUrl = `${front}/onboarding/definir-mot-de-passe?token=${encodeURIComponent(setupTokenPlain)}`;
+    const setupUrl = `${front}/auth/setup-password?token=${encodeURIComponent(setupTokenPlain)}`;
 
     let emailSent = true;
     try {
@@ -169,10 +272,13 @@ export class CreatorsService {
           orderBy: { publishedAt: 'desc' },
           take: 12,
           select: {
-            id: true, title: true, thumbnailUrl: true,
-            category: { select: { code: true } },
+            id: true, title: true, slug: true,
             duration: true, viewCount: true,
-            visibility: true, publishedAt: true,
+            contentType: { select: { code: true } },
+            visibility: { select: { code: true } },
+            contentGenres: { include: { genre: { select: { code: true, label: true } } } },
+            mediaAssets: { where: { type: { code: 'THUMBNAIL' }, isPrimary: true }, take: 1, select: { objectKey: true } },
+            publishedAt: true,
           },
         },
         _count: { select: { contents: true } },
@@ -201,10 +307,6 @@ export class CreatorsService {
       const creator = await tx.creator.create({
         data: { userId, stageName: dto.stageName, bio: dto.bio },
       });
-      await tx.user.update({
-        where: { id: userId },
-        data: { role: 'CREATOR' },
-      });
       await this.replaceUserRbacRoleTx(tx, userId, creatorRoleId);
       return creator;
     });
@@ -222,10 +324,6 @@ export class CreatorsService {
     return this.prisma.$transaction(async (tx) => {
       const creator = await tx.creator.create({
         data: { userId: dto.userId, stageName: dto.stageName, bio: dto.bio },
-      });
-      await tx.user.update({
-        where: { id: dto.userId },
-        data: { role: 'CREATOR' },
       });
       await this.replaceUserRbacRoleTx(tx, dto.userId, creatorRoleId);
       return { ...creator, message: 'Profil créateur créé. Rôle CREATOR appliqué (JWT / guards).' };
@@ -283,7 +381,6 @@ export class CreatorsService {
           lastName,
           name,
           passwordHash,
-          role: 'CREATOR',
           mustChangePassword: true,
           passwordSetupTokenSha256,
           passwordSetupExpiresAt,
@@ -303,9 +400,9 @@ export class CreatorsService {
 
     const base = this.config.get<string>('FRONTEND_URL') ?? '';
     const front = base.replace(/\/$/, '');
-    const loginUrl = `${front}/onboarding/connexion?mode=password`;
+    const loginUrl = `${front}/auth/login`;
     const setupUrl = setupTokenPlain
-      ? `${front}/onboarding/definir-mot-de-passe?token=${encodeURIComponent(setupTokenPlain)}`
+      ? `${front}/auth/setup-password?token=${encodeURIComponent(setupTokenPlain)}`
       : undefined;
 
     let emailSent = true;
@@ -352,8 +449,8 @@ export class CreatorsService {
       data: {
         stageName: dto.stageName,
         bio: dto.bio,
-        avatarUrl: dto.avatarUrl,
-        bannerUrl: dto.bannerUrl,
+        avatarObjectKey: dto.avatarObjectKey,
+        bannerObjectKey: dto.bannerObjectKey,
         verified: dto.verified,
       },
     });
@@ -367,10 +464,6 @@ export class CreatorsService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.creator.delete({ where: { id } });
-      await tx.user.update({
-        where: { id: creator.userId },
-        data: { role: 'VIEWER' },
-      });
       await this.replaceUserRbacRoleTx(tx, creator.userId, viewerRoleId);
     });
 
@@ -381,7 +474,7 @@ export class CreatorsService {
     const creator = await this.prisma.creator.findUnique({
       where: { userId },
       include: {
-        user: { select: { email: true, plan: true } },
+        user: { select: { email: true } },
         _count: { select: { contents: true } },
       },
     });
@@ -389,40 +482,135 @@ export class CreatorsService {
     return creator;
   }
 
-  async getMyContents(userId: string, page = 1, limit = 20) {
+  async getMyContents(userId: string, page = 1, limit = 20, status?: string) {
     const creator = await this.prisma.creator.findUnique({ where: { userId } });
     if (!creator) throw new ForbiddenException({ code: 'CREATOR_002', message: 'Compte créateur requis' });
 
     const skip = (page - 1) * limit;
+    const statusCode =
+      status && status !== 'undefined' && status !== 'null' ? status.toUpperCase() : undefined;
+    const where = {
+      creatorId: creator.id,
+      ...(statusCode && { status: { code: statusCode } }),
+    };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.content.findMany({
-        where: { creatorId: creator.id },
+        where,
         include: {
-          category: { select: { code: true } },
-          status: { select: { code: true } },
-          contentType: { select: { code: true } },
-          _count: { select: { episodes: true } },
+          contentGenres: { include: { genre: { select: { code: true, label: true } } } },
+          status: { select: { code: true, label: true } },
+          contentType: { select: { code: true, label: true } },
+          visibility: { select: { code: true, label: true } },
+          maturityRating: { select: { code: true, label: true } },
+          countryOfOrigin: { select: { isoCode: true, label: true } },
+          originalLanguage: { select: { code: true, label: true } },
+          mediaAssets: {
+            where: { type: { code: { in: ['POSTER', 'THUMBNAIL'] } } },
+            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+            select: {
+              objectKey: true,
+              isPrimary: true,
+              type: { select: { code: true } },
+            },
+          },
+          videoAssets: {
+            where: { episodeId: null },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { id: true, status: true, durationSec: true },
+          },
+          contentStats: {
+            select: {
+              totalViews: true,
+              likeCount: true,
+              commentCount: true,
+              reviewCount: true,
+              averageRating: true,
+              favoriteCount: true,
+            },
+          },
+          _count: { select: { episodes: true, seasons: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
       }),
-      this.prisma.content.count({ where: { creatorId: creator.id } }),
+      this.prisma.content.count({ where }),
     ]);
     const normalized = items.map((item: any) => {
-      const category = item.category?.code;
-      const status = item.status?.code;
-      const contentKind = item.contentType?.code;
-      const episodeCount = item._count?.episodes ?? 0;
-      const { category: _c, status: _s, contentType: _t, _count: _cnt, ...rest } = item;
+      const poster =
+        item.mediaAssets?.find((a: any) => a.type?.code === 'POSTER' && a.isPrimary) ??
+        item.mediaAssets?.find((a: any) => a.type?.code === 'POSTER') ??
+        item.mediaAssets?.find((a: any) => a.type?.code === 'THUMBNAIL' && a.isPrimary) ??
+        item.mediaAssets?.find((a: any) => a.type?.code === 'THUMBNAIL');
+      const {
+        contentGenres,
+        status: statusRef,
+        contentType,
+        visibility,
+        maturityRating,
+        countryOfOrigin,
+        originalLanguage,
+        mediaAssets: _ma,
+        videoAssets,
+        contentStats,
+        _count,
+        ...rest
+      } = item;
       return {
         ...rest,
-        category,
-        status,
-        contentType: contentKind,
-        episodeCount,
+        status: statusRef?.code ?? null,
+        statusLabel: statusRef?.label ?? null,
+        contentType: contentType?.code ?? null,
+        contentTypeLabel: contentType?.label ?? null,
+        visibility: visibility?.code ?? null,
+        visibilityLabel: visibility?.label ?? null,
+        maturityRating: maturityRating?.code ?? null,
+        maturityRatingLabel: maturityRating?.label ?? null,
+        countryOfOrigin: countryOfOrigin?.isoCode ?? null,
+        countryOfOriginLabel: countryOfOrigin?.label ?? null,
+        originalLanguage: originalLanguage?.code ?? null,
+        originalLanguageLabel: originalLanguage?.label ?? null,
+        genres: contentGenres?.map((cg: any) => cg.genre) ?? [],
+        posterObjectKey: poster?.objectKey ?? null,
+        videoAssetId: videoAssets?.[0]?.id ?? null,
+        videoStatus: videoAssets?.[0]?.status ?? null,
+        videoDurationSec: videoAssets?.[0]?.durationSec ?? null,
+        duration:
+          rest.duration && rest.duration > 0
+            ? rest.duration
+            : videoAssets?.[0]?.durationSec && videoAssets[0].durationSec > 0
+              ? videoAssets[0].durationSec
+              : rest.duration,
+        episodeCount: _count?.episodes ?? 0,
+        seasonCount: _count?.seasons ?? 0,
+        stats: contentStats
+          ? {
+              totalViews: Number(contentStats.totalViews ?? 0),
+              likeCount: contentStats.likeCount ?? 0,
+              commentCount: contentStats.commentCount ?? 0,
+              reviewCount: contentStats.reviewCount ?? 0,
+              averageRating: contentStats.averageRating ?? 0,
+              favoriteCount: contentStats.favoriteCount ?? 0,
+            }
+          : null,
       };
     });
+
+    for (let i = 0; i < normalized.length; i++) {
+      const item = normalized[i];
+      if (
+        isSeriesType(item.contentType) &&
+        (!item.duration || item.duration < 1)
+      ) {
+        const total = await this.contentDuration.recalculateSeriesDuration(item.id);
+        if (total > 0) normalized[i].duration = total;
+      } else if (!item.duration || item.duration < 1) {
+        const refreshed = await this.contentDuration.refreshContentDuration(item.id);
+        if (refreshed && refreshed > 0) normalized[i].duration = refreshed;
+      }
+    }
+
     return { items: normalized, total, page, limit };
   }
 
@@ -451,7 +639,7 @@ export class CreatorsService {
         lastWatchedAt: { gte: since },
       },
       select: {
-        userId: true,
+        profileId: true,
         contentId: true,
         watchedSeconds: true,
         percentage: true,
@@ -460,7 +648,7 @@ export class CreatorsService {
 
     // Métriques agrégées
     const totalViews = contents.reduce((sum, c) => sum + c.viewCount, 0);
-    const uniqueViewerIds = new Set(watchRecords.map(w => w.userId));
+    const uniqueViewerIds = new Set(watchRecords.map(w => w.profileId));
     const totalWatchSeconds = watchRecords.reduce((sum, w) => sum + w.watchedSeconds, 0);
     const avgPercentage = watchRecords.length > 0
       ? Math.round((watchRecords.reduce((sum, w) => sum + w.percentage, 0) / watchRecords.length) * 10) / 10
@@ -486,35 +674,7 @@ export class CreatorsService {
       };
     });
 
-    // Revenus réels depuis les paiements (fallback) + statements (source prioritaire)
-    const payments = await this.prisma.payment.findMany({
-      where: {
-        status: { code: 'SUCCEEDED' },
-        paidAt: { gte: since },
-        user: {
-          watchHistory: { some: { contentId: { in: contentIds } } },
-        },
-      },
-      select: { amount: true, paidAt: true },
-    });
-
-    const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
-    const rightsholderId = creator.id;
-    const statement = await this.prisma.revenueStatement.aggregate({
-      where: {
-        beneficiaryRightsholderId: rightsholderId,
-        periodStart: { gte: since },
-      },
-      _sum: {
-        beneficiaryAmount: true,
-      },
-    });
-    const creatorShare = statement._sum.beneficiaryAmount ?? Math.round(totalRevenue * CreatorsService.CREATOR_REVENUE_SHARE);
-    const platformShare = Math.max(totalRevenue - creatorShare, 0);
-
-    // Prochain 1er du mois
-    const now = new Date();
-    const nextPayout = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const qoe = await this.playbackQoE.getCreatorQoESummary(creator.id, days);
 
     return {
       period,
@@ -524,18 +684,9 @@ export class CreatorsService {
         watchTimeHours: Math.round(totalWatchSeconds / 3600),
         averageWatchPercentage: avgPercentage,
         newFollowers: creator.subscriberCount,
-        totalEarned: creator.totalEarned,
-        currency: 'XOF',
-      },
-      earnings: {
-        total: creatorShare,
-        gross: totalRevenue,
-        platformShare,
-        split: { creator: 0.6, platform: 0.4 },
-        pending: 0,
-        nextPayout: nextPayout.toISOString(),
       },
       topContents,
+      playbackQoE: qoe,
     };
   }
 }

@@ -3,11 +3,20 @@ import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
 import {
+  accountStatusEmailTemplate,
+  contentModerationEmailTemplate,
   creatorAccountCreatedEmailTemplate,
+  creatorVerifiedEmailTemplate,
   otpEmailPlainText,
   otpEmailTemplate,
+  paymentConfirmedEmailTemplate,
+  paymentFailedEmailTemplate,
+  refundProcessedEmailTemplate,
+  refundRequestedEmailTemplate,
   resetPasswordEmailPlainText,
   resetPasswordEmailTemplate,
+  subscriptionCancelledEmailTemplate,
+  videoFailedEmailTemplate,
   welcomeEmailTemplate,
 } from './templates/otp-email.template';
 
@@ -37,95 +46,241 @@ export class MailService {
     });
   }
 
-  /** URL absolue du logo (charte IVOD) — nécessite FRONTEND_URL pour les clients mail. */
   private getLogoUrl(): string | undefined {
     const base = this.config.get<string>('FRONTEND_URL')?.trim().replace(/\/$/, '');
     if (!base) return undefined;
     return `${base}/logo/logo_sans_fond.png`;
   }
 
-  async sendOtpEmail(to: string, code: string) {
-    const expiresInMinutes = 10;
-    const payload = { appName: this.appName, code, expiresInMinutes, logoUrl: this.getLogoUrl() };
+  private getFrontendUrl(path = ''): string | undefined {
+    const base = this.config.get<string>('FRONTEND_URL')?.trim().replace(/\/$/, '');
+    if (!base) return undefined;
+    return `${base}${path}`;
+  }
+
+  private get branding() {
+    return { appName: this.appName, logoUrl: this.getLogoUrl() };
+  }
+
+  private async send(to: string, subject: string, html: string, text?: string) {
     await this.transporter.sendMail({
       from: `"${this.fromName}" <${this.fromAddress}>`,
       to,
-      subject: `Votre code de connexion — ${this.appName}`,
-      text: otpEmailPlainText({ appName: this.appName, code, expiresInMinutes }),
-      html: otpEmailTemplate(payload),
+      subject,
+      text,
+      html,
     });
-    this.logger.log(`OTP email envoyé vers ${to}`);
+  }
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+
+  async sendOtpEmail(to: string, code: string) {
+    const expiresInMinutes = 10;
+    const payload = { ...this.branding, code, expiresInMinutes };
+    await this.send(
+      to,
+      `Votre code de connexion — ${this.appName}`,
+      otpEmailTemplate(payload),
+      otpEmailPlainText({ appName: this.appName, code, expiresInMinutes }),
+    );
+    this.logger.log(`OTP envoyé → ${to}`);
   }
 
   async sendResetPasswordEmail(to: string, token: string) {
     const expiresInMinutes = 15;
-    const payload = {
-      appName: this.appName,
-      token,
-      expiresInMinutes,
-      logoUrl: this.getLogoUrl(),
-    };
-    await this.transporter.sendMail({
-      from: `"${this.fromName}" <${this.fromAddress}>`,
+    await this.send(
       to,
-      subject: `Réinitialisation du mot de passe — ${this.appName}`,
-      text: resetPasswordEmailPlainText(payload),
-      html: resetPasswordEmailTemplate(payload),
-    });
-    this.logger.log(`Email reset password envoyé vers ${to}`);
+      `Réinitialisation du mot de passe — ${this.appName}`,
+      resetPasswordEmailTemplate({ ...this.branding, token, expiresInMinutes }),
+      resetPasswordEmailPlainText({ appName: this.appName, token, expiresInMinutes }),
+    );
+    this.logger.log(`Reset password envoyé → ${to}`);
   }
 
   async sendWelcomeEmail(to: string, name: string) {
-    await this.transporter.sendMail({
-      from: `"${this.fromName}" <${this.fromAddress}>`,
+    await this.send(
       to,
-      subject: `Bienvenue sur ${this.appName}`,
-      html: welcomeEmailTemplate({
-        appName: this.appName,
-        name,
-        logoUrl: this.getLogoUrl(),
-      }),
-    });
-    this.logger.log(`Email de bienvenue envoyé vers ${to}`);
+      `Bienvenue sur ${this.appName}`,
+      welcomeEmailTemplate({ ...this.branding, name, loginUrl: this.getFrontendUrl('/auth/login') }),
+    );
+    this.logger.log(`Welcome envoyé → ${to}`);
   }
+
+  // ── Créateur ─────────────────────────────────────────────────────────────
 
   async sendCreatorAccountCreatedEmail(params: {
-    to: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone?: string | null;
-    stageName: string;
-    bio?: string | null;
-    setupUrl?: string;
-    setupExpiresInHours?: number;
-    loginUrl?: string;
-    password?: string;
-    passwordWasGenerated?: boolean;
+    to: string; firstName: string; lastName: string; email: string;
+    phone?: string | null; stageName: string; bio?: string | null;
+    setupUrl?: string; setupExpiresInHours?: number; loginUrl?: string;
+    password?: string; passwordWasGenerated?: boolean;
   }) {
-    const roleLabel = 'Créateur (Studio)';
-    await this.transporter.sendMail({
-      from: `"${this.fromName}" <${this.fromAddress}>`,
-      to: params.to,
-      subject: `Votre compte créateur ${this.appName}`,
-      html: creatorAccountCreatedEmailTemplate({
-        appName: this.appName,
-        firstName: params.firstName,
-        lastName: params.lastName,
-        email: params.email,
-        phone: params.phone,
-        stageName: params.stageName,
-        bio: params.bio,
-        roleLabel,
-        setupUrl: params.setupUrl,
-        setupExpiresInHours: params.setupExpiresInHours,
-        loginUrl: params.loginUrl,
-        password: params.password,
-        passwordWasGenerated: params.passwordWasGenerated,
-        logoUrl: this.getLogoUrl(),
+    await this.send(
+      params.to,
+      `Votre compte créateur ${this.appName}`,
+      creatorAccountCreatedEmailTemplate({
+        ...this.branding,
+        ...params,
+        roleLabel: 'Créateur (Studio)',
       }),
-    });
-    this.logger.log(`Email compte créateur envoyé vers ${params.to}`);
+    );
+    this.logger.log(`Compte créateur envoyé → ${params.to}`);
+  }
+
+  async sendCreatorVerifiedEmail(to: string, firstName: string, stageName: string, verified: boolean) {
+    await this.send(
+      to,
+      verified
+        ? `Badge vérifié obtenu — ${this.appName}`
+        : `Badge vérifié retiré — ${this.appName}`,
+      creatorVerifiedEmailTemplate({
+        ...this.branding,
+        firstName,
+        stageName,
+        verified,
+        studioUrl: this.getFrontendUrl('/studio'),
+      }),
+    );
+    this.logger.log(`Vérification créateur envoyée → ${to} (verified=${verified})`);
+  }
+
+  // ── Paiements ─────────────────────────────────────────────────────────────
+
+  async sendPaymentConfirmedEmail(params: {
+    to: string; firstName: string; amount: number; currency: string;
+    planLabel: string; invoiceNumber: string; periodEnd?: Date;
+  }) {
+    await this.send(
+      params.to,
+      `Paiement confirmé — ${this.appName}`,
+      paymentConfirmedEmailTemplate({
+        ...this.branding,
+        ...params,
+        invoicesUrl: this.getFrontendUrl('/settings/subscription'),
+      }),
+    );
+    this.logger.log(`Paiement confirmé envoyé → ${params.to}`);
+  }
+
+  async sendPaymentFailedEmail(params: {
+    to: string; firstName: string; amount: number; currency: string; planLabel?: string;
+  }) {
+    await this.send(
+      params.to,
+      `Paiement non abouti — ${this.appName}`,
+      paymentFailedEmailTemplate({
+        ...this.branding,
+        ...params,
+        subscriptionUrl: this.getFrontendUrl('/settings/subscription'),
+      }),
+    );
+    this.logger.log(`Paiement échoué envoyé → ${params.to}`);
+  }
+
+  // ── Abonnements ───────────────────────────────────────────────────────────
+
+  async sendSubscriptionCancelledEmail(params: {
+    to: string; firstName: string; planLabel: string;
+    cancelAtPeriodEnd: boolean; periodEnd?: Date;
+  }) {
+    await this.send(
+      params.to,
+      `Abonnement annulé — ${this.appName}`,
+      subscriptionCancelledEmailTemplate({
+        ...this.branding,
+        ...params,
+        subscriptionUrl: this.getFrontendUrl('/settings/subscription'),
+      }),
+    );
+    this.logger.log(`Abonnement annulé envoyé → ${params.to}`);
+  }
+
+  // ── Modération contenu ────────────────────────────────────────────────────
+
+  async sendContentModerationEmail(params: {
+    to: string; creatorFirstName: string; contentTitle: string;
+    contentType: 'content' | 'episode'; action: 'approve' | 'reject';
+    rejectionReason?: string;
+  }) {
+    const subject = params.action === 'approve'
+      ? `"${params.contentTitle}" est maintenant publié — ${this.appName}`
+      : `Décision de modération pour "${params.contentTitle}" — ${this.appName}`;
+    await this.send(
+      params.to,
+      subject,
+      contentModerationEmailTemplate({
+        ...this.branding,
+        ...params,
+        studioUrl: this.getFrontendUrl('/studio/contents'),
+      }),
+    );
+    this.logger.log(`Modération contenu envoyé → ${params.to} (action=${params.action})`);
+  }
+
+  // ── Compte utilisateur ────────────────────────────────────────────────────
+
+  async sendAccountStatusEmail(to: string, firstName: string, isActive: boolean) {
+    await this.send(
+      to,
+      `Compte ${isActive ? 'réactivé' : 'suspendu'} — ${this.appName}`,
+      accountStatusEmailTemplate({
+        ...this.branding,
+        firstName,
+        isActive,
+        supportUrl: this.getFrontendUrl('/support'),
+      }),
+    );
+    this.logger.log(`Statut compte envoyé → ${to} (isActive=${isActive})`);
+  }
+
+  // ── Remboursements ────────────────────────────────────────────────────────
+
+  async sendRefundRequestedEmail(params: {
+    to: string; firstName: string; amount: number; currency: string;
+    refundId: string; reason?: string;
+  }) {
+    await this.send(
+      params.to,
+      `Demande de remboursement reçue — ${this.appName}`,
+      refundRequestedEmailTemplate({
+        ...this.branding,
+        ...params,
+        supportUrl: this.getFrontendUrl('/support'),
+      }),
+    );
+    this.logger.log(`Remboursement demandé envoyé → ${params.to}`);
+  }
+
+  async sendRefundProcessedEmail(params: {
+    to: string; firstName: string; amount: number; currency: string;
+    action: 'approve' | 'reject';
+  }) {
+    await this.send(
+      params.to,
+      `Remboursement ${params.action === 'approve' ? 'approuvé' : 'rejeté'} — ${this.appName}`,
+      refundProcessedEmailTemplate({
+        ...this.branding,
+        ...params,
+        subscriptionUrl: this.getFrontendUrl('/support'),
+      }),
+    );
+    this.logger.log(`Remboursement traité envoyé → ${params.to} (action=${params.action})`);
+  }
+
+  // ── Vidéo ─────────────────────────────────────────────────────────────────
+
+  async sendVideoFailedEmail(params: {
+    to: string; creatorFirstName: string; contentTitle: string;
+    episodeLabel?: string; errorMessage?: string;
+  }) {
+    await this.send(
+      params.to,
+      `Erreur d'encodage — ${params.contentTitle} — ${this.appName}`,
+      videoFailedEmailTemplate({
+        ...this.branding,
+        ...params,
+        studioUrl: this.getFrontendUrl('/studio/contents'),
+      }),
+    );
+    this.logger.log(`Vidéo échouée envoyé → ${params.to}`);
   }
 }
-

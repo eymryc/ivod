@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.build.json",
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "**/*.spec.ts",
+    "src/main.ts",
+    "src/app.module.ts",
+    "src/modules/watch-sessions/**",
+    "src/modules/contents/**",
+    "src/modules/videos/videos.controller.ts",
+    "src/modules/videos/videos.service.ts",
+    "src/modules/videos/video-subtitles.service.ts",
+    "src/modules/videos/video-pipeline-admin.service.ts"
+  ]
+}

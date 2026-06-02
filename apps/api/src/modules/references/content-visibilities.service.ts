@@ -7,22 +7,22 @@ export class ContentVisibilitiesService {
   constructor(private prisma: PrismaService) {}
 
   list() {
-    return this.prisma.contentVisibilityRef.findMany({ orderBy: { code: 'asc' } });
+    return this.prisma.refContentVisibility.findMany({ orderBy: { code: 'asc' } });
   }
 
   getOne(id: string) {
-    return this.prisma.contentVisibilityRef.findUnique({ where: { id } });
+    return this.prisma.refContentVisibility.findUnique({ where: { id } });
   }
 
   create(dto: CreateReferenceDto) {
-    return this.prisma.contentVisibilityRef.create({ data: dto });
+    return this.prisma.refContentVisibility.create({ data: dto });
   }
 
   update(id: string, dto: UpdateReferenceDto) {
-    return this.prisma.contentVisibilityRef.update({ where: { id }, data: dto });
+    return this.prisma.refContentVisibility.update({ where: { id }, data: dto });
   }
 
   remove(id: string) {
-    return this.prisma.contentVisibilityRef.delete({ where: { id } });
+    return this.prisma.refContentVisibility.delete({ where: { id } });
   }
 }

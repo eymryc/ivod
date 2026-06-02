@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Param, Body, Query, UseGuards, Patch, Delete, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query, UseGuards, Patch, Delete } from '@nestjs/common';
 import { CreatorsService } from './creators.service';
-import { CreateCreatorDto, CreateCreatorFullAdminDto, UpdateCreatorDto } from './dto/creators.dto';
+import { CreateCreatorFullAdminDto, UpdateCreatorDto } from './dto/creators.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -121,6 +121,7 @@ export class CreatorsController {
   @ApiOperation({ summary: 'Get my creator contents' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({ name: 'status', required: false, example: 'DRAFT' })
   @ApiUnauthorizedResponse({ description: 'JWT required' })
   @ApiForbiddenResponse({ description: 'Creator or admin role required' })
   @ApiSuccessResponse({
@@ -136,8 +137,9 @@ export class CreatorsController {
     @CurrentUser('id') userId: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
+    @Query('status') status?: string,
   ) {
-    return this.creatorsService.getMyContents(userId, +page, +limit);
+    return this.creatorsService.getMyContents(userId, +page, +limit, status);
   }
 
   @Get('me/analytics')
@@ -161,39 +163,6 @@ export class CreatorsController {
     @Query('period') period = '30d',
   ) {
     return this.creatorsService.getAnalytics(userId, period);
-  }
-
-  @Post('register')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Register current user as creator (deprecated - admin only)', deprecated: true })
-  @ApiBody({ type: CreateCreatorDto })
-  @ApiUnauthorizedResponse({ description: 'JWT required' })
-  @ApiForbiddenResponse({ description: 'Creation creator reservee a l administration' })
-  @ApiSuccessResponse({
-    description: 'Deprecated endpoint',
-    example: {
-      success: false,
-      data: null,
-      error: { code: 'CREATOR_010', message: 'Creation creator reservee a l administration' },
-      meta: { timestamp: '2026-03-23T16:30:00.000Z', version: 'v1' },
-    },
-  })
-  @ApiErrorResponse({
-    status: 403,
-    description: 'Deprecated endpoint',
-    exampleCode: 'CREATOR_010',
-    exampleMessage: 'Creation creator reservee a l administration',
-  })
-  register(
-    @CurrentUser('id') userId: string,
-    @Body() dto: CreateCreatorDto,
-  ) {
-    void userId;
-    void dto;
-    throw new ForbiddenException({
-      code: 'CREATOR_010',
-      message: 'Creation creator reservee a l administration',
-    });
   }
 
   @Patch(':id')

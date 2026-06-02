@@ -1,5 +1,9 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { ReferencesService } from './references.service';
 import { ApiSuccessResponse } from '../../common/swagger/api-response.decorator';
 import { CreateReferenceDto, UpdateReferenceDto } from './dto/references.dto';
@@ -11,6 +15,7 @@ export class ReferencesController {
   constructor(private readonly referencesService: ReferencesService) {}
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'List all reference tables' })
   @ApiSuccessResponse({
     description: 'Reference data',
@@ -26,6 +31,7 @@ export class ReferencesController {
   }
 
   @Get(':resource')
+  @Public()
   @ApiOperation({ summary: 'List records for one reference table' })
   listByResource(@Param('resource') resource: ReferenceResource) {
     return this.referencesService.list(this.parseResource(resource));
@@ -38,13 +44,19 @@ export class ReferencesController {
   }
 
   @Post(':resource')
-  @ApiOperation({ summary: 'Create one reference record' })
+  @ApiBearerAuth('BearerAuth')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Create one reference record (admin)' })
   create(@Param('resource') resource: ReferenceResource, @Body() dto: CreateReferenceDto) {
     return this.referencesService.create(this.parseResource(resource), dto);
   }
 
   @Patch(':resource/:id')
-  @ApiOperation({ summary: 'Update one reference record' })
+  @ApiBearerAuth('BearerAuth')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Update one reference record (admin)' })
   update(
     @Param('resource') resource: ReferenceResource,
     @Param('id') id: string,
@@ -54,7 +66,10 @@ export class ReferencesController {
   }
 
   @Delete(':resource/:id')
-  @ApiOperation({ summary: 'Delete one reference record' })
+  @ApiBearerAuth('BearerAuth')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Delete one reference record (admin)' })
   remove(@Param('resource') resource: ReferenceResource, @Param('id') id: string) {
     return this.referencesService.remove(this.parseResource(resource), id);
   }

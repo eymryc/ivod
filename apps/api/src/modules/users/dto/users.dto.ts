@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Length } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, Length } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateProfileDto {
@@ -10,4 +10,12 @@ export class UpdateProfileDto {
   @IsOptional() @IsString() @Length(2, 101) name?: string;
   @ApiPropertyOptional({ example: 'https://cdn.ivod.ci/avatars/marvel.jpg' })
   @IsOptional() @IsString() avatarUrl?: string;
+}
+
+export class UpdateUserPreferencesDto {
+  @ApiPropertyOptional({ example: true })
+  @IsOptional() @IsBoolean() emailMarketing?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional() @IsBoolean() emailNotifications?: boolean;
 }

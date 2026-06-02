@@ -8,7 +8,6 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
-  plan: string;
   permissions?: string[];
   mustChangePassword?: boolean;
 }
@@ -57,7 +56,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     return {
       ...user,
-      role: roleCodes[0] ?? payload.role ?? user.role,
+      role: roleCodes[0] ?? payload.role,
       roles: roleCodes,
       permissions,
     };

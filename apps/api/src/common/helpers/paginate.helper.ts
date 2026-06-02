@@ -1,4 +1,4 @@
-import { PaginatedResponse } from '@ivod/types';
+import { PaginatedResponse } from '@/common/types';
 
 export function paginate<T>(
   items: T[],

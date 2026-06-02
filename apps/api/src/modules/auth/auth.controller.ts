@@ -1,5 +1,6 @@
-import { Controller, Post, Body, HttpCode, UseGuards } from '@nestjs/common';
-import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { Controller, Post, Get, Body, Query, HttpCode, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { AppThrottlerGuard } from '../../common/guards/app-throttler.guard';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -27,7 +28,7 @@ import {
 
 @ApiTags('Auth')
 @Controller('auth')
-@UseGuards(ThrottlerGuard)
+@UseGuards(AppThrottlerGuard)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -93,7 +94,7 @@ export class AuthController {
         accessToken: '<jwt>',
         tokenType: 'Bearer',
         expiresIn: 604800,
-        message: 'Authentification reussie',
+        message: 'Authentification réussie',
         user: {
           id: 'cmxxx',
           email: 'user@ivod.ci',
@@ -138,7 +139,7 @@ export class AuthController {
         accessToken: '<jwt>',
         tokenType: 'Bearer',
         expiresIn: 604800,
-        message: 'Authentification reussie',
+        message: 'Authentification réussie',
         user: {
           id: 'cmxxx',
           email: 'user@ivod.ci',
@@ -161,6 +162,17 @@ export class AuthController {
   })
   login(@Body() dto: LoginWithPasswordDto) {
     return this.authService.loginWithPassword(dto);
+  }
+
+  @Get('setup-password')
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @ApiOperation({ summary: 'Vérifier la validité du jeton d\u2019invitation' })
+  @ApiSuccessResponse({
+    description: 'Résultat de la vérification',
+    example: { success: true, data: { valid: true, email: 'creator@studio.ci' }, error: null, meta: {} },
+  })
+  verifySetupToken(@Query('token') token: string) {
+    return this.authService.verifySetupToken(token ?? '');
   }
 
   @Post('setup-password')
@@ -276,5 +288,12 @@ export class AuthController {
   })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  @Post('refresh')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Renouveler le token d\'accès via refresh token (30j)' })
+  refresh(@Body('refreshToken') refreshToken: string) {
+    return this.authService.refreshAccessToken(refreshToken);
   }
 }

@@ -1,0 +1,5 @@
+À faire sur le serveur avant le premier déploiement :
+
+Copier et remplir apps/api/.env avec les vraies valeurs (JWT, SMTP, Paystack, MINIO_PUBLIC_ENDPOINT = IP/domaine public du serveur)
+Remplir .env racine avec les credentials Postgres/MinIO de prod + NEXT_PUBLIC_API_URL=https://api.ton-domaine.com/api/v1
+Lancer : make prod-build

@@ -85,12 +85,12 @@ export class UpdateCreatorDto {
   @ApiPropertyOptional({ example: 'https://cdn.ivod.ci/creator/avatar.jpg' })
   @IsOptional()
   @IsString()
-  avatarUrl?: string;
+  avatarObjectKey?: string;
 
   @ApiPropertyOptional({ example: 'https://cdn.ivod.ci/creator/banner.jpg' })
   @IsOptional()
   @IsString()
-  bannerUrl?: string;
+  bannerObjectKey?: string;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

@@ -4,13 +4,11 @@
     "slug": "ivod",
     "version": "1.0.0",
     "orientation": "default",
-    "icon": "./assets/icon.png",
     "scheme": "ivod",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#111118"
+      "backgroundColor": "#00050d"
     },
     "ios": {
       "supportsTablet": true,
@@ -18,25 +16,22 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#111118"
+        "backgroundColor": "#00050d"
       },
       "package": "ci.ivod.app"
     },
     "plugins": [
       "expo-router",
-      "expo-av",
-      "expo-secure-store",
+"expo-secure-store",
       [
         "expo-notifications",
         {
-          "icon": "./assets/notification-icon.png",
-          "color": "#4B44C8"
+          "color": "#e6007e"
         }
       ]
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": false
     }
   }
 }

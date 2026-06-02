@@ -52,7 +52,7 @@ export class FollowsService {
         include: {
           creator: {
             select: {
-              id: true, stageName: true, avatarUrl: true,
+              id: true, stageName: true, avatarObjectKey: true,
               verified: true, subscriberCount: true,
               _count: { select: { contents: true } },
             },

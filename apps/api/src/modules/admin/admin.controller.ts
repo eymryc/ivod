@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { CreatorsService } from '../creators/creators.service';
+import { VideoPipelineAdminService } from '../videos/video-pipeline-admin.service';
 import { CreateCreatorFullAdminDto } from '../creators/dto/creators.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -28,6 +29,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly creatorsService: CreatorsService,
+    private readonly videoPipelineAdmin: VideoPipelineAdminService,
   ) {}
 
   @Get('dashboard')
@@ -95,8 +97,22 @@ export class AdminController {
       meta: { timestamp: '2026-03-23T16:30:00.000Z', version: 'v1' },
     },
   })
-  rejectContent(@Param('id') id: string) {
-    return this.adminService.moderateContent(id, 'reject');
+  rejectContent(@Param('id') id: string, @Body() body?: { reason?: string }) {
+    return this.adminService.moderateContent(id, 'reject', body?.reason);
+  }
+
+  @Put('episodes/:id/approve')
+  @ApiOperation({ summary: 'Approve episode publication' })
+  @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123episode1' })
+  approveEpisode(@Param('id') id: string) {
+    return this.adminService.moderateEpisode(id, 'approve');
+  }
+
+  @Put('episodes/:id/reject')
+  @ApiOperation({ summary: 'Reject episode publication' })
+  @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123episode1' })
+  rejectEpisode(@Param('id') id: string, @Body() body?: { reason?: string }) {
+    return this.adminService.moderateEpisode(id, 'reject', body?.reason);
   }
 
   @Get('users')
@@ -116,9 +132,9 @@ export class AdminController {
   listUsers(
     @Query('page') page = 1,
     @Query('limit') limit = 20,
-    @Query('role') role?: string,
+    @Query('search') search?: string,
   ) {
-    return this.adminService.listUsers(+page, +limit, role);
+    return this.adminService.listUsers(+page, +limit, search);
   }
 
   @Put('users/:id/toggle-active')
@@ -156,6 +172,13 @@ export class AdminController {
   })
   listCreators(@Query('page') page = 1, @Query('limit') limit = 20) {
     return this.creatorsService.findAllForAdmin(+page, +limit);
+  }
+
+  @Get('creators/:id')
+  @ApiOperation({ summary: 'Fiche créateur complète (admin)' })
+  @ApiParam({ name: 'id' })
+  getCreator(@Param('id') id: string) {
+    return this.creatorsService.findOneForAdmin(id);
   }
 
   @Put('creators/:id/verify')
@@ -239,5 +262,25 @@ export class AdminController {
   })
   createCreator(@Body() dto: CreateCreatorFullAdminDto) {
     return this.creatorsService.createFullForAdmin(dto);
+  }
+
+  @Get('video-pipeline/health')
+  @ApiOperation({ summary: 'Santé file BullMQ vidéo + alertes' })
+  getVideoPipelineHealth() {
+    return this.videoPipelineAdmin.getPipelineHealth();
+  }
+
+  @Get('video-assets/:assetId/jobs')
+  @ApiOperation({ summary: 'Timeline jobs pipeline pour un asset' })
+  @ApiParam({ name: 'assetId' })
+  listVideoAssetJobs(@Param('assetId') assetId: string) {
+    return this.videoPipelineAdmin.listAssetJobs(assetId);
+  }
+
+  @Post('video-assets/:assetId/retry-pipeline')
+  @ApiOperation({ summary: 'Relancer probe ou re-package pour un asset' })
+  @ApiParam({ name: 'assetId' })
+  retryVideoPipeline(@Param('assetId') assetId: string) {
+    return this.videoPipelineAdmin.retryPipeline(assetId);
   }
 }

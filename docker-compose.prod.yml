@@ -1,0 +1,197 @@
+# =============================================================================
+# IVOD — Environnement de production
+#
+# Prérequis sur le serveur :
+#   cp apps/api/.env.example apps/api/.env   # puis remplir avec les vraies valeurs
+#   cp .env.example .env                     # postgres / redis / minio credentials
+#
+# Variables injectées depuis le .env racine : POSTGRES_*, MINIO_ROOT_*, ports
+# Variables sensibles (JWT, Paystack, SMTP…) : dans apps/api/.env (non committé)
+# =============================================================================
+
+services:
+
+  # ─── API NestJS ─────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: production
+    container_name: ivod-api-prod
+    env_file:
+      - ./apps/api/.env
+    ports:
+      - "${API_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      IVOD_APP_MODE: api
+      # Surcharge des hostnames Docker (remplace localhost de apps/api/.env)
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ivod}?schema=public
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_USE_SSL: "false"
+      MINIO_BUCKET_VIDEOS: ${MINIO_BUCKET_VIDEOS:-ivod-videos}
+      MINIO_BUCKET_ASSETS: ${MINIO_BUCKET_ASSETS:-ivod-assets}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ─── Worker transcodage vidéo (BullMQ + ffmpeg) ─────────────────────────────
+  video-worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: production
+    container_name: ivod-video-worker-prod
+    entrypoint: ["./docker-entrypoint-worker-prod.sh"]
+    env_file:
+      - ./apps/api/.env
+    environment:
+      NODE_ENV: production
+      IVOD_APP_MODE: worker
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ivod}?schema=public
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_USE_SSL: "false"
+      MINIO_BUCKET_VIDEOS: ${MINIO_BUCKET_VIDEOS:-ivod-videos}
+      MINIO_BUCKET_ASSETS: ${MINIO_BUCKET_ASSETS:-ivod-assets}
+      # Pipeline vidéo — surcharger au besoin dans .env racine
+      VIDEO_TWO_PHASE: ${VIDEO_TWO_PHASE:-true}
+      VIDEO_CPU_PARALLEL: ${VIDEO_CPU_PARALLEL:-2}
+      VIDEO_WORKER_CONCURRENCY: ${VIDEO_WORKER_CONCURRENCY:-1}
+      VIDEO_JOB_LOCK_MS: ${VIDEO_JOB_LOCK_MS:-3600000}
+      VIDEO_JOB_LOCK_RENEW_MS: ${VIDEO_JOB_LOCK_RENEW_MS:-300000}
+      VIDEO_SINGLE_PASS_LADDER: ${VIDEO_SINGLE_PASS_LADDER:-true}
+      # GPU : nvenc | vaapi | none (défaut CPU)
+      # Avec NVIDIA : décommenter aussi le bloc deploy.resources ci-dessous
+      VIDEO_HW_ACCEL: ${VIDEO_HW_ACCEL:-none}
+      VIDEO_WEBHOOK_URLS: ${VIDEO_WEBHOOK_URLS:-}
+      VIDEO_WEBHOOK_SECRET: ${VIDEO_WEBHOOK_SECRET:-}
+    # ─── GPU NVIDIA (décommenter si le serveur a une carte NVIDIA + drivers) ──
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+
+  # ─── Web Service (Next.js) ───────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runner
+      args:
+        # Baked dans le bundle JS au build — doit pointer vers l'URL publique de l'API
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: ivod-web-prod
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Rewrite serveur interne → API Docker (jamais localhost ici)
+      API_REWRITE_ORIGIN: http://api:3000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ─── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: ivod-postgres-prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-ivod}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ivod-redis-prod
+    volumes:
+      - redis_data:/data
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── MinIO (S3 Compatible) ────────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: ivod-minio-prod
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+# ─── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  ivod-prod:
+    driver: bridge

@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,42 +7,464 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Models ───────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// RÉFÉRENTIELS
+// Tables de données stables, seed au démarrage
+// ═══════════════════════════════════════════════════════════════
+
+model RefLanguage {
+  id        String   @id @default(cuid())
+  code      String   @unique // fr, en, wo, bm, ha, yo, ig...
+  label     String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  subtitleTracks   SubtitleTrack[]
+  audioTracks      AudioTrack[]
+  profileLanguages Profile[]
+  originalContents Content[]
+
+  @@map("ref_languages")
+}
+
+model RefCountry {
+  id        String   @id @default(cuid())
+  isoCode   String   @unique // CI, SN, ML, FR, US...
+  label     String
+  region    String   @default("OTHER") // WEST_AFRICA | CENTRAL_AFRICA | NORTH_AFRICA | EUROPE | DIASPORA | OTHER
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  rightsholders       Rightsholder[]
+  originContents      Content[]
+  distributionRegions DistributionRegion[]
+  geoRestrictions     GeoRestriction[]
+  taxes               Tax[]
+  personBirths        Person[]
+
+  @@map("ref_countries")
+}
+
+model RefCurrency {
+  id        String   @id @default(cuid())
+  code      String   @unique // XOF, USD, EUR, GBP
+  label     String
+  symbol    String
+  decimals  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  exchangeRatesFrom ExchangeRate[] @relation("ExchangeRateFrom")
+  exchangeRatesTo   ExchangeRate[] @relation("ExchangeRateTo")
+
+  @@map("ref_currencies")
+}
+
+model RefGenre {
+  id        String   @id @default(cuid())
+  code      String   @unique // ACTION, DRAMA, COMEDIE, DOCUMENTAIRE, ANIMATION, THRILLER, ROMANCE, HORREUR, SF, HISTORIQUE
+  label     String
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  contentGenres ContentGenre[]
+
+  @@map("ref_genres")
+}
+
+model RefContentType {
+  id       String @id @default(cuid())
+  code     String @unique // FILM | SERIE | WEB_SERIE | DOCUMENTAIRE | ANIMATION | SHORT
+  typeCode String @unique // utilisé en logique applicative
+  label    String
+
+  contents Content[]
+
+  @@map("ref_content_types")
+}
+
+model RefContentStatus {
+  id    String @id @default(cuid())
+  code  String @unique // DRAFT | PENDING_REVIEW | APPROVED | REJECTED | PUBLISHED | ARCHIVED
+  label String
+
+  contents Content[]
+  episodes Episode[]
+
+  @@map("ref_content_statuses")
+}
+
+model RefContentVisibility {
+  id    String @id @default(cuid())
+  code  String @unique // PUBLIC | SUBSCRIBERS_ONLY | PPV | PRIVATE
+  label String
+
+  contents Content[]
+
+  @@map("ref_content_visibilities")
+}
+
+model RefMaturityRating {
+  id    String @id @default(cuid())
+  code  String @unique // ALL | MINUS_12 | MINUS_16 | MINUS_18
+  label String
+  order Int    @default(0) // pour comparer les niveaux
+
+  contents        Content[]
+  profiles        Profile[]
+  parentalControls ParentalControl[]
+
+  @@map("ref_maturity_ratings")
+}
+
+model RefUserRole {
+  id    String @id @default(cuid())
+  code  String @unique // VIEWER | CREATOR | ADMIN | MODERATOR | FINANCE | DISTRIBUTOR
+  label String
+
+  userRoles UserRole[]
+
+  @@map("ref_user_roles")
+}
+
+model RefUserPlan {
+  id                  String   @id @default(cuid())
+  code                String   @unique // FREE | PASS_24H | PASS_WEEK | PREMIUM | BASIC (legacy)
+  label               String
+  tagline             String?  // Sous-titre affiché boutique (ex. « Sans pub · 30 jours »)
+  priceFcfaMonthly    Int      @default(0) // Prix du pass en FCFA (quel que soit la durée)
+  billingDays         Int      @default(30) // Durée d'accès : 1, 7, 30…
+  maxScreens          Int      @default(1)
+  videoQuality        String   @default("SD") // SD | HD | FHD | UHD
+  hasAds              Boolean  @default(true)
+  maxOfflineDownloads Int      @default(0)
+  hasExclusiveAccess  Boolean  @default(false)
+  isActive            Boolean  @default(true)
+  showInStore         Boolean  @default(true) // Affiché page abonnement (FREE = false)
+  sortOrder           Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  userSubscriptions UserSubscription[]
+
+  @@map("ref_user_plans")
+}
+
+model RefSubscriptionStatus {
+  id    String @id @default(cuid())
+  code  String @unique // ACTIVE | EXPIRED | CANCELLED | PAUSED | TRIAL
+  label String
+
+  userSubscriptions UserSubscription[]
+
+  @@map("ref_subscription_statuses")
+}
+
+model RefPaymentProvider {
+  id        String   @id @default(cuid())
+  code      String   @unique // ORANGE_MONEY | WAVE | MTN_MONEY | MOOV_MONEY | STRIPE | PAYPAL | FREE
+  label     String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  userSubscriptions UserSubscription[]
+  payments          Payment[]
+
+  @@map("ref_payment_providers")
+}
+
+model RefPaymentStatus {
+  id    String @id @default(cuid())
+  code  String @unique // PENDING | COMPLETED | FAILED | REFUNDED | CANCELLED
+  label String
+
+  payments     Payment[]
+  transactions Transaction[] @relation("TransactionStatus")
+
+  @@map("ref_payment_statuses")
+}
+
+model RefRightsholderType {
+  id    String @id @default(cuid())
+  code  String @unique // PRODUCER | PRODUCTION_COMPANY | DISTRIBUTOR | DIRECTOR | CO_PRODUCER
+  label String
+
+  rightsholders Rightsholder[]
+
+  @@map("ref_rightsholder_types")
+}
+
+model RefMonetizationType {
+  id    String @id @default(cuid())
+  code  String @unique // SVOD | TVOD | AVOD | FREE
+  label String
+
+  contentRights ContentRight[]
+
+  @@map("ref_monetization_types")
+}
+
+model RefTerritoryCode {
+  id    String @id @default(cuid())
+  code  String @unique // CI | SN | ML | BF | TG | BJ | GN | NE | CM | UEMOA | AFRICA | WORLD | DIASPORA
+  label String
+
+  contentRights ContentRight[]
+
+  @@map("ref_territory_codes")
+}
+
+model RefCrewRole {
+  id    String @id @default(cuid())
+  code  String @unique // DIRECTOR | SCREENWRITER | PRODUCER | EDITOR | COMPOSER | CINEMATOGRAPHER | COSTUME | SOUND
+  label String
+
+  contentCrews ContentCrew[]
+
+  @@map("ref_crew_roles")
+}
+
+model RefAwardType {
+  id    String @id @default(cuid())
+  code  String @unique // FESPACO | CLAP_IVOIRE | OSCARS | CANNES | CESAR | BAFTA | GOLDEN_GLOBE
+  label String
+
+  awards Award[]
+
+  @@map("ref_award_types")
+}
+
+model RefReportReason {
+  id      String          @id @default(cuid())
+  code    String          @unique // INAPPROPRIATE | SPAM | COPYRIGHT | MISINFORMATION | OTHER
+  label   String
+  reports ContentReport[]
+
+  @@map("ref_report_reasons")
+}
+
+model RefReportStatus {
+  id      String          @id @default(cuid())
+  code    String          @unique // PENDING | REVIEWED | DISMISSED | ACTIONED
+  label   String
+  reports ContentReport[]
+
+  @@map("ref_report_statuses")
+}
+
+model RefModerationPriority {
+  id     String            @id @default(cuid())
+  code   String            @unique // NORMAL | HIGH | URGENT
+  label  String
+  queues ModerationQueue[]
+
+  @@map("ref_moderation_priorities")
+}
+
+model RefModerationStatus {
+  id     String            @id @default(cuid())
+  code   String            @unique // PENDING | IN_REVIEW | DONE
+  label  String
+  queues ModerationQueue[]
+
+  @@map("ref_moderation_statuses")
+}
+
+model RefSecurityLogAction {
+  id   String        @id @default(cuid())
+  code String        @unique // PASSWORD_CHANGE | FAILED_LOGIN | ACCOUNT_LOCKED | SUSPICIOUS_ACCESS | MFA_ENABLED | TOKEN_REVOKED
+  label String
+  logs SecurityLog[]
+
+  @@map("ref_security_log_actions")
+}
+
+model RefTransactionType {
+  id           String        @id @default(cuid())
+  code         String        @unique // DEBIT | CREDIT | REFUND | CHARGEBACK
+  label        String
+  transactions Transaction[]
+
+  @@map("ref_transaction_types")
+}
+
+model RefInvoiceStatus {
+  id       String    @id @default(cuid())
+  code     String    @unique // DRAFT | ISSUED | PAID | VOID
+  label    String
+  invoices Invoice[]
+
+  @@map("ref_invoice_statuses")
+}
+
+model RefRefundStatus {
+  id      String   @id @default(cuid())
+  code    String   @unique // REQUESTED | APPROVED | PROCESSED | REJECTED
+  label   String
+  refunds Refund[]
+
+  @@map("ref_refund_statuses")
+}
+
+model RefRevenueStatementStatus {
+  id         String             @id @default(cuid())
+  code       String             @unique // DRAFT | LOCKED | PAID
+  label      String
+  statements RevenueStatement[]
+
+  @@map("ref_revenue_statement_statuses")
+}
+
+model RefBeneficiaryType {
+  id         String             @id @default(cuid())
+  code       String             @unique // RIGHTSHOLDER | CREATOR | PARTNER
+  label      String
+  statements RevenueStatement[]
+
+  @@map("ref_beneficiary_types")
+}
+
+model RefContentRightStatus {
+  id     String         @id @default(cuid())
+  code   String         @unique // ACTIVE | EXPIRED | SUSPENDED
+  label  String
+  rights ContentRight[]
+
+  @@map("ref_content_right_statuses")
+}
+
+model RefMediaAssetType {
+  id     String       @id @default(cuid())
+  code   String       @unique // THUMBNAIL | POSTER | BANNER | TRAILER | CLIP | SCREENSHOT
+  label  String
+  assets MediaAsset[]
+
+  @@map("ref_media_asset_types")
+}
+
+model RefLiveStreamStatus {
+  id      String       @id @default(cuid())
+  code    String       @unique // SCHEDULED | LIVE | ENDED | CANCELLED
+  label   String
+  streams LiveStream[]
+
+  @@map("ref_live_stream_statuses")
+}
+
+model RefCampaignType {
+  id        String     @id @default(cuid())
+  code      String     @unique // PROMO_CODE | EMAIL | PUSH | IN_APP_BANNER
+  label     String
+  campaigns Campaign[]
+
+  @@map("ref_campaign_types")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILISATEURS & PROFILS
+// ═══════════════════════════════════════════════════════════════
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  phone         String?   @unique
-  passwordHash  String?
-  firstName     String    @default("")
-  lastName      String    @default("")
-  name          String
-  avatarUrl     String?
-  role          String    @default("VIEWER")
-  plan          String    @default("FREE")
-  planExpiresAt DateTime?
-  isActive      Boolean   @default(true)
-  /// Après création par admin (e-mail avec MDP provisoire) : true jusqu’au premier changement de mot de passe.
-  mustChangePassword Boolean @default(false)
-  /// Hachage SHA-256 du jeton d’invitation « définir le mot de passe » (non défini si mot de passe déjà défini à la création).
-  passwordSetupTokenSha256 String? @unique
-  passwordSetupExpiresAt    DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                       String    @id @default(cuid())
+  email                    String    @unique
+  phone                    String?   @unique
+  passwordHash             String?
+  firstName                String    @default("")
+  lastName                 String    @default("")
+  name                     String
+  avatarUrl                String?
+  isActive                 Boolean   @default(true)
+  mustChangePassword       Boolean   @default(false)
+  passwordSetupTokenSha256 String?   @unique
+  passwordSetupExpiresAt   DateTime?
+  emailMarketing           Boolean   @default(true)
+  emailNotifications       Boolean   @default(true)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  creator       Creator?
-  subscriptions Subscription[]
-  payments      Payment[]
-  watchHistory  WatchHistory[]
-  downloads     Download[]
-  favorites     Favorite[]
-  follows       Follow[]
-  notifications Notification[]
-  uploadedContents Content[] @relation("UploadedByUser")
-  userRoles     UserRole[]
-  userPermissions UserPermission[]
+  profiles          Profile[]
+  userRoles         UserRole[]
+  userPermissions   UserPermission[]
+  creator           Creator?
+  userSubscriptions UserSubscription[]
+  payments          Payment[]
+  downloads         Download[]
+  notifications     Notification[]
+  follows           Follow[]
+  uploadedContents  Content[]          @relation("UploadedByUser")
+  loginHistory      LoginHistory[]
+  deviceSessions    DeviceSession[]
+  securityLogs      SecurityLog[]
+  devices           Device[]
+  invoices          Invoice[]
+  contentReports    ContentReport[]    @relation("ReviewedByUser")
+  moderatedComments Comment[]          @relation("ModeratedByUser")
 
   @@map("users")
+}
+
+model Profile {
+  id               String   @id @default(cuid())
+  userId           String
+  name             String
+  avatarUrl        String?
+  isKids           Boolean  @default(false)
+  isDefault        Boolean  @default(false)
+  pin              String?  // code PIN haché
+  languageCode     String?
+  maturityRatingId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  language       RefLanguage?       @relation(fields: [languageCode], references: [code])
+  maturityRating RefMaturityRating? @relation(fields: [maturityRatingId], references: [id])
+
+  parentalControl   ParentalControl?
+  profilePreference ProfilePreference?
+  watchHistories    WatchHistory[]
+  watchSessions     WatchSession[]
+  favorites         Favorite[]
+  contentLikes      ContentLike[]
+  comments          Comment[]
+  contentReviews    ContentReview[]
+  contentReports    ContentReport[]
+  recommendations   Recommendation[]
+  userBehaviors     UserBehavior[]
+  searchHistories   SearchHistory[]
+  adImpressions     AdImpression[]
+  contentViews      ContentView[]
+
+  @@map("profiles")
+}
+
+model ParentalControl {
+  id                   String   @id @default(cuid())
+  profileId            String   @unique
+  maxMaturityRatingId  String?
+  blockedGenreCodes    String[]
+  restrictedHoursStart Int?
+  restrictedHoursEnd   Int?
+  requirePin           Boolean  @default(false)
+
+  profile           Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  maxMaturityRating RefMaturityRating? @relation(fields: [maxMaturityRatingId], references: [id])
+
+  @@map("parental_controls")
+}
+
+model ProfilePreference {
+  id             String  @id @default(cuid())
+  profileId      String  @unique
+  autoplay       Boolean @default(true)
+  skipIntro      Boolean @default(false)
+  skipCredits    Boolean @default(false)
+  defaultQuality String  @default("auto")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("profile_preferences")
 }
 
 model Role {
@@ -85,14 +505,15 @@ model RolePermission {
   @@map("role_permissions")
 }
 
-/// Au plus une ligne par utilisateur : un seul rôle RBAC actif par compte.
 model UserRole {
-  userId    String   @id
-  roleId    String
-  createdAt DateTime @default(now())
+  userId      String   @id
+  roleId      String
+  roleRefCode String?
+  createdAt   DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleRef RefUserRole? @relation(fields: [roleRefCode], references: [code])
 
   @@map("user_roles")
 }
@@ -109,270 +530,517 @@ model UserPermission {
   @@map("user_permissions")
 }
 
+model Device {
+  id          String   @id @default(cuid())
+  userId      String
+  deviceType  String   // MOBILE | TABLET | TV | WEB | DESKTOP
+  deviceName  String?
+  os          String?
+  osVersion   String?
+  appVersion  String?
+  fingerprint String?
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceTokens   DeviceToken[]
+  deviceSessions DeviceSession[]
+  loginHistory   LoginHistory[]
+  watchSessions  WatchSession[]
+  userBehaviors  UserBehavior[]
+  contentViews   ContentView[]
+
+  @@map("devices")
+}
+
+model DeviceToken {
+  id        String   @id @default(cuid())
+  deviceId  String
+  token     String   @unique
+  platform  String   // ANDROID | IOS | WEB
+  updatedAt DateTime @updatedAt
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("device_tokens")
+}
+
+model DeviceSession {
+  id             String   @id @default(cuid())
+  userId         String
+  deviceId       String
+  token          String   @unique
+  isActive       Boolean  @default(true)
+  lastActivityAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@map("device_sessions")
+}
+
+model LoginHistory {
+  id          String   @id @default(cuid())
+  userId      String
+  ipAddress   String?
+  userAgent   String?
+  deviceId    String?
+  countryCode String?
+  cityName    String?
+  success     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@map("login_history")
+}
+
+model SecurityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  actionId  String
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user   User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action RefSecurityLogAction @relation(fields: [actionId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("security_logs")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CRÉATEURS & RIGHTSHOLDERS
+// ═══════════════════════════════════════════════════════════════
+
 model Creator {
-  id              String   @id @default(cuid())
-  userId          String   @unique
+  id              String    @id @default(cuid())
+  userId          String    @unique
   stageName       String
   bio             String?
-  avatarUrl       String?
-  bannerUrl       String?
-  verified        Boolean  @default(false)
-  subscriberCount Int      @default(0)
-  totalEarned     Int      @default(0) // En FCFA
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  avatarObjectKey String?
+  bannerObjectKey String?
+  verified        Boolean   @default(false)
+  verifiedAt      DateTime?
+  subscriberCount Int       @default(0)
+  totalEarned     Int       @default(0) // FCFA
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contents  Content[]
-  followers Follow[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contents    Content[]
+  followers   Follow[]
+  liveStreams  LiveStream[]
 
   @@map("creators")
 }
 
-enum RightsholderType {
-  PRODUCER
-  PRODUCTION_COMPANY
-  DISTRIBUTOR
-  DIRECTOR
-}
-
 model Rightsholder {
-  id           String          @id @default(cuid())
-  type         RightsholderType
-  displayName  String
-  legalName    String?
-  email        String?
-  phone        String?
-  countryCode  String?         @default("CI")
-  isVerified   Boolean         @default(false)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-
-  primaryContents Content[]    @relation("ContentPrimaryRightsholder")
-  distributedContents Content[] @relation("ContentDistributor")
-  ownedContracts RightsContract[] @relation("ContractRightsholder")
-  distributionContracts RightsContract[] @relation("ContractDistributor")
-  revenueStatements RevenueStatement[]
-
-  @@index([type, displayName])
-  @@map("rightsholders")
-}
-
-model Category {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  label     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  contents  Content[]
-
-  @@map("categories")
-}
-
-model UserRoleRef {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  label     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("ref_user_roles")
-}
-
-model UserPlanRef {
-  id                  String   @id @default(cuid())
-  code                String   @unique
-  label               String
-  priceFcfaMonthly    Int      @default(0)
-  maxScreens          Int      @default(1)
-  videoQuality        String   @default("SD")
-  hasAds              Boolean  @default(true)
-  maxOfflineDownloads Int      @default(0)
-  hasExclusiveAccess  Boolean  @default(false)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  subscriptions Subscription[]
-
-  @@map("ref_user_plans")
-}
-
-model ContentTypeRef {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  label     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  contents  Content[]
-
-  @@map("ref_content_types")
-}
-
-model ContentStatusRef {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  label     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  contents  Content[]
-  episodes  Episode[]
-
-  @@map("ref_content_statuses")
-}
-
-model ContentVisibilityRef {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  label     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  contents  Content[]
-
-  @@map("ref_content_visibilities")
-}
-
-model SubscriptionStatusRef {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  label     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  subscriptions Subscription[]
-
-  @@map("ref_subscription_statuses")
-}
-
-model PaymentProviderRef {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  label     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  subscriptions Subscription[]
-  payments      Payment[]
-
-  @@map("ref_payment_providers")
-}
-
-model PaymentStatusRef {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  label     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  payments      Payment[]
-
-  @@map("ref_payment_statuses")
-}
-
-model Content {
-  id           String            @id @default(cuid())
-  creatorId    String
-  uploadedByUserId String
-  primaryRightsholderId String
-  distributorId String?
-  title        String
-  description  String?
-  thumbnailUrl String?
-  categoryId  String
-  category     Category         @relation(fields: [categoryId], references: [id])
-  contentTypeId String
-  contentType  ContentTypeRef       @relation(fields: [contentTypeId], references: [id])
-  statusId     String
-  status       ContentStatusRef     @relation(fields: [statusId], references: [id])
-  visibilityId String
-  visibility   ContentVisibilityRef @relation(fields: [visibilityId], references: [id])
-  duration     Int? // En secondes
-  viewCount    Int               @default(0)
-  isExclusive  Boolean           @default(false)
-  ppvPrice     Int? // En FCFA
-  tags         String[]
-
-  // Mux
-  muxUploadId   String?
-  muxAssetId    String?
-  muxPlaybackId String?
-
-  publishedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  creator      Creator        @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  uploadedBy   User           @relation("UploadedByUser", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
-  primaryRightsholder Rightsholder @relation("ContentPrimaryRightsholder", fields: [primaryRightsholderId], references: [id], onDelete: Restrict)
-  distributor  Rightsholder?  @relation("ContentDistributor", fields: [distributorId], references: [id], onDelete: SetNull)
-  episodes     Episode[]
-  watchHistory WatchHistory[]
-  downloads    Download[]
-  favorites    Favorite[]
-  contentRights ContentRight[]
-  revenueStatements RevenueStatement[]
-
-  @@map("contents")
-}
-
-model RightsContract {
   id            String   @id @default(cuid())
-  rightsholderId String
-  distributorId  String?
-  contractRef   String?  @unique
-  signedAt      DateTime?
-  startsAt      DateTime
-  endsAt        DateTime?
-  isExclusive   Boolean  @default(false)
-  notes         String?
+  typeId        String
+  displayName   String
+  legalName     String?
+  email         String?
+  phone         String?
+  countryId     String?
+  logoObjectKey String?
+  isVerified    Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  rightsholder  Rightsholder @relation("ContractRightsholder", fields: [rightsholderId], references: [id], onDelete: Restrict)
-  distributor   Rightsholder? @relation("ContractDistributor", fields: [distributorId], references: [id], onDelete: SetNull)
+  type    RefRightsholderType @relation(fields: [typeId], references: [id])
+  country RefCountry?         @relation(fields: [countryId], references: [id])
+
+  primaryContents       Content[]          @relation("ContentPrimaryRightsholder")
+  distributedContents   Content[]          @relation("ContentDistributor")
+  ownedContracts        RightsContract[]   @relation("ContractRightsholder")
+  distributionContracts RightsContract[]   @relation("ContractDistributor")
+  revenueStatements     RevenueStatement[]
+
+  @@index([typeId, displayName])
+  @@map("rightsholders")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONTENU
+// ═══════════════════════════════════════════════════════════════
+
+model Content {
+  id                    String    @id @default(cuid())
+  creatorId             String
+  uploadedByUserId      String
+  primaryRightsholderId String
+  distributorId         String?
+  title                 String
+  slug                  String    @unique
+  description           String?
+  shortDescription      String?
+  contentTypeId         String
+  statusId              String
+  visibilityId          String
+  maturityRatingId      String?
+  countryOfOriginId     String?
+  originalLanguageCode  String?
+  releaseYear           Int?
+  duration              Int?      // secondes (nullable pour séries)
+  isExclusive           Boolean   @default(false)
+  ppvPrice              Int?      // FCFA, TVOD uniquement
+  trailerUrl            String?
+  tags                  String[]
+  releaseDate           DateTime?
+  publishedAt           DateTime?
+  rejectionReason       String?
+  viewCount             Int       @default(0)
+  likeCount             Int       @default(0)
+  averageRating         Float     @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  creator             Creator              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  uploadedBy          User                 @relation("UploadedByUser", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  primaryRightsholder Rightsholder         @relation("ContentPrimaryRightsholder", fields: [primaryRightsholderId], references: [id], onDelete: Restrict)
+  distributor         Rightsholder?        @relation("ContentDistributor", fields: [distributorId], references: [id], onDelete: SetNull)
+  contentType         RefContentType       @relation(fields: [contentTypeId], references: [id])
+  status              RefContentStatus     @relation(fields: [statusId], references: [id])
+  visibility          RefContentVisibility @relation(fields: [visibilityId], references: [id])
+  maturityRating      RefMaturityRating?   @relation(fields: [maturityRatingId], references: [id])
+  countryOfOrigin     RefCountry?          @relation(fields: [countryOfOriginId], references: [id])
+  originalLanguage    RefLanguage?         @relation(fields: [originalLanguageCode], references: [code])
+
+  contentGenres        ContentGenre[]
+  seasons              Season[]
+  episodes             Episode[]
+  mediaAssets          MediaAsset[]
+  videoAssets          VideoAsset[]
+  subtitleTracks       SubtitleTrack[]
+  audioTracks          AudioTrack[]
+  contentCasts         ContentCast[]
+  contentCrews         ContentCrew[]
+  distributions        Distribution[]
+  geoRestrictions      GeoRestriction[]
+  contentRights        ContentRight[]
+  revenueStatements    RevenueStatement[]
+  royalties            Royalty[]
+  watchHistories       WatchHistory[]
+  watchSessions        WatchSession[]
+  favorites            Favorite[]
+  contentLikes         ContentLike[]
+  comments             Comment[]
+  contentReviews       ContentReview[]
+  contentReports       ContentReport[]
+  downloads            Download[]
+  recommendations      Recommendation[]
+  userBehaviors        UserBehavior[]
+  contentViews         ContentView[]
+  contentStats         ContentStats?
+  contentAwards        ContentAward[]
+  banners              Banner[]
+  statusHistories      ContentStatusHistory[]
+  moderationQueues     ModerationQueue[]
+  searchIndex          SearchIndex?
+  ppvPayments          Payment[]
+
+  @@index([creatorId, statusId])
+  @@index([slug])
+  @@map("contents")
+}
+
+model ContentGenre {
+  contentId String
+  genreId   String
+
+  content Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  genre   RefGenre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([contentId, genreId])
+  @@map("content_genres")
+}
+
+model Season {
+  id              String   @id @default(cuid())
+  contentId       String
+  number          Int
+  title           String?
+  description     String?
+  posterObjectKey String?
+  releaseYear     Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  content  Content   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episodes Episode[]
+
+  @@unique([contentId, number])
+  @@map("seasons")
+}
+
+model Episode {
+  id                 String   @id @default(cuid())
+  contentId          String
+  seasonId           String?
+  seasonNumber       Int
+  episodeNumber      Int
+  title              String
+  description        String?
+  thumbnailObjectKey String?
+  duration           Int      // secondes
+  statusId           String
+  viewCount          Int      @default(0)
+  publishedAt        DateTime?
+  rejectionReason    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  content        Content          @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  season         Season?          @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  status         RefContentStatus @relation(fields: [statusId], references: [id])
+  videoAssets    VideoAsset[]
+  mediaAssets    MediaAsset[]
+  subtitleTracks SubtitleTrack[]
+  audioTracks    AudioTrack[]
+  watchHistories WatchHistory[]
+  watchSessions  WatchSession[]
+  contentViews   ContentView[]
+  downloads      Download[]
+  contentCasts   ContentCast[]
+  contentCrews   ContentCrew[]
+
+  @@unique([contentId, seasonNumber, episodeNumber])
+  @@map("episodes")
+}
+
+model MediaAsset {
+  id            String   @id @default(cuid())
+  contentId     String
+  episodeId     String?
+  typeId        String
+  objectKey     String   // chemin MinIO
+  mimeType      String?
+  sizeBytes     BigInt?
+  width         Int?
+  height        Int?
+  languageCode  String?
+  /// TEASER | STANDARD | THEATRICAL | FINAL (surtout pour type TRAILER)
+  promoVariant  String?  @map("promo_variant")
+  durationSec   Int?     @map("duration_sec")
+  label         String?
+  sortOrder     Int      @default(0) @map("sort_order")
+  isPrimary     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  content Content           @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episode Episode?          @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  type    RefMediaAssetType @relation(fields: [typeId], references: [id])
+
+  @@index([contentId, typeId, isPrimary])
+  @@map("media_assets")
+}
+
+model SubtitleTrack {
+  id          String   @id @default(cuid())
+  contentId   String
+  episodeId   String?
+  languageId  String
+  objectKey   String   // fichier .vtt dans MinIO
+  isDefault   Boolean  @default(false)
+  isForced    Boolean  @default(false)
+  format      String   @default("VTT") // VTT | SRT
+  createdAt   DateTime @default(now())
+
+  content  Content     @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episode  Episode?    @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  language RefLanguage @relation(fields: [languageId], references: [id])
+
+  @@map("subtitle_tracks")
+}
+
+model AudioTrack {
+  id          String   @id @default(cuid())
+  contentId   String
+  episodeId   String?
+  languageId  String
+  objectKey   String?
+  format      String   @default("AAC") // AAC | AC3 | DOLBY_ATMOS | EAC3
+  isDefault   Boolean  @default(false)
+  label       String?
+  createdAt   DateTime @default(now())
+
+  content  Content     @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episode  Episode?    @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  language RefLanguage @relation(fields: [languageId], references: [id])
+
+  @@map("audio_tracks")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CAST & CREW
+// ═══════════════════════════════════════════════════════════════
+
+model Person {
+  id              String    @id @default(cuid())
+  fullName        String
+  stageName       String?
+  avatarObjectKey String?
+  biography       String?
+  birthDate       DateTime?
+  birthCountryId  String?
+  nationality     String?
+  websiteUrl      String?
+  imdbId          String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  birthCountry RefCountry?   @relation(fields: [birthCountryId], references: [id])
+  contentCasts ContentCast[]
+  contentCrews ContentCrew[]
+
+  @@index([fullName])
+  @@map("people")
+}
+
+model ContentCast {
+  id            String  @id @default(cuid())
+  contentId     String
+  episodeId     String?
+  personId      String
+  characterName String?
+  displayOrder  Int     @default(0)
+  isMainCast    Boolean @default(true)
+
+  content Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episode Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  person  Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@map("content_casts")
+}
+
+model ContentCrew {
+  id         String @id @default(cuid())
+  contentId  String
+  episodeId  String?
+  personId   String
+  crewRoleId String
+
+  content  Content     @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episode  Episode?    @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  person   Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  crewRole RefCrewRole @relation(fields: [crewRoleId], references: [id])
+
+  @@index([contentId])
+  @@map("content_crews")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DISTRIBUTION & DROITS
+// ═══════════════════════════════════════════════════════════════
+
+model Distribution {
+  id          String   @id @default(cuid())
+  contentId   String
+  releaseType String   // CINEMA | STREAMING | TV | DVD | FESTIVAL
+  releaseDate DateTime
+  createdAt   DateTime @default(now())
+
+  content Content              @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  regions DistributionRegion[]
+
+  @@map("distributions")
+}
+
+model DistributionRegion {
+  id             String  @id @default(cuid())
+  distributionId String
+  countryId      String
+  available      Boolean @default(true)
+
+  distribution Distribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  country      RefCountry   @relation(fields: [countryId], references: [id])
+
+  @@unique([distributionId, countryId])
+  @@map("distribution_regions")
+}
+
+model GeoRestriction {
+  id        String   @id @default(cuid())
+  contentId String
+  countryId String
+  mode      String   // ALLOW | BLOCK
+  reason    String?
+  createdAt DateTime @default(now())
+
+  content Content    @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  country RefCountry @relation(fields: [countryId], references: [id])
+
+  @@unique([contentId, countryId])
+  @@map("geo_restrictions")
+}
+
+model RightsContract {
+  id              String    @id @default(cuid())
+  rightsholderId  String
+  distributorId   String?
+  contractRef     String?   @unique
+  signedAt        DateTime?
+  startsAt        DateTime
+  endsAt          DateTime?
+  isExclusive     Boolean   @default(false)
+  revenueSharePct Float?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  rightsholder  Rightsholder   @relation("ContractRightsholder", fields: [rightsholderId], references: [id], onDelete: Restrict)
+  distributor   Rightsholder?  @relation("ContractDistributor", fields: [distributorId], references: [id], onDelete: SetNull)
   contentRights ContentRight[]
 
   @@index([rightsholderId])
-  @@index([distributorId])
   @@map("rights_contracts")
 }
 
 model ContentRight {
-  id               String   @id @default(cuid())
-  contentId        String
-  contractId       String
-  monetizationType String   // SVOD | TVOD | AVOD
-  territoryCode    String   // CI | UEMOA | AFRICA | WORLD | DIASPORA
-  startsAt         DateTime
-  endsAt           DateTime?
-  status           String   // ACTIVE | EXPIRED | SUSPENDED
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                 String    @id @default(cuid())
+  contentId          String
+  contractId         String
+  monetizationTypeId String
+  territoryCodeId    String
+  startsAt           DateTime
+  endsAt             DateTime?
+  statusId           String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  content  Content        @relation(fields: [contentId], references: [id], onDelete: Cascade)
-  contract RightsContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  content          Content               @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  contract         RightsContract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  monetizationType RefMonetizationType   @relation(fields: [monetizationTypeId], references: [id])
+  territoryCode    RefTerritoryCode      @relation(fields: [territoryCodeId], references: [id])
+  status           RefContentRightStatus @relation(fields: [statusId], references: [id])
 
-  @@index([contentId, territoryCode, monetizationType, status])
+  @@index([contentId, territoryCodeId, monetizationTypeId, statusId])
   @@map("content_rights")
 }
 
 model RevenueRule {
-  id               String   @id @default(cuid())
-  code             String   @unique
+  id               String    @id @default(cuid())
+  code             String    @unique
   name             String
-  appliesToType    String   // PLATFORM_DEFAULT | CONTRACT | CONTENT
+  appliesToType    String    // PLATFORM_DEFAULT | CONTRACT | CONTENT
   appliesToId      String?
   creatorSharePct  Float
   platformSharePct Float
-  partnerSharePct  Float    @default(0)
-  isActive         Boolean  @default(true)
+  partnerSharePct  Float     @default(0)
+  isActive         Boolean   @default(true)
   effectiveFrom    DateTime
   effectiveTo      DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   statements RevenueStatement[]
 
@@ -380,109 +1048,151 @@ model RevenueRule {
 }
 
 model RevenueStatement {
-  id                String   @id @default(cuid())
-  periodStart       DateTime
-  periodEnd         DateTime
-  beneficiaryType   String   // RIGHTSHOLDER | PARTNER
-  beneficiaryId     String
+  id                        String    @id @default(cuid())
+  periodStart               DateTime
+  periodEnd                 DateTime
+  beneficiaryTypeId         String
+  beneficiaryId             String
   beneficiaryRightsholderId String?
-  contentId         String?
-  ruleId            String
-  grossAmount       Int
-  feesAmount        Int      @default(0)
-  taxesAmount       Int      @default(0)
-  netDistributable  Int
-  beneficiaryAmount Int
-  platformAmount    Int
-  partnerAmount     Int      @default(0)
-  currency          String   @default("XOF")
-  status            String   // DRAFT | LOCKED | PAID
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  contentId                 String?
+  ruleId                    String
+  grossAmount               Int
+  feesAmount                Int       @default(0)
+  taxesAmount               Int       @default(0)
+  netDistributable          Int
+  beneficiaryAmount         Int
+  platformAmount            Int
+  partnerAmount             Int       @default(0)
+  currency                  String    @default("XOF")
+  statusId                  String
+  paidAt                    DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
-  content Content?    @relation(fields: [contentId], references: [id], onDelete: SetNull)
-  rule    RevenueRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
-  rightsholder Rightsholder? @relation(fields: [beneficiaryRightsholderId], references: [id], onDelete: SetNull)
+  content         Content?                  @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  rule            RevenueRule               @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  rightsholder    Rightsholder?             @relation(fields: [beneficiaryRightsholderId], references: [id], onDelete: SetNull)
+  beneficiaryType RefBeneficiaryType        @relation(fields: [beneficiaryTypeId], references: [id])
+  status          RefRevenueStatementStatus @relation(fields: [statusId], references: [id])
 
-  @@index([beneficiaryType, beneficiaryId, periodStart, periodEnd])
+  @@index([beneficiaryTypeId, beneficiaryId, periodStart, periodEnd])
   @@map("revenue_statements")
 }
 
-model Episode {
-  id           String        @id @default(cuid())
-  contentId    String
-  season       Int
-  episode      Int
-  title        String
-  thumbnailUrl String?
-  duration     Int // En secondes
-  statusId     String
-  status       ContentStatusRef @relation(fields: [statusId], references: [id])
-  viewCount    Int           @default(0)
+model Royalty {
+  id                    String    @id @default(cuid())
+  contentId             String
+  period                String    // "2026-05"
+  totalViews            Int       @default(0)
+  totalWatchTimeSeconds Int       @default(0)
+  amount                Int       // FCFA
+  currency              String    @default("XOF")
+  status                String    @default("PENDING") // PENDING | PAID
+  paidAt                DateTime?
+  createdAt             DateTime  @default(now())
 
-  // Mux
-  muxUploadId   String?
-  muxAssetId    String?
-  muxPlaybackId String?
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
 
-  publishedAt DateTime?
+  @@unique([contentId, period])
+  @@map("royalties")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PIPELINE VIDÉO
+// ═══════════════════════════════════════════════════════════════
+
+enum VideoAssetStatus {
+  CREATED
+  UPLOADED
+  PROBING
+  TRANSCODING
+  PACKAGING
+  READY_PREVIEW
+  READY
+  PUBLISHED
+  FAILED
+}
+
+model VideoAsset {
+  id              String           @id @default(cuid())
+  contentId       String
+  episodeId       String?
+  sourceObjectKey String
+  sourceChecksum  String?
+  sourceMimeType  String?
+  sourceSizeBytes BigInt?
+  status          VideoAssetStatus @default(CREATED)
+  errorCode       String?
+  errorMessage    String?
+  profileVersion  String           @default("v1")
+  manifestPath    String?
+  durationSec     Int?
+  width           Int?
+  height          Int?
+  frameRate       Float?
+  posterObjectKey     String?
+  storyboardSpriteKey String?
+  storyboardVttKey    String?
+  muxUploadId         String?
+  muxAssetId      String?
+  muxPlaybackId   String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  content    Content          @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episode    Episode?         @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  renditions VideoRendition[]
+  jobs       VideoJob[]
+
+  @@index([contentId, status])
+  @@index([episodeId, status])
+  @@map("video_assets")
+}
+
+model VideoRendition {
+  id           String   @id @default(cuid())
+  assetId      String
+  name         String   // "1080p" | "720p" | "480p" | "360p"
+  width        Int
+  height       Int
+  videoBitrate Int
+  audioBitrate Int
+  playlistPath String
+  codecs       String?
+  createdAt    DateTime @default(now())
+
+  asset VideoAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@map("video_renditions")
+}
+
+model VideoJob {
+  id          String    @id @default(cuid())
+  assetId     String
+  type        String    // PROBE | TRANSCODE | PACKAGE | THUMBNAIL | PUBLISH
+  status      String    // PENDING | RUNNING | DONE | FAILED
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  lastError   String?
+  payload     Json?
+  startedAt   DateTime?
+  finishedAt  DateTime?
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
 
-  content      Content        @relation(fields: [contentId], references: [id], onDelete: Cascade)
-  watchHistory WatchHistory[]
+  asset VideoAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
-  @@unique([contentId, season, episode])
-  @@map("episodes")
+  @@index([assetId, type])
+  @@map("video_jobs")
 }
 
-model Subscription {
-  id                 String             @id @default(cuid())
-  userId             String
-  planId             String
-  plan               UserPlanRef        @relation(fields: [planId], references: [id])
-  statusId           String
-  status             SubscriptionStatusRef @relation(fields: [statusId], references: [id])
-  providerId         String
-  provider           PaymentProviderRef @relation(fields: [providerId], references: [id])
-  externalId         String? // Stripe subscription ID
-  currentPeriodStart DateTime
-  currentPeriodEnd   DateTime
-  cancelAtPeriodEnd  Boolean            @default(false)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments Payment[]
-
-  @@map("subscriptions")
-}
-
-model Payment {
-  id             String          @id @default(cuid())
-  userId         String
-  subscriptionId String?
-  amount         Int // En FCFA ou centimes
-  currency       String          @default("XOF")
-  statusId       String
-  status         PaymentStatusRef @relation(fields: [statusId], references: [id])
-  providerId     String
-  provider       PaymentProviderRef @relation(fields: [providerId], references: [id])
-  transactionId  String?         @unique
-  metadata       Json?
-  paidAt         DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
-
-  @@map("payments")
-}
+// ═══════════════════════════════════════════════════════════════
+// EXPÉRIENCE UTILISATEUR
+// ═══════════════════════════════════════════════════════════════
 
 model WatchHistory {
   id             String   @id @default(cuid())
-  userId         String
+  profileId      String
   contentId      String
   episodeId      String?
   watchedSeconds Int      @default(0)
@@ -492,39 +1202,65 @@ model WatchHistory {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   content Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
-  episode Episode? @relation(fields: [episodeId], references: [id])
+  episode Episode? @relation(fields: [episodeId], references: [id], onDelete: SetNull)
 
-  @@unique([userId, contentId, episodeId])
+  @@unique([profileId, contentId, episodeId])
+  @@index([profileId, lastWatchedAt])
   @@map("watch_history")
 }
 
-model Download {
-  id         String   @id @default(cuid())
-  userId     String
-  contentId  String
-  quality    String   @default("720p")
-  fileSizeMb Int?
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+model WatchSession {
+  id                 String    @id @default(cuid())
+  profileId          String
+  contentId          String
+  episodeId          String?
+  deviceId           String?
+  currentPositionSec Int       @default(0)
+  qualitySelected    String    @default("auto")
+  isActive           Boolean   @default(true)
+  startedAt          DateTime  @default(now())
+  endedAt            DateTime?
+  lastHeartbeatAt    DateTime  @default(now())
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  profile Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  content Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episode Episode? @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  device  Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
-  @@map("downloads")
+  @@index([profileId, isActive, lastHeartbeatAt])
+  @@map("watch_sessions")
+}
+
+// Événements QoE lecteur (startup, rebuffer, qualité) — agrégation type Mux Data
+model PlaybackQoEEvent {
+  id        String   @id @default(cuid())
+  sessionId String?
+  contentId String
+  episodeId String?
+  assetId   String?
+  profileId String?
+  eventType String
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([contentId, createdAt])
+  @@index([assetId, createdAt])
+  @@index([sessionId])
+  @@map("playback_qoe_events")
 }
 
 model Favorite {
   id        String   @id @default(cuid())
-  userId    String
+  profileId String
   contentId String
   createdAt DateTime @default(now())
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, contentId])
+  @@unique([profileId, contentId])
   @@map("favorites")
 }
 
@@ -541,18 +1277,566 @@ model Follow {
   @@map("follows")
 }
 
-model Notification {
+model ContentLike {
   id        String   @id @default(cuid())
+  profileId String
+  contentId String
+  createdAt DateTime @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, contentId])
+  @@map("content_likes")
+}
+
+model Comment {
+  id                String    @id @default(cuid())
+  profileId         String
+  contentId         String
+  parentId          String?
+  body              String
+  isModerated       Boolean   @default(false)
+  moderatedAt       DateTime?
+  moderatedByUserId String?
+  isDeleted         Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  content     Content   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  parent      Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies     Comment[] @relation("CommentReplies")
+  moderatedBy User?     @relation("ModeratedByUser", fields: [moderatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([contentId, createdAt])
+  @@map("comments")
+}
+
+model ContentReview {
+  id        String   @id @default(cuid())
+  profileId String
+  contentId String
+  rating    Int      // 1 à 5
+  title     String?
+  body      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, contentId])
+  @@map("content_reviews")
+}
+
+model ContentReport {
+  id               String   @id @default(cuid())
+  profileId        String
+  contentId        String
+  reasonId         String
+  description      String?
+  statusId         String
+  reviewedByUserId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  profile    Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  content    Content          @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  reviewedBy User?            @relation("ReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reason     RefReportReason  @relation(fields: [reasonId], references: [id])
+  status     RefReportStatus  @relation(fields: [statusId], references: [id])
+
+  @@map("content_reports")
+}
+
+model Download {
+  id         String   @id @default(cuid())
+  userId     String
+  contentId  String
+  episodeId  String?
+  assetId    String?
+  quality    String   @default("720p")
+  fileSizeMb Int?
+  objectKey  String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episode Episode? @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+
+  @@map("downloads")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════
+
+model Notification {
+  id        String    @id @default(cuid())
   userId    String
-  type      String // "video_ready" | "payment_confirmed" | "new_content" | "subscription_expiring"
+  type      String    // VIDEO_PREVIEW_READY | VIDEO_READY | VIDEO_FAILED | PAYMENT_* | SUB_EXPIRING | NEW_CONTENT | NEW_FOLLOWER | COMMENT_REPLY
   title     String
   body      String
   data      Json?
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  read      Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, read])
+  @@index([userId, read, createdAt])
   @@map("notifications")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PAIEMENT & FINANCE
+// ═══════════════════════════════════════════════════════════════
+
+model UserSubscription {
+  id                 String   @id @default(cuid())
+  userId             String
+  planId             String
+  statusId           String
+  providerId         String
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean  @default(false)
+  externalId         String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan     RefUserPlan           @relation(fields: [planId], references: [id])
+  status   RefSubscriptionStatus @relation(fields: [statusId], references: [id])
+  provider RefPaymentProvider    @relation(fields: [providerId], references: [id])
+  payments Payment[]
+
+  @@index([userId, statusId])
+  @@index([userId, currentPeriodEnd])
+  @@map("user_subscriptions")
+}
+
+model Payment {
+  id                 String    @id @default(cuid())
+  userId             String
+  userSubscriptionId String?
+  contentId          String?   // TVOD / PPV
+  amount             Int       // FCFA
+  currency           String    @default("XOF")
+  statusId           String
+  providerId         String
+  transactionId      String?   @unique
+  phoneNumber        String?
+  metadata           Json?
+  paidAt             DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userSubscription UserSubscription?  @relation(fields: [userSubscriptionId], references: [id])
+  content          Content?           @relation(fields: [contentId], references: [id])
+  status           RefPaymentStatus   @relation(fields: [statusId], references: [id])
+  provider         RefPaymentProvider @relation(fields: [providerId], references: [id])
+  transactions     Transaction[]
+  refunds          Refund[]
+  invoice          Invoice?
+
+  @@index([userId, statusId])
+  @@index([userId, createdAt])
+  @@index([contentId, statusId])
+  @@map("payments")
+}
+
+model Transaction {
+  id              String   @id @default(cuid())
+  paymentId       String
+  reference       String   @unique
+  typeId          String
+  amount          Int
+  currency        String   @default("XOF")
+  statusId        String
+  gatewayResponse Json?
+  createdAt       DateTime @default(now())
+
+  payment Payment            @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  type    RefTransactionType @relation(fields: [typeId], references: [id])
+  status  RefPaymentStatus   @relation("TransactionStatus", fields: [statusId], references: [id])
+
+  @@map("transactions")
+}
+
+model Invoice {
+  id            String    @id @default(cuid())
+  userId        String
+  paymentId     String?   @unique
+  invoiceNumber String    @unique
+  issueDate     DateTime  @default(now())
+  dueDate       DateTime?
+  subtotal      Int
+  taxes         Int       @default(0)
+  total         Int
+  currency      String    @default("XOF")
+  statusId      String
+  pdfObjectKey  String?
+  createdAt     DateTime  @default(now())
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment Payment?         @relation(fields: [paymentId], references: [id])
+  status  RefInvoiceStatus @relation(fields: [statusId], references: [id])
+
+  @@map("invoices")
+}
+
+model Refund {
+  id              String    @id @default(cuid())
+  paymentId       String
+  amount          Int
+  currency        String    @default("XOF")
+  reason          String?
+  statusId        String
+  processedAt     DateTime?
+  gatewayRefundId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  payment Payment         @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  status  RefRefundStatus @relation(fields: [statusId], references: [id])
+
+  @@map("refunds")
+}
+
+model ExchangeRate {
+  id             String   @id @default(cuid())
+  fromCurrencyId String
+  toCurrencyId   String
+  rate           Float
+  fetchedAt      DateTime @default(now())
+
+  fromCurrency RefCurrency @relation("ExchangeRateFrom", fields: [fromCurrencyId], references: [id])
+  toCurrency   RefCurrency @relation("ExchangeRateTo", fields: [toCurrencyId], references: [id])
+
+  @@index([fromCurrencyId, toCurrencyId])
+  @@map("exchange_rates")
+}
+
+model Tax {
+  id             String    @id @default(cuid())
+  countryId      String
+  name           String
+  percentage     Float
+  appliesToPlans Boolean   @default(true)
+  appliesToTVOD  Boolean   @default(true)
+  isActive       Boolean   @default(true)
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+
+  country RefCountry @relation(fields: [countryId], references: [id])
+
+  @@map("taxes")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ANALYTICS & STATS
+// ═══════════════════════════════════════════════════════════════
+
+model ContentView {
+  id               String   @id @default(cuid())
+  profileId        String
+  contentId        String
+  episodeId        String?
+  deviceId         String?
+  watchTimeSeconds Int      @default(0)
+  completionPct    Float    @default(0)
+  countryCode      String?
+  createdAt        DateTime @default(now())
+
+  profile Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  content Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  episode Episode? @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  device  Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([contentId, createdAt])
+  @@index([profileId, createdAt])
+  @@map("content_views")
+}
+
+model ContentStats {
+  contentId             String   @id
+  totalViews            BigInt   @default(0)
+  uniqueViewers         BigInt   @default(0)
+  totalWatchTimeSeconds BigInt   @default(0)
+  averageWatchTimeSec   Int      @default(0)
+  completionRate        Float    @default(0)
+  likeCount             Int      @default(0)
+  favoriteCount         Int      @default(0)
+  commentCount          Int      @default(0)
+  reviewCount           Int      @default(0)
+  averageRating         Float    @default(0)
+  popularityScore       Float    @default(0)
+  updatedAt             DateTime @updatedAt
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@map("content_stats")
+}
+
+model UserBehavior {
+  id        String   @id @default(cuid())
+  profileId String
+  action    String   // PLAY | PAUSE | SEEK | STOP | SEARCH | CLICK_CONTENT | SKIP_INTRO | SKIP_CREDITS | SCROLL
+  contentId String?
+  deviceId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  profile Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  content Content? @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  device  Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([profileId, createdAt])
+  @@map("user_behaviors")
+}
+
+model SearchHistory {
+  id               String   @id @default(cuid())
+  profileId        String
+  query            String
+  resultsCount     Int      @default(0)
+  clickedContentId String?
+  createdAt        DateTime @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, createdAt])
+  @@map("search_history")
+}
+
+model TrendingSearch {
+  id          String   @id @default(cuid())
+  query       String
+  searchCount Int      @default(0)
+  period      String   // "1h" | "24h" | "7d"
+  updatedAt   DateTime @updatedAt
+
+  @@unique([query, period])
+  @@map("trending_searches")
+}
+
+model Recommendation {
+  id        String   @id @default(cuid())
+  profileId String
+  contentId String
+  score     Float
+  reason    String   // BECAUSE_YOU_WATCHED | POPULAR_IN_YOUR_COUNTRY | NEW_FROM_CREATOR | TRENDING | GENRE_MATCH
+  algorithm String   @default("v1")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, contentId])
+  @@index([profileId, score(sort: Desc)])
+  @@map("recommendations")
+}
+
+model SearchIndex {
+  contentId   String @id
+  indexedText String // titre + description + tags + noms cast
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@map("search_index")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ÉDITORIAL & MARKETING
+// ═══════════════════════════════════════════════════════════════
+
+model Banner {
+  id             String    @id @default(cuid())
+  title          String
+  subtitle       String?
+  contentId      String?
+  imageObjectKey String
+  linkUrl        String?
+  position       Int       @default(0)
+  targetPlanIds  String[]
+  countryIds     String[]
+  isActive       Boolean   @default(true)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  content Content? @relation(fields: [contentId], references: [id], onDelete: SetNull)
+
+  @@map("banners")
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  typeId      String
+  startsAt    DateTime
+  endsAt      DateTime
+  isActive    Boolean  @default(true)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  type RefCampaignType @relation(fields: [typeId], references: [id])
+
+  @@map("campaigns")
+}
+
+model Award {
+  id        String   @id @default(cuid())
+  typeId    String
+  name      String
+  category  String?
+  year      Int
+  createdAt DateTime @default(now())
+
+  type          RefAwardType   @relation(fields: [typeId], references: [id])
+  contentAwards ContentAward[]
+
+  @@map("awards")
+}
+
+model ContentAward {
+  contentId String
+  awardId   String
+  won       Boolean @default(true) // true = gagné, false = nommé
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  award   Award   @relation(fields: [awardId], references: [id], onDelete: Cascade)
+
+  @@id([contentId, awardId])
+  @@map("content_awards")
+}
+
+model ContentStatusHistory {
+  id              String   @id @default(cuid())
+  contentId       String
+  oldStatus       String
+  newStatus       String
+  changedByUserId String?
+  comment         String?
+  createdAt       DateTime @default(now())
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([contentId, createdAt])
+  @@map("content_status_history")
+}
+
+model ModerationQueue {
+  id               String   @id @default(cuid())
+  contentId        String
+  priorityId       String
+  assignedToUserId String?
+  notes            String?
+  statusId         String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  content  Content               @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  priority RefModerationPriority @relation(fields: [priorityId], references: [id])
+  status   RefModerationStatus   @relation(fields: [statusId], references: [id])
+
+  @@map("moderation_queue")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PUBLICITÉ — AVOD (Phase 2)
+// ═══════════════════════════════════════════════════════════════
+
+model Ad {
+  id                 String   @id @default(cuid())
+  title              String
+  videoObjectKey     String
+  thumbnailObjectKey String?
+  durationSec        Int
+  clickUrl           String?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  adCampaigns   AdCampaign[]
+  adImpressions AdImpression[]
+
+  @@map("ads")
+}
+
+model AdCampaign {
+  id        String   @id @default(cuid())
+  adId      String
+  name      String
+  startsAt  DateTime
+  endsAt    DateTime
+  budget    Int?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  ad Ad @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@map("ad_campaigns")
+}
+
+model AdImpression {
+  id        String   @id @default(cuid())
+  adId      String
+  profileId String
+  clicked   Boolean  @default(false)
+  viewedAt  DateTime @default(now())
+
+  ad      Ad      @relation(fields: [adId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([adId, viewedAt])
+  @@map("ad_impressions")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LIVE STREAMING (Phase 2)
+// ═══════════════════════════════════════════════════════════════
+
+model LiveStream {
+  id                 String    @id @default(cuid())
+  creatorId          String
+  title              String
+  description        String?
+  streamKey          String    @unique
+  playbackUrl        String?
+  statusId           String
+  viewerCount        Int       @default(0)
+  thumbnailObjectKey String?
+  scheduledStartAt   DateTime?
+  startedAt          DateTime?
+  endedAt            DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  creator    Creator             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  status     RefLiveStreamStatus @relation(fields: [statusId], references: [id])
+  liveEvents LiveEvent[]
+
+  @@map("live_streams")
+}
+
+model LiveEvent {
+  id              String   @id @default(cuid())
+  liveStreamId    String
+  type            String   // CONCERT | MATCH | CONFERENCE | PREMIERE | OTHER
+  ticketPriceFcfa Int?
+  maxViewers      Int?
+  createdAt       DateTime @default(now())
+
+  liveStream LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+
+  @@map("live_events")
 }

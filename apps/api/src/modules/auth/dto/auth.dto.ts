@@ -15,7 +15,7 @@ export class SendOtpDto {
     description: 'Adresse email pour recevoir le code OTP',
   })
   @IsEmail({}, { message: 'email doit être une adresse email valide' })
-  email: string;
+  email!: string;
 }
 
 export class VerifyOtpDto {
@@ -24,17 +24,17 @@ export class VerifyOtpDto {
     description: 'Adresse email utilisée pour demander le code OTP',
   })
   @IsEmail({}, { message: 'email doit être une adresse email valide' })
-  email: string;
+  email!: string;
 
   @ApiProperty({
     example: '12345',
     minLength: 5,
     maxLength: 5,
-    description: 'Code OTP à 5 chiffres',
+    description: 'Code OTP à 6 chiffres',
   })
   @IsString()
-  @Length(5, 5, { message: 'Le code OTP doit contenir exactement 5 caractères' })
-  otp: string;
+  @Length(6, 6, { message: 'Le code OTP doit contenir exactement 6 chiffres' })
+  otp!: string;
 }
 
 export class RegisterWithPasswordDto {
@@ -43,7 +43,7 @@ export class RegisterWithPasswordDto {
     description: 'Email de connexion (obligatoire pour inscription spectateur)',
   })
   @IsEmail({}, { message: 'email doit être une adresse email valide' })
-  email: string;
+  email!: string;
 
   @ApiPropertyOptional({
     example: '+2250700000000',
@@ -56,13 +56,32 @@ export class RegisterWithPasswordDto {
   @IsOptional()
   phone?: string;
 
-  @ApiProperty({
-    example: 'Marvel Studios',
-    description: 'Nom affiché du compte',
+  @ApiPropertyOptional({
+    example: 'Marvel',
+    description: 'Prénom (optionnel)',
   })
+  @IsOptional()
+  @IsString()
+  @Length(1, 50)
+  firstName?: string;
+
+  @ApiPropertyOptional({
+    example: 'Studios',
+    description: 'Nom de famille (optionnel)',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(0, 50)
+  lastName?: string;
+
+  @ApiPropertyOptional({
+    example: 'Marvel Studios',
+    description: 'Nom affiché du compte (déduit de firstName + lastName si absent)',
+  })
+  @IsOptional()
   @IsString()
   @Length(2, 80)
-  name: string;
+  name?: string;
 
   @ApiProperty({
     example: 'MotDePasseFort123!',
@@ -71,7 +90,7 @@ export class RegisterWithPasswordDto {
   })
   @IsString()
   @MinLength(8)
-  password: string;
+  password!: string;
 }
 
 export class RegisterSendOtpDto {
@@ -81,7 +100,7 @@ export class RegisterSendOtpDto {
   })
   @IsString()
   @Length(2, 50)
-  firstName: string;
+  firstName!: string;
 
   @ApiPropertyOptional({
     example: 'Studios',
@@ -97,7 +116,7 @@ export class RegisterSendOtpDto {
     description: "Adresse email pour l'inscription OTP",
   })
   @IsEmail({}, { message: 'email doit être une adresse email valide' })
-  email: string;
+  email!: string;
 }
 
 export class RegisterVerifyOtpDto {
@@ -107,7 +126,7 @@ export class RegisterVerifyOtpDto {
   })
   @IsString()
   @Length(2, 50)
-  firstName: string;
+  firstName!: string;
 
   @ApiPropertyOptional({
     example: 'Studios',
@@ -123,27 +142,27 @@ export class RegisterVerifyOtpDto {
     description: 'Adresse email utilisee pour demander le code OTP',
   })
   @IsEmail({}, { message: 'email doit être une adresse email valide' })
-  email: string;
+  email!: string;
 
   @ApiProperty({
     example: '12345',
     minLength: 5,
     maxLength: 5,
-    description: 'Code OTP a 5 chiffres',
+    description: 'Code OTP à 6 chiffres',
   })
   @IsString()
-  @Length(5, 5, { message: 'Le code OTP doit contenir exactement 5 caractères' })
-  otp: string;
+  @Length(6, 6, { message: 'Le code OTP doit contenir exactement 6 chiffres' })
+  otp!: string;
 }
 
 export class SetupPasswordDto {
   @ApiProperty({
     example: 'jeton_recu_dans_l_url_du_mail',
-    description: 'Valeur du paramètre token du lien d’invitation (sans le mot de passe en clair).',
+    description: 'Valeur du paramètre token du lien d\'invitation (sans le mot de passe en clair).',
   })
   @IsString()
   @MinLength(16)
-  token: string;
+  token!: string;
 
   @ApiProperty({
     example: 'NouveauMotDePasse456!',
@@ -152,7 +171,7 @@ export class SetupPasswordDto {
   })
   @IsString()
   @MinLength(8)
-  newPassword: string;
+  newPassword!: string;
 }
 
 export class ChangePasswordDto {
@@ -161,7 +180,7 @@ export class ChangePasswordDto {
     description: 'Mot de passe actuel (ou provisoire reçu par e-mail)',
   })
   @IsString()
-  currentPassword: string;
+  currentPassword!: string;
 
   @ApiProperty({
     example: 'NouveauMotDePasse456!',
@@ -170,7 +189,7 @@ export class ChangePasswordDto {
   })
   @IsString()
   @MinLength(8)
-  newPassword: string;
+  newPassword!: string;
 }
 
 export class LoginWithPasswordDto {
@@ -201,7 +220,7 @@ export class LoginWithPasswordDto {
   })
   @IsString()
   @MinLength(8)
-  password: string;
+  password!: string;
 }
 
 export class ForgotPasswordDto {
@@ -210,7 +229,7 @@ export class ForgotPasswordDto {
     description: 'Email du compte pour recevoir le code de reinitialisation',
   })
   @IsEmail({}, { message: 'email doit être une adresse email valide' })
-  email: string;
+  email!: string;
 }
 
 export class ResetPasswordDto {
@@ -219,15 +238,15 @@ export class ResetPasswordDto {
     description: 'Email du compte',
   })
   @IsEmail({}, { message: 'email doit être une adresse email valide' })
-  email: string;
+  email!: string;
 
   @ApiProperty({
     example: 'A1B2C3D4',
     description: 'Code de reinitialisation recu par email',
   })
   @IsString()
-  @Length(8, 8, { message: 'Le code de reinitialisation doit contenir 8 caractères' })
-  token: string;
+  @Length(8, 8, { message: 'Le code de réinitialisation doit contenir exactement 8 caractères' })
+  token!: string;
 
   @ApiProperty({
     example: 'NouveauMotDePasseFort123!',
@@ -236,5 +255,5 @@ export class ResetPasswordDto {
   })
   @IsString()
   @MinLength(8)
-  newPassword: string;
+  newPassword!: string;
 }

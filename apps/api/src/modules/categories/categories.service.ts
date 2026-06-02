@@ -6,25 +6,23 @@ import { CreateReferenceDto, UpdateReferenceDto } from '../references/dto/refere
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
 
-  async list() {
-    return this.prisma.category.findMany({
-      orderBy: { code: 'asc' },
-    });
+  list() {
+    return this.prisma.refGenre.findMany({ where: { isActive: true }, orderBy: { code: 'asc' } });
   }
 
   getOne(id: string) {
-    return this.prisma.category.findUnique({ where: { id } });
+    return this.prisma.refGenre.findUnique({ where: { id } });
   }
 
   create(dto: CreateReferenceDto) {
-    return this.prisma.category.create({ data: dto });
+    return this.prisma.refGenre.create({ data: { ...dto, slug: (dto as any).slug ?? dto.code.toLowerCase() } });
   }
 
   update(id: string, dto: UpdateReferenceDto) {
-    return this.prisma.category.update({ where: { id }, data: dto });
+    return this.prisma.refGenre.update({ where: { id }, data: dto });
   }
 
   remove(id: string) {
-    return this.prisma.category.delete({ where: { id } });
+    return this.prisma.refGenre.delete({ where: { id } });
   }
 }

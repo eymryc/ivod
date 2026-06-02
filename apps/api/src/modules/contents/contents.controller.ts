@@ -7,9 +7,11 @@ import { ContentsService } from './contents.service';
 import { QueryContentsDto, CreateContentDto, UpdateContentDto } from './dto/contents.dto';
 import { CreateEpisodeDto, UpdateEpisodeDto } from './dto/episodes.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -52,12 +54,28 @@ export class ContentsController {
   }
 
   @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get content details' })
   @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
   @ApiNotFoundResponse({ description: 'Content not found' })
-  findOne(@Param('id') id: string, @Req() req: Request) {
-    const userId = (req as any).user?.id as string | undefined;
-    return this.contentsService.findOne(id, userId);
+  @ApiQuery({ name: 'profileId', required: false })
+  findOne(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('profileId') profileId?: string,
+  ) {
+    const user = (req as any).user as { id?: string; roles?: string[] } | undefined;
+    return this.contentsService.findOne(id, user?.id, profileId, user?.roles ?? []);
+  }
+
+  @Get(':id/promo')
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Vidéos promotionnelles (teaser, bandes-annonces, extras)' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'locale', required: false, example: 'fr' })
+  getPromo(@Param('id') id: string, @Query('locale') locale?: string) {
+    return this.contentsService.getPromoVideos(id, locale);
   }
 
   @Post()
@@ -189,7 +207,13 @@ export class ContentsController {
     @CurrentUser('id') userId: string,
     @Body() body: UpdateProgressDto,
   ) {
-    return this.contentsService.updateProgress(userId, contentId, body.watchedSeconds, body.episodeId);
+    return this.contentsService.updateProgress(
+      userId,
+      contentId,
+      body.watchedSeconds,
+      body.episodeId,
+      body.profileId,
+    );
   }
 
   @Get(':id/entitlement')
@@ -197,10 +221,12 @@ export class ContentsController {
   @ApiOperation({ summary: 'Check playback entitlement for current user' })
   @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
   @ApiUnauthorizedResponse({ description: 'JWT required' })
+  @ApiQuery({ name: 'profileId', required: false })
   getEntitlement(
     @Param('id') contentId: string,
     @CurrentUser('id') userId: string,
+    @Query('profileId') profileId?: string,
   ) {
-    return this.contentsService.getEntitlement(contentId, userId);
+    return this.contentsService.getEntitlement(contentId, userId, profileId);
   }
 }

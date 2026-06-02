@@ -1,126 +1,48 @@
-import {
-  Controller, Post, Get, Delete, Body, UseGuards,
-  Req, Headers, RawBodyRequest, HttpCode,
-} from '@nestjs/common';
-import { Request } from 'express';
-import { SubscriptionsService } from './subscriptions.service';
-import { CheckoutCinetpayDto, CheckoutStripeDto } from './dto/subscriptions.dto';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, HttpCode, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiOperation,
-  ApiTags,
-  ApiUnauthorizedResponse,
-} from '@nestjs/swagger';
-import { ApiErrorResponse, ApiSuccessResponse } from '../../common/swagger/api-response.decorator';
+import { SubscriptionsService } from './subscriptions.service';
+import { CancelSubscriptionDto, CreateSubscriptionDto } from './dto/subscriptions.dto';
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth('BearerAuth')
+@UseGuards(JwtAuthGuard)
 @Controller('subscriptions')
 export class SubscriptionsController {
-  constructor(private readonly subscriptionsService: SubscriptionsService) {}
+  constructor(private readonly service: SubscriptionsService) {}
+
+  @Get('plans')
+  @Public()
+  @ApiOperation({ summary: 'Lister les plans disponibles (public). includeFree=true pour inclure le plan gratuit en tête.' })
+  listPlans(@Query('includeFree') includeFree?: string) {
+    return this.service.listPlans(includeFree === 'true');
+  }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Get current user subscription' })
-  @ApiUnauthorizedResponse({ description: 'JWT required' })
-  @ApiSuccessResponse({
-    description: 'Current subscription',
-    example: {
-      success: true,
-      data: { subscription: { plan: 'PREMIUM', status: 'ACTIVE' }, latestPayment: { status: 'SUCCEEDED' } },
-      error: null,
-      meta: { timestamp: '2026-03-23T16:30:00.000Z', version: 'v1' },
-    },
-  })
-  @ApiErrorResponse({
-    status: 401,
-    description: 'JWT required',
-    exampleCode: 'UNAUTHORIZED',
-    exampleMessage: 'Unauthorized',
-  })
-  getMySubscription(@CurrentUser('id') userId: string) {
-    return this.subscriptionsService.getMySubscription(userId);
+  @ApiOperation({ summary: 'Abonnement actif de l\'utilisateur' })
+  getActive(@CurrentUser('id') userId: string) {
+    return this.service.getActive(userId);
   }
 
-  @Post('checkout/cinetpay')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Start CinetPay subscription checkout' })
-  @ApiBody({ type: CheckoutCinetpayDto })
-  @ApiUnauthorizedResponse({ description: 'JWT required' })
-  @ApiSuccessResponse({
-    description: 'Checkout session created',
-    example: {
-      success: true,
-      data: { paymentUrl: 'https://checkout.cinetpay.com/...' },
-      error: null,
-      meta: { timestamp: '2026-03-23T16:30:00.000Z', version: 'v1' },
-    },
-  })
-  @ApiErrorResponse({
-    status: 401,
-    description: 'JWT required',
-    exampleCode: 'UNAUTHORIZED',
-    exampleMessage: 'Unauthorized',
-  })
-  checkoutCinetpay(
-    @CurrentUser('id') userId: string,
-    @Body() dto: CheckoutCinetpayDto,
-  ) {
-    return this.subscriptionsService.checkoutCinetpay(userId, dto);
+  @Get('me/history')
+  @ApiOperation({ summary: 'Historique des abonnements' })
+  getHistory(@CurrentUser('id') userId: string) {
+    return this.service.getHistory(userId);
   }
 
-  @Post('checkout/stripe')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Start Stripe subscription checkout' })
-  @ApiBody({ type: CheckoutStripeDto })
-  @ApiUnauthorizedResponse({ description: 'JWT required' })
-  @ApiSuccessResponse({
-    description: 'Stripe checkout session created',
-    example: {
-      success: true,
-      data: { checkoutUrl: 'https://checkout.stripe.com/...' },
-      error: null,
-      meta: { timestamp: '2026-03-23T16:30:00.000Z', version: 'v1' },
-    },
-  })
-  @ApiErrorResponse({
-    status: 401,
-    description: 'JWT required',
-    exampleCode: 'UNAUTHORIZED',
-    exampleMessage: 'Unauthorized',
-  })
-  checkoutStripe(
-    @CurrentUser('id') userId: string,
-    @Body() dto: CheckoutStripeDto,
-  ) {
-    return this.subscriptionsService.checkoutStripe(userId, dto);
+  @Post()
+  @ApiOperation({ summary: 'Souscrire à un plan (Mobile Money / Stripe)' })
+  subscribe(@CurrentUser('id') userId: string, @Body() dto: CreateSubscriptionDto) {
+    return this.service.subscribe(userId, dto);
   }
 
-  @Delete('cancel')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Cancel subscription at period end' })
-  @ApiUnauthorizedResponse({ description: 'JWT required' })
-  cancel(@CurrentUser('id') userId: string) {
-    return this.subscriptionsService.cancel(userId);
-  }
-
-  @Post('webhooks/cinetpay')
+  @Patch(':id/cancel')
   @HttpCode(200)
-  @ApiOperation({ summary: 'CinetPay webhook endpoint' })
-  cinetpayWebhook(@Body() body: any) {
-    return this.subscriptionsService.handleCinetpayWebhook(body);
-  }
-
-  @Post('webhooks/stripe')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Stripe webhook endpoint' })
-  stripeWebhook(
-    @Req() req: RawBodyRequest<Request>,
-    @Headers('stripe-signature') sig: string,
-  ) {
-    return this.subscriptionsService.handleStripeWebhook(req.rawBody as Buffer, sig);
+  @ApiOperation({ summary: 'Annuler un abonnement' })
+  @ApiParam({ name: 'id', example: 'cm9z...' })
+  cancel(@CurrentUser('id') userId: string, @Param('id') subscriptionId: string, @Body() dto: CancelSubscriptionDto) {
+    return this.service.cancel(userId, subscriptionId, dto);
   }
 }

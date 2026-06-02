@@ -37,8 +37,21 @@ export class FavoritesController {
     @CurrentUser('id') userId: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
+    @Query('profileId') profileId?: string,
   ) {
-    return this.favoritesService.list(userId, +page, +limit);
+    return this.favoritesService.list(userId, +page, +limit, profileId);
+  }
+
+  @Get('status/:contentId')
+  @ApiOperation({ summary: 'Check if content is in favorites for active profile' })
+  @ApiParam({ name: 'contentId' })
+  @ApiQuery({ name: 'profileId', required: false })
+  status(
+    @CurrentUser('id') userId: string,
+    @Param('contentId') contentId: string,
+    @Query('profileId') profileId?: string,
+  ) {
+    return this.favoritesService.status(userId, contentId, profileId);
   }
 
   @Post(':contentId')
@@ -56,8 +69,9 @@ export class FavoritesController {
   add(
     @CurrentUser('id') userId: string,
     @Param('contentId') contentId: string,
+    @Query('profileId') profileId?: string,
   ) {
-    return this.favoritesService.add(userId, contentId);
+    return this.favoritesService.add(userId, contentId, profileId);
   }
 
   @Delete(':contentId')
@@ -75,7 +89,8 @@ export class FavoritesController {
   remove(
     @CurrentUser('id') userId: string,
     @Param('contentId') contentId: string,
+    @Query('profileId') profileId?: string,
   ) {
-    return this.favoritesService.remove(userId, contentId);
+    return this.favoritesService.remove(userId, contentId, profileId);
   }
 }

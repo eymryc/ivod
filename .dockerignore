@@ -1,0 +1,41 @@
+# ─── Version control ──────────────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+
+# ─── Dependencies (installées dans les containers) ────────────────────────────
+node_modules
+**/node_modules
+
+# ─── Build artifacts ──────────────────────────────────────────────────────────
+dist
+**/dist
+.next
+**/.next
+*.tsbuildinfo
+
+# ─── Environnement ────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Caches outils dev ────────────────────────────────────────────────────────
+.turbo
+**/.turbo
+.cache
+**/.cache
+coverage
+**/coverage
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── App mobile (non containerisée) ──────────────────────────────────────────
+apps/mobile/android
+apps/mobile/ios
+apps/mobile/.expo

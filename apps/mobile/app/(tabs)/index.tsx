@@ -1,94 +1,235 @@
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
-import { api } from '@/lib/api';
-import { ContentEntity } from '@ivod/types';
+import { View, ScrollView, StyleSheet } from "react-native";
+import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
+import { Bell } from "lucide-react-native";
+import {
+  contentsApi,
+  searchApi,
+  bannersApi,
+  watchApi,
+  favoritesApi,
+  recommendationApi,
+  homeApi,
+} from "@/infrastructure/api";
+import type { HomeSection } from "@/infrastructure/api";
+import { ContentRow } from "@/components/content/ContentRow";
+import { ContentRowSkeleton } from "@/components/content/ContentRowSkeleton";
+import type { ContentItem } from "@/components/content/ContentCard";
+import { PageCanvas } from "@/components/layout/PageCanvas";
+import { AppHeader, HeaderIconButton } from "@/components/layout/AppHeader";
+import { FilterPill } from "@/components/layout/FilterPill";
+import { HorizontalPillBar } from "@/components/layout/HorizontalPillBar";
+import { HomeHero } from "@/components/home/HomeHero";
+import { PremiumOfferCard } from "@/components/home/PremiumOfferCard";
+import { useAuthStore } from "@/store/auth.store";
+import { useProfileStore } from "@/store/profile.store";
+import { colors } from "@/theme/colors";
+import { layout } from "@/theme/layout";
+import type { CatalogQuerySection } from "@/infrastructure/api";
 
-function ContentCard({ item }: { item: ContentEntity }) {
-  const router = useRouter();
-  return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => router.push(`/watch/${item.id}`)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.thumbnail}>
-        {item.thumbnailUrl ? (
-          <Image source={{ uri: item.thumbnailUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-        ) : (
-          <View style={[StyleSheet.absoluteFillObject, styles.thumbnailPlaceholder]} />
-        )}
-        {item.visibility === 'PREMIUM_ONLY' && (
-          <View style={styles.premiumBadge}>
-            <Text style={styles.premiumText}>Premium</Text>
-          </View>
-        )}
-      </View>
-      <View style={styles.cardInfo}>
-        <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-        <Text style={styles.cardCreator} numberOfLines={1}>{item.creator?.stageName}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+function mapItems(raw: unknown): ContentItem[] {
+  const items = (raw as { items?: unknown[] })?.items ?? (Array.isArray(raw) ? raw : []);
+  return items as ContentItem[];
 }
 
-function Section({ title, category }: { title: string; category: string }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['contents', category],
-    queryFn: () => api.get<any>(`/contents?category=${category}&limit=10`),
+type HistoryEntry = {
+  id: string;
+  contentId: string;
+  episodeId?: string | null;
+  percentage?: number;
+  completed?: boolean;
+  content?: { id?: string; title?: string; thumbnailUrl?: string | null; posterUrl?: string | null };
+};
+
+function dedupeResume(items: HistoryEntry[]): HistoryEntry[] {
+  const seen = new Set<string>();
+  return items.filter((h) => {
+    if (!h.content || h.completed || (h.percentage ?? 0) >= 92) return false;
+    if (seen.has(h.contentId)) return false;
+    seen.add(h.contentId);
+    return true;
   });
-
-  const items: ContentEntity[] = data?.items ?? [];
-  if (isLoading || items.length === 0) return null;
-
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <FlatList
-        data={items}
-        keyExtractor={(i) => i.id}
-        renderItem={({ item }) => <ContentCard item={item} />}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.horizontalList}
-        ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
-      />
-    </View>
-  );
 }
+
+// ── Composant section catalogue dynamique ────────────────────────────────
+
+function CatalogSectionRow({ section }: { section: CatalogQuerySection }) {
+  const p = section.params;
+  const { data, isLoading } = useQuery({
+    queryKey: ["home-section", section.id],
+    queryFn: () =>
+      contentsApi.list({
+        ...(p.contentType ? { contentType: p.contentType } : {}),
+        ...(p.sort ? { sort: p.sort } : {}),
+        limit: p.limit ?? 16,
+      }),
+    staleTime: 5 * 60_000,
+  });
+  const items = mapItems(data);
+  if (isLoading && !items.length) return <ContentRowSkeleton title={section.title} />;
+  if (!items.length) return null;
+  return <ContentRow title={section.title} items={items} cardWidth={128} />;
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const isAuth = useAuthStore((s) => s.isAuthenticated);
+  const profile = useProfileStore((s) => s.getActiveProfile());
+  const { data: sectionsData } = useQuery({
+    queryKey: ['home-sections'],
+    queryFn: () => homeApi.getSections(),
+    staleTime: 60 * 60_000,
+  });
+  const sections: HomeSection[] = (sectionsData ?? []).filter(
+    (s) => !s.requiresAuth || isAuth,
+  );
+
+  const { data: banners } = useQuery({
+    queryKey: ["banners"],
+    queryFn: () => bannersApi.list("CI", "PREMIUM"),
+  });
+
+  const { data: trendingData } = useQuery({
+    queryKey: ["home-section", "trending"],
+    queryFn: () => searchApi.trending("24h"),
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: historyData } = useQuery({
+    queryKey: ["watch-history", profile?.id],
+    queryFn: () => watchApi.getHistory(profile?.id, 1, 20),
+    enabled: isAuth,
+    staleTime: 60_000,
+  });
+
+  const { data: favoritesData } = useQuery({
+    queryKey: ["favorites-home", profile?.id],
+    queryFn: () => favoritesApi.list(1, profile?.id),
+    enabled: isAuth,
+    staleTime: 2 * 60_000,
+  });
+
+  const { data: recoData } = useQuery({
+    queryKey: ["recommendations-home", profile?.id],
+    queryFn: () => recommendationApi.list(profile?.id, 16),
+    enabled: isAuth,
+    staleTime: 5 * 60_000,
+  });
+
+  const trendingItems = mapItems(trendingData);
+  const bannerList = Array.isArray(banners) ? banners : [];
+  const banner = bannerList[0] ?? null;
+
+  const heroId = (banner as { contentId?: string })?.contentId ?? trendingItems[0]?.id;
+  const heroImage =
+    (banner as { imageUrl?: string })?.imageUrl ??
+    (banner as { imageObjectKey?: string })?.imageObjectKey ??
+    trendingItems[0]?.posterUrl ??
+    trendingItems[0]?.thumbnailUrl;
+  const heroTitle = (banner as { title?: string })?.title ?? trendingItems[0]?.title;
+  const heroSub = (trendingItems[0] as { description?: string })?.description;
+
+  const resumeItems: ContentItem[] = dedupeResume(
+    (historyData?.items ?? []) as HistoryEntry[]
+  ).map((h) => ({
+    id: h.contentId,
+    title: h.content?.title ?? "Contenu",
+    thumbnailUrl: h.content?.thumbnailUrl ?? null,
+    posterUrl: h.content?.posterUrl ?? null,
+    progress: h.percentage ?? null,
+  }));
+
+  const favoriteItems: ContentItem[] = ((favoritesData as { items?: unknown[] })?.items ?? [])
+    .map((f) => (f as { content?: ContentItem })?.content)
+    .filter((c): c is ContentItem => !!c);
+
+  const recoItems: ContentItem[] = mapItems(recoData);
+
+  function renderSection(section: HomeSection) {
+    switch (section.type) {
+      case "continue_watching":
+        if (!resumeItems.length) return null;
+        return <ContentRow key={section.id} title={section.title} items={resumeItems} cardWidth={128} />;
+
+      case "my_list":
+        if (!favoriteItems.length) return null;
+        return <ContentRow key={section.id} title={section.title} items={favoriteItems} cardWidth={128} />;
+
+      case "trending":
+        if (!trendingItems.length) return null;
+        return <ContentRow key={section.id} title={section.title} items={trendingItems} cardWidth={128} />;
+
+      case "recommendations":
+        if (!recoItems.length) return null;
+        return <ContentRow key={section.id} title={section.title} items={recoItems} cardWidth={128} />;
+
+      case "catalog_query":
+        return <CatalogSectionRow key={section.id} section={section as CatalogQuerySection} />;
+
+      default:
+        return null;
+    }
+  }
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>iVOD</Text>
-        <Text style={styles.headerSub}>Cinéma ivoirien & africain</Text>
-      </View>
+    <PageCanvas minimal>
+      <ScrollView showsVerticalScrollIndicator={false} bounces>
+        <View style={styles.headerOverlay}>
+          <AppHeader
+            logoSize="md"
+            overlay
+            subtitle={profile ? `Profil · ${profile.name}` : undefined}
+            right={
+              isAuth ? (
+                <HeaderIconButton onPress={() => router.push("/notifications")}>
+                  <Bell color={colors.foreground} size={22} />
+                </HeaderIconButton>
+              ) : null
+            }
+          />
+        </View>
 
-      <Section title="🎭 Humour & Sketchs" category="HUMOUR" />
-      <Section title="📺 Séries"            category="SERIE" />
-      <Section title="🎬 Films"             category="FILM" />
-      <Section title="📹 Documentaires"     category="DOCUMENTAIRE" />
+        <HomeHero
+          imageUri={typeof heroImage === "string" ? heroImage : undefined}
+          title={heroTitle ?? undefined}
+          subtitle={typeof heroSub === "string" ? heroSub : undefined}
+          onPress={() => (heroId ? router.push(`/content/${heroId}`) : router.push("/browse"))}
+          edgeToEdge
+        />
 
-      <View style={{ height: 32 }} />
-    </ScrollView>
+        <HorizontalPillBar style={styles.pills}>
+          <FilterPill label="Explorer" onPress={() => router.push("/browse")} />
+          <FilterPill label="Films" onPress={() => router.push("/catalog/FILM" as never)} />
+          <FilterPill label="Séries" onPress={() => router.push("/catalog/SERIE" as never)} />
+          {isAuth && (
+            <FilterPill label="Pour vous" onPress={() => router.push("/recommendations")} />
+          )}
+        </HorizontalPillBar>
+
+        <View style={styles.rails}>
+          {sections.map(renderSection)}
+        </View>
+
+        {!isAuth && <PremiumOfferCard onPress={() => router.push("/pricing")} />}
+
+        <View style={{ height: layout.tabBarOffset + 16 }} />
+      </ScrollView>
+    </PageCanvas>
   );
 }
 
 const styles = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: '#111118' },
-  header:         { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  headerTitle:    { fontSize: 28, fontWeight: '800', color: '#fff' },
-  headerSub:      { fontSize: 13, color: '#9CA3AF', marginTop: 2 },
-  section:        { marginTop: 24 },
-  sectionTitle:   { fontSize: 16, fontWeight: '700', color: '#fff', marginBottom: 12, paddingHorizontal: 16 },
-  horizontalList: { paddingHorizontal: 16 },
-  card:           { width: 160 },
-  thumbnail:      { width: 160, height: 90, borderRadius: 10, overflow: 'hidden', backgroundColor: '#1A1A26' },
-  thumbnailPlaceholder: { backgroundColor: '#2A2A3E' },
-  premiumBadge:   { position: 'absolute', top: 6, left: 6, backgroundColor: 'rgba(234,179,8,0.9)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  premiumText:    { fontSize: 10, fontWeight: '700', color: '#000' },
-  cardInfo:       { marginTop: 6 },
-  cardTitle:      { fontSize: 13, fontWeight: '600', color: '#fff', lineHeight: 18 },
-  cardCreator:    { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  headerOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  pills: { marginTop: 4, marginBottom: 8 },
+  rails: { marginTop: 4 },
 });
