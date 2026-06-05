@@ -14,6 +14,7 @@ import {
 import { ApiErrorResponse, ApiSuccessResponse } from '../../common/swagger/api-response.decorator';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   ChangePasswordDto,
@@ -33,6 +34,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('send-otp')
+  @Public()
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @ApiOperation({ summary: 'Send OTP to email' })
@@ -51,6 +53,7 @@ export class AuthController {
   }
 
   @Post('verify-otp')
+  @Public()
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @ApiOperation({ summary: 'Verify OTP and issue JWT' })
@@ -81,6 +84,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @Public()
   @HttpCode(201)
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @ApiOperation({ summary: 'Register account with password (email or phone)' })
@@ -127,6 +131,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Public()
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 8 } })
   @ApiOperation({ summary: 'Login with password (email or phone)' })
@@ -165,6 +170,7 @@ export class AuthController {
   }
 
   @Get('setup-password')
+  @Public()
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({ summary: 'Vérifier la validité du jeton d\u2019invitation' })
   @ApiSuccessResponse({
@@ -176,6 +182,7 @@ export class AuthController {
   }
 
   @Post('setup-password')
+  @Public()
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 8 } })
   @ApiOperation({
@@ -244,6 +251,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @Public()
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @ApiOperation({ summary: 'Send password reset code to email' })
@@ -266,6 +274,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Public()
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 8 } })
   @ApiOperation({ summary: 'Reset password with reset code' })
@@ -291,6 +300,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Public()
   @HttpCode(200)
   @ApiOperation({ summary: 'Renouveler le token d\'accès via refresh token (30j)' })
   refresh(@Body('refreshToken') refreshToken: string) {

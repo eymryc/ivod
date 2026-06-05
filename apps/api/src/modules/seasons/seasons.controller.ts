@@ -7,6 +7,7 @@ import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { SeasonsService } from './seasons.service';
 class CreateSeasonDto {
   @ApiProperty({ example: 1 }) @IsInt() @Min(1) number: number;
@@ -19,6 +20,7 @@ class CreateSeasonDto {
 export class SeasonsController {
   constructor(private readonly service: SeasonsService) {}
   @Get('contents/:contentId')
+  @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Saisons d\'un contenu' })
   @ApiParam({ name: 'contentId' })
@@ -30,7 +32,7 @@ export class SeasonsController {
   ensureDefault(@Param('contentId') contentId: string, @CurrentUser('id') userId: string) {
     return this.service.ensureDefaultSeason(contentId, userId);
   }
-  @Get(':id') @ApiOperation({ summary: 'Détail d\'une saison avec épisodes' }) @ApiParam({ name: 'id' })
+  @Get(':id') @Public() @ApiOperation({ summary: 'Détail d\'une saison avec épisodes' }) @ApiParam({ name: 'id' })
   findOne(@Param('id') id: string) { return this.service.findOne(id); }
   @Post('contents/:contentId') @ApiBearerAuth('BearerAuth') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('CREATOR', 'ADMIN') @ApiOperation({ summary: 'Créer une saison' }) @ApiParam({ name: 'contentId' })
   create(@Param('contentId') contentId: string, @CurrentUser('id') userId: string, @Body() dto: CreateSeasonDto) { return this.service.create(contentId, userId, dto); }

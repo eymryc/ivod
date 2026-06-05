@@ -1656,20 +1656,27 @@ model SearchIndex {
 // ═══════════════════════════════════════════════════════════════
 
 model Banner {
-  id             String    @id @default(cuid())
-  title          String
-  subtitle       String?
-  contentId      String?
-  imageObjectKey String
-  linkUrl        String?
-  position       Int       @default(0)
-  targetPlanIds  String[]
-  countryIds     String[]
-  isActive       Boolean   @default(true)
-  startsAt       DateTime?
-  endsAt         DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                   String    @id @default(cuid())
+  bannerType           String    @default("EDITORIAL") // EDITORIAL | CONTENT
+  title                String
+  subtitle             String?
+  contentId            String?
+  imageObjectKey       String?
+  imageObjectKeyMobile String?
+  linkUrl              String?
+  ctaLabel             String?
+  ctaStyle             String    @default("PRIMARY") // PRIMARY | GHOST | PREMIUM
+  badgeText            String?
+  position             Int       @default(0)
+  targetPlanIds        String[]
+  countryIds           String[]
+  isActive             Boolean   @default(true)
+  startsAt             DateTime?
+  endsAt               DateTime?
+  impressionCount      Int       @default(0)
+  clickCount           Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   content Content? @relation(fields: [contentId], references: [id], onDelete: SetNull)
 

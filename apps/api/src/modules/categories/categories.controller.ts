@@ -8,6 +8,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 
 @ApiTags('Categories')
 @Controller('categories')
@@ -15,6 +16,7 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'List content categories' })
   @ApiSuccessResponse({
     description: 'Categories list',
@@ -30,6 +32,7 @@ export class CategoriesController {
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get one content category' })
   getOne(@Param('id') id: string) {
     return this.categoriesService.getOne(id);

@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { LiveService } from './live.service';
 class CreateLiveDto {
   @ApiProperty({ example: 'Concert AFROBEAT Live' }) @IsString() title: string;
@@ -16,9 +17,9 @@ class CreateLiveDto {
 @ApiTags('Live') @Controller('live')
 export class LiveController {
   constructor(private readonly service: LiveService) {}
-  @Get() @ApiOperation({ summary: 'Streams programmés et en cours' }) @ApiQuery({ name: 'page', required: false })
+  @Get() @Public() @ApiOperation({ summary: 'Streams programmés et en cours' }) @ApiQuery({ name: 'page', required: false })
   list(@Query('page') page?: string) { return this.service.listUpcoming(+(page ?? 1)); }
-  @Get(':id') @ApiOperation({ summary: 'Détail d\'un stream' }) @ApiParam({ name: 'id' })
+  @Get(':id') @Public() @ApiOperation({ summary: 'Détail d\'un stream' }) @ApiParam({ name: 'id' })
   getOne(@Param('id') id: string) { return this.service.getOne(id); }
   @Post() @ApiBearerAuth('BearerAuth') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('CREATOR', 'ADMIN') @ApiOperation({ summary: 'Créer un live' }) @ApiBody({ type: CreateLiveDto })
   create(@CurrentUser('id') userId: string, @Body() dto: CreateLiveDto) { return this.service.create(userId, dto); }

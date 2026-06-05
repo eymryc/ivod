@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { BullModule } from '@nestjs/bullmq';
 import { MustChangePasswordInterceptor } from './common/interceptors/must-change-password.interceptor';
+import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { PrismaModule } from './prisma/prisma.module';
 
 // Auth & Utilisateurs
@@ -76,7 +77,21 @@ import { StorageModule } from './modules/storage/storage.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+      validate: (config: Record<string, unknown>) => {
+        const required = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'DATABASE_URL'];
+        const missing = required.filter((k) => !config[k]);
+        if (missing.length > 0) {
+          throw new Error(`Variables d'environnement manquantes : ${missing.join(', ')}`);
+        }
+        if (config['NODE_ENV'] === 'production' && config['JWT_SECRET'] === 'change-me') {
+          throw new Error('JWT_SECRET doit être changé en production');
+        }
+        return config as Record<string, string>;
+      },
+    }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: process.env.TEST_MODE === 'true' ? 10000 : 20 }]),
     BullModule.forRootAsync({
@@ -111,6 +126,9 @@ import { StorageModule } from './modules/storage/storage.module';
     CronModule,
     StorageModule,
   ],
-  providers: [{ provide: APP_INTERCEPTOR, useClass: MustChangePasswordInterceptor }],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_INTERCEPTOR, useClass: MustChangePasswordInterceptor },
+  ],
 })
 export class AppModule {}

@@ -216,7 +216,11 @@ export class VideosController {
     @Query('token') token: string,
     @Res() res: Response,
   ) {
-    const userId = await this.videosService.verifyPlaybackToken(token);
+    const { userId } = await this.videosService.verifyPlaybackToken(
+      token,
+      undefined,
+      episodeId,
+    );
     return this.videosService.streamEpisodeMedia(episodeId, path, userId, res, token);
   }
 
@@ -247,7 +251,7 @@ export class VideosController {
     @Query('token') token: string,
     @Res() res: Response,
   ) {
-    const userId = await this.videosService.verifyPlaybackToken(token);
+    const { userId } = await this.videosService.verifyPlaybackToken(token, contentId);
     return this.videosService.streamContentMedia(contentId, path, userId, res, token);
   }
 }

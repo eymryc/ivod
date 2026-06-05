@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 import { ContentStatusesService } from './content-statuses.service';
 import { CreateReferenceDto, UpdateReferenceDto } from './dto/references.dto';
 
@@ -9,12 +10,14 @@ export class ContentStatusesController {
   constructor(private readonly contentStatusesService: ContentStatusesService) {}
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'List content statuses' })
   list() {
     return this.contentStatusesService.list();
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get one content status' })
   getOne(@Param('id') id: string) {
     return this.contentStatusesService.getOne(id);

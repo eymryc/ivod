@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiProperty, ApiPropert
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { ReviewsService } from './reviews.service';
 class CreateReviewDto {
   @ApiProperty({ example: 4 }) @IsInt() @Min(1) @Max(5) rating: number;
@@ -12,7 +13,7 @@ class CreateReviewDto {
 @ApiTags('Reviews') @Controller('reviews')
 export class ReviewsController {
   constructor(private readonly service: ReviewsService) {}
-  @Get('contents/:contentId') @ApiOperation({ summary: 'Avis pour un contenu' }) @ApiParam({ name: 'contentId' })
+  @Get('contents/:contentId') @Public() @ApiOperation({ summary: 'Avis pour un contenu' }) @ApiParam({ name: 'contentId' })
   @ApiQuery({ name: 'page', required: false }) @ApiQuery({ name: 'limit', required: false })
   list(@Param('contentId') contentId: string, @Query('page') page?: string, @Query('limit') limit?: string) {
     return this.service.listForContent(contentId, +(page ?? 1), +(limit ?? 20));

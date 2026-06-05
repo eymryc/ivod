@@ -5,6 +5,7 @@ import { IsArray, IsBoolean, IsDateString, IsInt, IsOptional, IsString, Min, Min
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { BannersService } from './banners.service';
 
 class CreateBannerDto {
@@ -41,6 +42,7 @@ export class BannersController {
   constructor(private readonly service: BannersService) {}
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'Bannières actives (homepage)' })
   @ApiQuery({ name: 'plan', required: false, description: 'Code plan (FREE, BASIC, PREMIUM)' })
   @ApiQuery({ name: 'country', required: false, description: 'Code pays ISO (CI, SN...)' })

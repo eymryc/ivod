@@ -12,6 +12,7 @@ export class SearchController {
   constructor(private readonly service: SearchService) {}
 
   @Get()
+  @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Rechercher des contenus' })
   @ApiQuery({ name: 'q', required: true, example: 'iron' })

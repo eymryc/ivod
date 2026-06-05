@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 import { UserRolesService } from './user-roles.service';
 import { CreateReferenceDto, UpdateReferenceDto } from './dto/references.dto';
 
@@ -9,12 +10,14 @@ export class UserRolesController {
   constructor(private readonly userRolesService: UserRolesService) {}
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'List roles' })
   list() {
     return this.userRolesService.list();
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get one role' })
   getOne(@Param('id') id: string) {
     return this.userRolesService.getOne(id);

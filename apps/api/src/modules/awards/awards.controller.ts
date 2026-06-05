@@ -4,6 +4,7 @@ import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { AwardsService } from './awards.service';
 class CreateAwardDto {
   @ApiProperty({ example: 'FESPACO' }) @IsString() typeCode: string;
@@ -18,7 +19,7 @@ class LinkAwardDto {
 @ApiTags('Awards') @Controller('awards')
 export class AwardsController {
   constructor(private readonly service: AwardsService) {}
-  @Get('contents/:contentId') @ApiOperation({ summary: 'Récompenses d\'un contenu' }) @ApiParam({ name: 'contentId' })
+  @Get('contents/:contentId') @Public() @ApiOperation({ summary: 'Récompenses d\'un contenu' }) @ApiParam({ name: 'contentId' })
   listForContent(@Param('contentId') contentId: string) { return this.service.listForContent(contentId); }
   @Post() @ApiBearerAuth('BearerAuth') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('CREATOR', 'ADMIN') @ApiOperation({ summary: 'Créer une récompense' }) @ApiBody({ type: CreateAwardDto })
   create(@Body() dto: CreateAwardDto) { return this.service.create(dto.typeCode, dto.name, dto.category, dto.year); }

@@ -55,6 +55,7 @@ export class MediaAssetsController {
   ) {}
 
   @Get('contents/:contentId')
+  @Public()
   @ApiOperation({ summary: "Assets d'un contenu" })
   @ApiParam({ name: 'contentId' })
   list(@Param('contentId') contentId: string) {

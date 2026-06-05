@@ -4,6 +4,7 @@ import { IsBoolean, IsDateString, IsIn, IsOptional, IsString } from 'class-valid
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { CampaignsService } from './campaigns.service';
 class CreateCampaignDto {
   @ApiProperty({ example: 'Ramadan 2026' }) @IsString() name: string;
@@ -18,7 +19,7 @@ export class CampaignsController {
   @Get() @ApiOperation({ summary: 'Toutes les campagnes (admin)' }) @ApiBearerAuth('BearerAuth') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('ADMIN')
   @ApiQuery({ name: 'page', required: false })
   list(@Query('page') page?: string) { return this.service.list(+(page ?? 1)); }
-  @Get('active') @ApiOperation({ summary: 'Campagnes actives (public)' })
+  @Get('active') @Public() @ApiOperation({ summary: 'Campagnes actives (public)' })
   active() { return this.service.listActive(); }
   @Post() @ApiBearerAuth('BearerAuth') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('ADMIN') @ApiOperation({ summary: 'Créer une campagne (admin)' })
   create(@Body() dto: CreateCampaignDto) { return this.service.create(dto); }

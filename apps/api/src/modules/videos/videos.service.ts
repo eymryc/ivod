@@ -41,10 +41,23 @@ export class VideosService {
     return base.replace(/\/$/, '');
   }
 
-  private signPlaybackToken(userId: string): string {
+  /** Secret dédié pour les playback tokens HLS (fallback JWT_SECRET pour rétrocompat). */
+  private playbackSecret(): string {
+    return (
+      this.config.get<string>('PLAYBACK_JWT_SECRET') ??
+      this.config.get<string>('JWT_SECRET') ??
+      'change-me'
+    );
+  }
+
+  private signPlaybackToken(
+    userId: string,
+    contentId: string,
+    episodeId?: string | null,
+  ): string {
     return this.jwt.sign(
-      { sub: userId, purpose: 'playback' },
-      { expiresIn: resolvePlaybackTokenTtl() },
+      { sub: userId, purpose: 'playback', cid: contentId, eid: episodeId ?? null },
+      { expiresIn: resolvePlaybackTokenTtl(), secret: this.playbackSecret() },
     );
   }
 
@@ -149,14 +162,44 @@ export class VideosService {
     return `${baseDir}/${trimmed}`.replace(/\/+/g, '/');
   }
 
-  async verifyPlaybackToken(token?: string): Promise<string> {
+  /**
+   * Vérifie un token de lecture HLS.
+   *
+   * Sécurité :
+   * - Signé avec un secret dédié (PLAYBACK_JWT_SECRET, fallback JWT_SECRET) → un access
+   *   token d'authentification normal n'est PAS accepté comme playback token.
+   * - Le claim `purpose: 'playback'` est vérifié.
+   * - Le `contentId`/`episodeId` du token est vérifié contre celui de l'URL pour empêcher
+   *   le replay d'un token légitime sur un autre contenu.
+   */
+  async verifyPlaybackToken(
+    token?: string,
+    expectedContentId?: string,
+    expectedEpisodeId?: string,
+  ): Promise<{ userId: string; contentId: string | null; episodeId: string | null }> {
     if (!token?.trim()) {
       throw new UnauthorizedException({ code: 'AUTH_001', message: 'Token requis' });
     }
     try {
-      const payload = this.jwt.verify<{ sub: string }>(token);
+      const payload = this.jwt.verify<{
+        sub: string;
+        purpose?: string;
+        cid?: string | null;
+        eid?: string | null;
+      }>(token, { secret: this.playbackSecret() });
       if (!payload?.sub) throw new Error('invalid');
-      return payload.sub;
+      if (payload.purpose !== 'playback') throw new Error('wrong purpose');
+      if (expectedContentId && payload.cid && payload.cid !== expectedContentId) {
+        throw new Error('content mismatch');
+      }
+      if (expectedEpisodeId && payload.eid && payload.eid !== expectedEpisodeId) {
+        throw new Error('episode mismatch');
+      }
+      return {
+        userId: payload.sub,
+        contentId: payload.cid ?? null,
+        episodeId: payload.eid ?? null,
+      };
     } catch {
       throw new UnauthorizedException({ code: 'AUTH_001', message: 'Token invalide' });
     }
@@ -709,7 +752,7 @@ export class VideosService {
 
     const objectKey = asset.manifestPath ?? asset.sourceObjectKey;
     const isHls = objectKey.endsWith('.m3u8');
-    const playbackToken = this.signPlaybackToken(userId);
+    const playbackToken = this.signPlaybackToken(userId, contentId, null);
     const playbackUrl = isHls
       ? this.buildMediaUrl(contentId, objectKey, playbackToken)
       : await this.minio.presignedGetUrl(this.minio.bucketVideos, objectKey);
@@ -763,7 +806,11 @@ export class VideosService {
 
     const objectKey = asset.manifestPath ?? asset.sourceObjectKey;
     const isHls = objectKey.endsWith('.m3u8');
-    const playbackToken = this.signPlaybackToken(userId);
+    const playbackToken = this.signPlaybackToken(
+      userId,
+      (episode as any).content.id,
+      episodeId,
+    );
     const playbackUrl = isHls
       ? this.buildEpisodeMediaUrl(episodeId, objectKey, playbackToken)
       : await this.minio.presignedGetUrl(this.minio.bucketVideos, objectKey);

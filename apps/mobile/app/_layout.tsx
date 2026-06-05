@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from "react";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as SplashScreen from "expo-splash-screen";
@@ -21,11 +21,25 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const loadAuth = useAuthStore((s) => s.loadFromStorage);
   const hydrateProfile = useProfileStore((s) => s.hydrate);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isReady = useAuthStore((s) => s.isReady);
+  const router = useRouter();
+  const segments = useSegments();
 
   useEffect(() => {
     loadAuth();
     hydrateProfile();
   }, []);
+
+  useEffect(() => {
+    if (!isReady) return;
+    const inAuthGroup = segments[0] === "(auth)";
+    if (!isAuthenticated && !inAuthGroup) {
+      router.replace("/(auth)/login");
+    } else if (isAuthenticated && inAuthGroup) {
+      router.replace("/(tabs)");
+    }
+  }, [isReady, isAuthenticated, segments]);
 
   const onFontsReady = useCallback(() => {
     Promise.resolve().finally(() => SplashScreen.hideAsync());

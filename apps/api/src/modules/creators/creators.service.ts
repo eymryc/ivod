@@ -25,6 +25,7 @@ const PASSWORD_SETUP_TTL_MS = 72 * 3600 * 1000;
 import { ContentDurationService } from '../../common/services/content-duration.service';
 import { isSeriesType } from '../../common/constants/content-types';
 import { PlaybackQoEService } from '../watch-sessions/playback-qoe.service';
+import { RedisService } from '../../common/services/redis.service';
 
 @Injectable()
 export class CreatorsService {
@@ -36,7 +37,13 @@ export class CreatorsService {
     private config: ConfigService,
     private readonly contentDuration: ContentDurationService,
     private readonly playbackQoE: PlaybackQoEService,
+    private readonly redis: RedisService,
   ) {}
+
+  /** Invalide le cache RBAC d'un utilisateur après un changement de rôle. */
+  private async invalidateRbacCache(userId: string) {
+    await this.redis.del(`rbac:user:${userId}`);
+  }
   private async requireRoleId(roleCode: string) {
     const role = await this.prisma.role.findUnique({
       where: { code: roleCode },
@@ -303,13 +310,15 @@ export class CreatorsService {
 
     const creatorRoleId = await this.requireRoleId('CREATOR');
 
-    return this.prisma.$transaction(async (tx) => {
-      const creator = await tx.creator.create({
+    const creator = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.creator.create({
         data: { userId, stageName: dto.stageName, bio: dto.bio },
       });
       await this.replaceUserRbacRoleTx(tx, userId, creatorRoleId);
-      return creator;
+      return created;
     });
+    await this.invalidateRbacCache(userId);
+    return creator;
   }
 
   async create(dto: CreateCreatorAdminDto) {
@@ -321,13 +330,15 @@ export class CreatorsService {
 
     const creatorRoleId = await this.requireRoleId('CREATOR');
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const creator = await tx.creator.create({
         data: { userId: dto.userId, stageName: dto.stageName, bio: dto.bio },
       });
       await this.replaceUserRbacRoleTx(tx, dto.userId, creatorRoleId);
       return { ...creator, message: 'Profil créateur créé. Rôle CREATOR appliqué (JWT / guards).' };
     });
+    await this.invalidateRbacCache(dto.userId);
+    return result;
   }
 
   /**
@@ -397,6 +408,7 @@ export class CreatorsService {
       await this.replaceUserRbacRoleTx(tx, user.id, creatorRoleId);
       return { user, creator };
     });
+    await this.invalidateRbacCache(user.id);
 
     const base = this.config.get<string>('FRONTEND_URL') ?? '';
     const front = base.replace(/\/$/, '');
@@ -466,6 +478,7 @@ export class CreatorsService {
       await tx.creator.delete({ where: { id } });
       await this.replaceUserRbacRoleTx(tx, creator.userId, viewerRoleId);
     });
+    await this.invalidateRbacCache(creator.userId);
 
     return { id, message: 'Créateur supprimé' };
   }

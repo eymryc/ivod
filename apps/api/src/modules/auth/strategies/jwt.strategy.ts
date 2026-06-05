@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { RedisService } from '../../../common/services/redis.service';
 
 export interface JwtPayload {
   sub: string;
@@ -14,7 +15,11 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(config: ConfigService, private prisma: PrismaService) {
+  constructor(
+    config: ConfigService,
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -23,6 +28,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    const cacheKey = `rbac:user:${payload.sub}`;
+    const cached = await this.redis.get<Record<string, unknown>>(cacheKey);
+    if (cached) return cached;
+
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: {
@@ -54,11 +63,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     );
     const permissions = [...new Set([...rolePermissions, ...directPermissions])];
 
-    return {
+    const result = {
       ...user,
       role: roleCodes[0] ?? payload.role,
       roles: roleCodes,
       permissions,
     };
+    await this.redis.set(cacheKey, result, 60); // 60s TTL — invalidé via redis.del au changement de rôle
+    return result;
   }
 }

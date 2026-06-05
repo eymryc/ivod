@@ -17,6 +17,7 @@ export class ContentTypesController {
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get one content type' })
   getOne(@Param('id') id: string) {
     return this.contentTypesService.getOne(id);

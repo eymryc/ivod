@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 import { ContentVisibilitiesService } from './content-visibilities.service';
 import { CreateReferenceDto, UpdateReferenceDto } from './dto/references.dto';
 
@@ -9,12 +10,14 @@ export class ContentVisibilitiesController {
   constructor(private readonly contentVisibilitiesService: ContentVisibilitiesService) {}
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'List content visibilities' })
   list() {
     return this.contentVisibilitiesService.list();
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get one content visibility' })
   getOne(@Param('id') id: string) {
     return this.contentVisibilitiesService.getOne(id);

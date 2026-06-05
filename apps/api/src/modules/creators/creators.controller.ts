@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -25,6 +26,7 @@ export class CreatorsController {
   constructor(private readonly creatorsService: CreatorsService) {}
 
   @Get()
+  @Public()
   @ApiOperation({
     summary: 'Lister les créateurs (pagination)',
     description:
@@ -233,6 +235,7 @@ export class CreatorsController {
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get creator public profile' })
   @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123creator1' })
   @ApiNotFoundResponse({ description: 'Creator not found' })

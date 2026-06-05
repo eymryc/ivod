@@ -38,6 +38,7 @@ export class ReferencesController {
   }
 
   @Get(':resource/:id')
+  @Public()
   @ApiOperation({ summary: 'Get one reference record by id' })
   getOne(@Param('resource') resource: ReferenceResource, @Param('id') id: string) {
     return this.referencesService.getOne(this.parseResource(resource), id);

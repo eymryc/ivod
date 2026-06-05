@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { PeopleService } from './people.service';
 
 class CreatePersonDto {
@@ -37,16 +38,16 @@ class UpdateCrewDto {
 export class PeopleController {
   constructor(private readonly service: PeopleService) {}
 
-  @Get() @ApiOperation({ summary: 'Lister les personnes (acteurs, équipe)' })
+  @Get() @Public() @ApiOperation({ summary: 'Lister les personnes (acteurs, équipe)' })
   @ApiQuery({ name: 'search', required: false }) @ApiQuery({ name: 'page', required: false }) @ApiQuery({ name: 'limit', required: false })
   findAll(@Query('search') search?: string, @Query('page') page?: string, @Query('limit') limit?: string) {
     return this.service.findAll(search, +(page ?? 1), +(limit ?? 20));
   }
 
-  @Get('contents/:contentId/cast') @ApiOperation({ summary: 'Interprètes d\'un contenu (hors épisodes)' }) @ApiParam({ name: 'contentId' })
+  @Get('contents/:contentId/cast') @Public() @ApiOperation({ summary: 'Interprètes d\'un contenu (hors épisodes)' }) @ApiParam({ name: 'contentId' })
   getCast(@Param('contentId') contentId: string) { return this.service.getCastForContent(contentId); }
 
-  @Get('contents/:contentId/crew') @ApiOperation({ summary: 'Équipe technique d\'un contenu (hors épisodes)' }) @ApiParam({ name: 'contentId' })
+  @Get('contents/:contentId/crew') @Public() @ApiOperation({ summary: 'Équipe technique d\'un contenu (hors épisodes)' }) @ApiParam({ name: 'contentId' })
   getCrew(@Param('contentId') contentId: string) { return this.service.getCrewForContent(contentId); }
 
   @Post('contents/:contentId/cast') @ApiBearerAuth('BearerAuth') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('CREATOR', 'ADMIN') @ApiOperation({ summary: 'Ajouter un interprète' }) @ApiParam({ name: 'contentId' }) @ApiBody({ type: AddCastDto })
@@ -75,7 +76,7 @@ export class PeopleController {
   @Delete('crew/:crewId') @ApiBearerAuth('BearerAuth') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('CREATOR', 'ADMIN') @HttpCode(200) @ApiOperation({ summary: 'Retirer un membre d\'équipe' }) @ApiParam({ name: 'crewId' })
   removeCrew(@Param('crewId') crewId: string) { return this.service.removeCrew(crewId); }
 
-  @Get(':id') @ApiOperation({ summary: 'Fiche d\'une personne + filmographie' }) @ApiParam({ name: 'id' })
+  @Get(':id') @Public() @ApiOperation({ summary: 'Fiche d\'une personne + filmographie' }) @ApiParam({ name: 'id' })
   findOne(@Param('id') id: string) { return this.service.findOne(id); }
 
   @Post() @ApiBearerAuth('BearerAuth') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('CREATOR', 'ADMIN') @ApiOperation({ summary: 'Créer une personne' }) @ApiBody({ type: CreatePersonDto })

@@ -33,6 +33,7 @@ export class ContentsController {
   constructor(private readonly contentsService: ContentsService) {}
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'List contents' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
@@ -54,6 +55,7 @@ export class ContentsController {
   }
 
   @Get(':id')
+  @Public()
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get content details' })
   @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
@@ -140,6 +142,7 @@ export class ContentsController {
   }
 
   @Get(':id/episodes')
+  @Public()
   @ApiOperation({ summary: 'List episodes for content' })
   @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
   @ApiNotFoundResponse({ description: 'Content not found' })

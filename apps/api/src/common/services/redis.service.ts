@@ -58,11 +58,22 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.get<T>(key);
   }
 
-  /** Supprime par pattern glob (ex: "contents:*") */
+  /** Supprime par pattern glob (ex: "contents:*") — utilise SCAN pour ne pas bloquer Redis */
   async delPattern(pattern: string): Promise<void> {
     try {
-      const keys = await this.client.keys(pattern);
-      if (keys.length > 0) await this.client.del(...keys);
+      let cursor = '0';
+      const keys: string[] = [];
+      do {
+        const [nextCursor, batch] = await this.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
+        keys.push(...batch);
+      } while (cursor !== '0');
+      if (keys.length > 0) {
+        // Supprimer par batch de 500 pour éviter les commandes trop longues
+        for (let i = 0; i < keys.length; i += 500) {
+          await this.client.del(...keys.slice(i, i + 500));
+        }
+      }
     } catch { }
   }
 
