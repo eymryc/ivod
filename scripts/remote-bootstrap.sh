@@ -1,27 +1,23 @@
 #!/usr/bin/env bash
 # =============================================================================
-# IVOD — Bootstrap distant (à lancer DEPUIS VOTRE MACHINE LOCALE, pas le serveur)
+# iVOD — Première mise en route du serveur de production
 #
-# Enchaîne : rsync du code → copie du .env de prod (si absent sur le serveur,
-# ne remplace jamais un .env déjà en place) → exécution de
-# scripts/bootstrap-server.sh sur le serveur via SSH.
+# À exécuter UNE SEULE FOIS depuis votre machine locale.
+# Les déploiements suivants passent par GitHub Actions (push sur main)
+# ou, en secours, par make remote-deploy.
 #
-# ⚠️  Pour la PREMIÈRE mise en route uniquement. Les déploiements suivants
-# passent par GitHub Actions (job deploy dans ci.yml → deploy.yml) ou, en
-# secours, make remote-deploy depuis votre Mac.
-#
-# Prérequis :
-#   - Accès SSH par clé déjà configuré vers le serveur (pas de mot de passe
-#     interactif géré ici)
-#   - apps/api/.env.production rempli localement (SMTP/Paystack)
+# Étapes :
+#   1. Transfert du code (rsync)
+#   2. Copie de apps/api/.env.production → apps/api/.env (si absent)
+#   3. Bootstrap serveur (Docker, TLS, stack, seed, smoke test)
 #
 # Usage :
-#   ./scripts/remote-bootstrap.sh              # exécution réelle
-#   ./scripts/remote-bootstrap.sh --dry-run    # prévisualise le rsync, ne touche à rien
+#   make remote-bootstrap
+#   ./scripts/remote-bootstrap.sh --dry-run
 #
-# Variables surchargeables :
-#   REMOTE_HOST=root@ivod-preprod-srv01.xselcloud.com
-#   REMOTE_DIR=/var/www/ivod
+# Prérequis :
+#   - Accès SSH par clé vers le serveur
+#   - apps/api/.env.production rempli localement (SMTP, Paystack)
 # =============================================================================
 
 set -euo pipefail
@@ -30,8 +26,6 @@ REMOTE_HOST="${REMOTE_HOST:-root@ivod-preprod-srv01.xselcloud.com}"
 REMOTE_DIR="${REMOTE_DIR:-/var/www/ivod}"
 LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# common.sh attend PROJECT_DIR (nommé LOCAL_DIR ici par clarté — ce script
-# tourne en local, "PROJECT_DIR" prêterait à confusion avec le serveur).
 PROJECT_DIR="${LOCAL_DIR}"
 SCRIPT_TAG="remote-bootstrap"
 # shellcheck source=scripts/lib/common.sh
@@ -40,54 +34,45 @@ source "${LOCAL_DIR}/scripts/lib/common.sh"
 DRY_RUN=""
 [ "${1:-}" = "--dry-run" ] && DRY_RUN="--dry-run"
 
-[ -f "${LOCAL_DIR}/apps/api/.env.production" ] || die "apps/api/.env.production manquant localement — rien à transférer"
+[ -f "${LOCAL_DIR}/apps/api/.env.production" ] \
+  || die "apps/api/.env.production manquant — remplissez SMTP et Paystack avant de continuer"
 
-# ── 1. Test de connexion SSH ─────────────────────────────────────────────────
-log "Test de connexion à ${REMOTE_HOST}"
+# ── 1. Connexion SSH ────────────────────────────────────────────────────────
+log "Connexion SSH vers ${REMOTE_HOST}"
 ssh -o BatchMode=yes -o ConnectTimeout=10 "${REMOTE_HOST}" true \
-  || die "connexion SSH impossible (clé non configurée ? host injoignable ?) — testez manuellement : ssh ${REMOTE_HOST}"
+  || die "connexion impossible — testez : ssh ${REMOTE_HOST}"
 
-# ── 2. Créer le dossier de destination s'il n'existe pas ────────────────────
-# rsync ne crée pas les dossiers parents manquants (ex: /var/www n'existe pas
-# sur un AlmaLinux fraîchement installé sans httpd — cette stack est 100%
-# Docker, /var/www n'a jamais de raison d'exister par défaut).
+# ── 2. Répertoire de destination ─────────────────────────────────────────────
 if [ -z "${DRY_RUN}" ]; then
-  log "Création de ${REMOTE_DIR} sur le serveur (si absent)"
+  log "Création de ${REMOTE_DIR} (si absent)"
   ssh "${REMOTE_HOST}" "mkdir -p '${REMOTE_DIR}'"
 fi
 
 # ── 3. Transfert du code ─────────────────────────────────────────────────────
-log "Transfert du code vers ${REMOTE_HOST}:${REMOTE_DIR}${DRY_RUN:+ (dry-run)}"
-
-# Exclusions : jamais écraser les secrets/certs/données déjà présents côté
-# serveur avec ce qui traîne en local (pas de --delete : un rsync ne doit pas
-# supprimer des fichiers générés côté serveur après coup, ex: certs renouvelés).
-rsync -avz ${DRY_RUN} \
-  --exclude 'node_modules' \
-  --exclude '.git' \
-  --exclude '.next' \
-  --exclude '.turbo' \
-  --exclude 'dist' \
-  --exclude 'apps/*/logs' \
-  --exclude 'apps/api/backups' \
-  --exclude 'apps/api/certbot-webroot' \
-  --exclude 'apps/api/nginx/ssl/*.pem' \
-  --exclude '.env' \
-  --exclude '.env.local' \
-  --exclude '.DS_Store' \
-  "${LOCAL_DIR}/" "${REMOTE_HOST}:${REMOTE_DIR}/"
+export PROD_USER="${REMOTE_HOST%%@*}"
+export PROD_HOST="${REMOTE_HOST#*@}"
+export PROD_APP_DIR="${REMOTE_DIR}"
+export PROD_PORT="${PROD_PORT:-22}"
 
 if [ -n "${DRY_RUN}" ]; then
-  log "Dry-run terminé — rien n'a été transféré ni exécuté sur le serveur."
+  log "Prévisualisation du transfert (dry-run)..."
+  rsync -avzn \
+    --exclude-from="${LOCAL_DIR}/scripts/lib/rsync-excludes.txt" \
+    -e ssh "${LOCAL_DIR}/" "${REMOTE_HOST}:${REMOTE_DIR}/"
+  log "Dry-run terminé."
   exit 0
 fi
 
-# ── 4. .env de prod — copié seulement s'il n'existe pas déjà côté serveur ───
-log "Vérification de apps/api/.env sur le serveur"
-ssh "${REMOTE_HOST}" "cd ${REMOTE_DIR} && [ -f apps/api/.env ] && echo EXISTS || (cp apps/api/.env.production apps/api/.env && echo COPIED)"
+log "Transfert du code vers ${REMOTE_DIR}"
+"${LOCAL_DIR}/scripts/rsync-to-server.sh"
 
-# ── 5. Bootstrap serveur (root, idempotent) ─────────────────────────────────
-log "Exécution de scripts/bootstrap-server.sh sur le serveur (sudo, peut prendre plusieurs minutes)"
-ssh -t "${REMOTE_HOST}" "cd ${REMOTE_DIR} && sudo ./scripts/bootstrap-server.sh"
+# ── 4. Fichier d'environnement ───────────────────────────────────────────────
+log "Vérification de apps/api/.env"
+ssh "${REMOTE_HOST}" \
+  "cd '${REMOTE_DIR}' && [ -f apps/api/.env ] && echo 'existe' || (cp apps/api/.env.production apps/api/.env && echo 'copié')"
 
-log "Terminé. Déploiements suivants : push sur main → GitHub Actions (CI + Deploy)"
+# ── 5. Bootstrap serveur ─────────────────────────────────────────────────────
+log "Bootstrap serveur (peut prendre plusieurs minutes)..."
+ssh -t "${REMOTE_HOST}" "cd '${REMOTE_DIR}' && sudo ./scripts/bootstrap-server.sh"
+
+log "Bootstrap terminé. Déploiements suivants : git push origin main"

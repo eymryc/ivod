@@ -1,8 +1,8 @@
 # =============================================================================
-# IVOD — Cœur du déploiement Docker (rolling update API + web + nginx reload)
+# iVOD — Cœur du déploiement Docker
 #
-# Sourcé par deploy.sh après synchronisation du code (git ou rsync).
-# Ne s'exécute pas directement.
+# Rolling update API (zero-downtime), rebuild worker/web, reload Nginx.
+# Sourcé par deploy.sh — ne pas exécuter directement.
 # =============================================================================
 
 : "${PROJECT_DIR:?PROJECT_DIR doit être défini}"

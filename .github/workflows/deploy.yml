@@ -1,8 +1,8 @@
 # =============================================================================
-# CD — Déploiement production (appelé par ci.yml après lint+build sur main)
+# CD — Déploiement continu iVOD
 #
-# 1. rsync du code vers le VPS (le web a besoin du .env serveur au build Docker)
-# 2. ./deploy.sh sur le serveur (rebuild rolling update API + web)
+# Workflow réutilisable, appelé par le job « deploy » de ci.yml.
+# Transfère le code sur le VPS puis rebuild la stack Docker.
 # =============================================================================
 
 name: Deploy
@@ -12,12 +12,13 @@ on:
 
 jobs:
   deploy:
+    name: Rsync & rebuild
     runs-on: ubuntu-latest
     environment: production
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configurer l'accès SSH
+      - name: Configurer SSH
         env:
           PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
           PROD_HOST: ${{ secrets.PROD_HOST }}
@@ -28,7 +29,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${PROD_PORT:-22}" -H "${PROD_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Rsync du code vers le serveur
+      - name: Transférer le code (rsync)
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_USER: ${{ secrets.PROD_USER }}
@@ -37,7 +38,7 @@ jobs:
           SSH_KEY_FILE: ~/.ssh/deploy_key
         run: ./scripts/rsync-to-server.sh
 
-      - name: Rebuild Docker sur le serveur
+      - name: Rebuild Docker
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.PROD_HOST }}

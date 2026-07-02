@@ -191,16 +191,16 @@ prod-logs-nginx: ## Affiche les dernières lignes des logs Nginx (fichiers disqu
 	@echo "=== access.log ===" && tail -50 apps/api/logs/nginx/access.log 2>/dev/null || echo "(vide)"
 	@echo "=== error.log ===" && tail -50 apps/api/logs/nginx/error.log 2>/dev/null || echo "(vide)"
 
-prod-db-migrate: ## Applique les migrations Prisma sur la prod (déjà fait au démarrage API)
+prod-db-migrate: ## Applique les migrations Prisma en production
 	docker exec ivod-api-1-prod node_modules/.bin/prisma migrate deploy
 
-prod-db-seed: ## Exécute le seed Prisma sur la prod (voir scripts/prod-seed.sh)
+prod-db-seed: ## Initialise la base de données de production
 	./scripts/prod-seed.sh
 
-remote-deploy: ## Secours local — même flux que GitHub Actions Deploy (rsync + rebuild)
+remote-deploy: ## Déploiement manuel (secours — même flux que le CD GitHub Actions)
 	./scripts/remote-deploy.sh
 
-remote-bootstrap: ## Première mise en route du serveur (rsync + bootstrap complet)
+remote-bootstrap: ## Première installation du serveur de production
 	./scripts/remote-bootstrap.sh
 
 # ─── Sauvegardes ─────────────────────────────────────────────────────────────

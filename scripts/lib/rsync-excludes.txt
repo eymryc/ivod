@@ -1,3 +1,6 @@
+# Fichiers exclus du rsync vers le serveur de production.
+# Utilisé par scripts/rsync-to-server.sh et le pipeline CD.
+
 node_modules
 .git
 .next

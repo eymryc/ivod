@@ -208,16 +208,15 @@ if [ "${WEB_STATUS}" = "200" ]; then log "Web : 200 OK"; else warn "Web a répon
 log "Bootstrap terminé."
 cat <<'EOF'
 
-Reste à faire manuellement (pas automatisable depuis ce script) :
-  - SENTRY_DSN dans apps/api/.env (optionnel — monitoring d'erreurs)
-  - Repasser ALLOW_PAYMENT_SIMULATION=false une fois les clés Paystack réelles validées
-  - make monitoring-up (Uptime Kuma + Grafana, optionnel — accès via tunnel SSH)
-  - Smoke test FONCTIONNEL manuel : inscription (email OTP), upload image + vidéo,
-    notification temps réel entre 2 onglets/navigateurs différents
+Prochaines étapes manuelles :
+  • SENTRY_DSN dans apps/api/.env (optionnel)
+  • ALLOW_PAYMENT_SIMULATION=false après validation Paystack
+  • make monitoring-up (optionnel — voir docs/OPERATIONS.md)
+  • Smoke test fonctionnel : inscription OTP, upload média, temps réel
 
-Commandes prod utiles (sur le serveur, depuis /var/www/ivod) :
-  make prod-db-migrate   # migrations (normalement auto au démarrage API)
-  make prod-db-seed      # seed manuel (références + comptes démo)
+Commandes utiles (sur le serveur, /var/www/ivod) :
+  make prod-db-seed       initialiser la base de données
+  make prod-db-migrate    appliquer les migrations (normalement automatique)
 
-Déploiements suivants : push sur main → GitHub Actions (CI + Deploy)
+Déploiements suivants : git push origin main → GitHub Actions
 EOF

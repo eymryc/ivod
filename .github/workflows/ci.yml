@@ -1,14 +1,14 @@
-name: CI
+# =============================================================================
+# CI — Intégration continue iVOD
+#
+# Lint et build des applications (api, web, mobile).
+# Sur push vers main : déclenche également le CD via deploy.yml.
+#
+# Chaque app est buildée dans son propre répertoire avec son gestionnaire
+# de paquets (pnpm pour api/mobile, npm pour web).
+# =============================================================================
 
-# Restauré après suppression accidentelle (présent au commit 765ca2b, absent
-# de l'arbre de travail). Réécrit car l'original appelait `npx turbo run
-# build --filter=api` depuis la racine — ça ne peut pas fonctionner : il n'y
-# a pas de champ "workspaces" dans le package.json racine ni de
-# pnpm-workspace.yaml (voir sa description : "chaque app est indépendante
-# avec ses propres node_modules"), donc Turborepo n'a aucun package à
-# filtrer. Chaque job installe et exécute directement dans son propre
-# dossier d'app avec son propre gestionnaire de paquets (pnpm pour
-# api/mobile, npm pour web — cohérent avec les lockfiles réellement présents).
+name: CI
 
 on:
   pull_request:
@@ -17,8 +17,8 @@ on:
     branches: [develop, main]
 
 jobs:
-  # Détecte quels apps ont changé pour ne pas tout builder
   changes:
+    name: Détection des changements
     runs-on: ubuntu-latest
     outputs:
       api: ${{ steps.filter.outputs.api }}
@@ -44,6 +44,7 @@ jobs:
               - '.github/workflows/**'
 
   api:
+    name: API — lint & build
     needs: changes
     if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
@@ -62,12 +63,9 @@ jobs:
         working-directory: apps/api
       - run: pnpm run build
         working-directory: apps/api
-      # Pas d'étape "test" : `npm run test` échoue actuellement sur les 4
-      # specs existantes (pas de config ts-jest — babel-jest par défaut ne
-      # sait pas parser le TS). Bug préexistant, hors périmètre CI/CD ; à
-      # corriger séparément avant de pouvoir gater les PR dessus.
 
   web:
+    name: Web — lint & build
     needs: changes
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
@@ -86,6 +84,7 @@ jobs:
         working-directory: apps/web
 
   mobile:
+    name: Mobile — lint
     needs: changes
     if: needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
@@ -103,19 +102,8 @@ jobs:
       - run: pnpm run lint
         working-directory: apps/mobile
 
-  # ─── Build & push l'image API (main/develop uniquement, jamais sur les PR) ──
-  # Découple le build du VPS de prod : `deploy.sh` continue de rebuilder
-  # localement pour l'instant (voir docs/DEPLOY.md), mais l'image versionnée
-  # ici sert de trace/rollback et prépare une future bascule vers
-  # `docker compose pull` au lieu de `--build`.
-  #
-  # L'image WEB n'est volontairement PAS poussée ici : les NEXT_PUBLIC_* sont
-  # inlinées dans le bundle JS AU BUILD (voir apps/web/Dockerfile) — une image
-  # construite en CI avec des valeurs génériques serait fonctionnellement
-  # cassée si déployée telle quelle (mauvaise URL API baked-in). La pousser
-  # nécessiterait de dupliquer les secrets prod (JWT_SECRET notamment) dans
-  # les secrets GitHub — décision à prendre séparément, pas incluse ici.
   docker-api:
+    name: API — push image GHCR
     needs: [changes, api]
     if: github.event_name == 'push' && needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
@@ -141,8 +129,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ─── CD : déploiement serveur (défini dans deploy.yml) ─────────────────────
   deploy:
+    name: CD — déploiement production
     needs: [changes, api, web]
     if: |
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
@@ -152,11 +140,8 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
 
-  # ─── Mise à jour OTA mobile (JS uniquement, pas de review store) ───────────
-  # Automatique — sûr par nature : EAS Update ne pousse que du JS/assets, pas
-  # de nouveau binaire natif. Les builds natifs (iOS/Android) restent
-  # volontairement manuels — voir .github/workflows/mobile-release.yml.
   eas-update:
+    name: Mobile — mise à jour OTA
     needs: [changes, mobile]
     if: |
       github.event_name == 'push' &&
@@ -178,11 +163,8 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Publier la mise à jour OTA
+      - name: Publier sur Expo
         working-directory: apps/mobile
-        # Passer par env: (pas d'interpolation ${{ }} directe dans le script)
-        # évite l'injection de commande si le message de commit ou le nom de
-        # branche contenait des métacaractères shell.
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
           REF_NAME: ${{ github.ref_name }}

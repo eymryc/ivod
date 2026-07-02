@@ -21,15 +21,21 @@ bascule Wasabi, blocages mobile store) → voir **`docs/OPERATIONS.md`**.
 
 - [ ] **DNS** : `ivod-preprod-srv01.xselcloud.com` → IP publique du VPS (A/AAAA). Vérifier : `dig +short ivod-preprod-srv01.xselcloud.com`.
 - [ ] **`.env` de prod** : remplir localement les **3 blocs TODO** de `apps/api/.env.production` (SMTP, Paystack, Sentry — identifiants externes que je ne peux pas générer).
-- [ ] **Accès SSH par clé** déjà configuré vers `root@ivod-preprod-srv01.xselcloud.com` (testez : `ssh root@ivod-preprod-srv01.xselcloud.com true`).
-- [ ] **Code poussé sur GitHub** (`git push`) — requis avant l'étape suivante, `remote-bootstrap.sh` clone/initialise un vrai dépôt git côté serveur à partir du remote `origin` local, indispensable pour que `deploy.sh` (tous les déploiements suivants) puisse faire son `git fetch`.
-- [ ] **Depuis votre machine locale** : `./scripts/remote-bootstrap.sh --dry-run` (prévisualise le transfert), puis `./scripts/remote-bootstrap.sh` (exécution réelle). Un seul enchaîne : rsync du code → initialisation d'un vrai dépôt git côté serveur (remote + fetch + checkout, idempotent) → copie de `.env.production` en `.env` côté serveur (jamais s'il existe déjà) → `sudo ./scripts/bootstrap-server.sh` à distance, qui automatise TOUT le reste et est idempotent :
-  paquets système (Docker, certbot) → firewalld → vérif DNS → certificat Let's Encrypt → `make prod-build` → attente des health checks → hook de renouvellement certbot + timer → timers de sauvegarde Postgres/MinIO → smoke test HTTP.
-- [ ] **Smoke test fonctionnel** (manuel, pas automatisable) : inscription (OTP par email — nécessite le bloc SMTP rempli), upload d'une image (bannière/avatar — teste `/ivod-assets/` via Nginx), upload d'une vidéo courte (teste `/ivod-videos/` + le pipeline de transcodage), notification temps réel (teste l'adaptateur Redis Socket.io) entre deux onglets/navigateurs différents (pour vérifier que ça marche même si les deux atterrissent sur des réplicas API différents).
-- [ ] **`ALLOW_PAYMENT_SIMULATION=false`** une fois les vraies clés Paystack en place et testées.
-- [ ] **Monitoring** (optionnel) : `make monitoring-up` (Uptime Kuma + Grafana + Prometheus/node-exporter/cAdvisor + Loki), ajouter les moniteurs Uptime Kuma (accessible seulement en `127.0.0.1` sur le VPS pour l'instant — pas de location Nginx dédiée, tunnel SSH requis : `ssh -L 3002:localhost:3002 -L 3003:localhost:3003 -L 9090:localhost:9090 <user>@ivod-preprod-srv01.xselcloud.com`, le port 9090 (Prometheus) n'étant utile qu'en debug ponctuel des requêtes/alertes). Voir `docs/OPERATIONS.md` § 2 pour le détail des alertes disque/RAM déjà provisionnées.
+- [ ] **Accès SSH par clé** vers `root@ivod-preprod-srv01.xselcloud.com`
+- [ ] **Première installation** depuis votre Mac :
+  ```bash
+  ./scripts/remote-bootstrap.sh --dry-run   # prévisualiser
+  ./scripts/remote-bootstrap.sh               # exécuter
+  ```
+  Enchaîne : rsync du code → copie de `.env.production` en `.env` (si absent) →
+  bootstrap serveur (Docker, TLS, stack, seed si base vide, smoke test HTTP).
+- [ ] **Smoke test fonctionnel** (manuel) : inscription OTP, upload image/vidéo,
+  notification temps réel entre deux navigateurs.
+- [ ] **`ALLOW_PAYMENT_SIMULATION=false`** une fois Paystack validé en conditions réelles.
+- [ ] **Monitoring** (optionnel) : `make monitoring-up` — voir `docs/OPERATIONS.md`.
 
-Pour les déploiements **suivants** : push sur `main` → GitHub Actions déploie automatiquement (voir `docs/CI-CD.md`). Secours local : `make remote-deploy`.
+**Déploiements suivants** : `git push origin main` → GitHub Actions.
+Secours local : `make remote-deploy` (voir `docs/CI-CD.md`).
 
 ---
 
@@ -52,10 +58,8 @@ Pour les déploiements **suivants** : push sur `main` → GitHub Actions déploi
   conteneur Docker (voir `apps/web/docker-compose.prod.yml`), pas en process
   PM2. `deploy.sh` (racine du repo) automatise le déploiement — voir section 5.
 - **`deploy.sh` ne fait pas de rollback automatique** : si `api_2` ne devient
-  jamais "healthy", le script s'arrête (`set -e`) en laissant l'instance
-  précédente en service côté Nginx — mais le code sur le disque est déjà sur
-  le nouveau commit. Rollback manuel : `git checkout <sha-précédent> &&
-  ./deploy.sh <sha-précédent>`.
+  jamais healthy, le script s'arrête en laissant l'instance précédente en
+  service. Rollback manuel : `make remote-deploy` depuis un commit antérieur.
 - **MinIO est exposé publiquement pour les uploads uniquement**, via
   `/ivod-videos/` et `/ivod-assets/` (voir `apps/api/nginx/nginx.prod.conf`) —
   requis par les presigned PUT/GET de `MinioService` (upload direct
@@ -146,7 +150,7 @@ ln -s /var/www/ivod/scripts/certbot-renew-hook.sh \
 Aucune coupure : `nginx -s reload` recharge la config/les certs sans couper
 les connexions en cours. Le lien symbolique pointe vers le fichier du repo
 donc il suit automatiquement toute future modification du script (après un
-`git pull`/`deploy.sh`), pas besoin de le recréer.
+déploiement), pas besoin de le recréer.
 
 ---
 
@@ -253,36 +257,32 @@ initiale.
 
 ---
 
-## 5. `deploy.sh` — déploiement automatisé
+## 5. `deploy.sh` — rebuild de la stack Docker
 
-`deploy.sh` (racine du repo, exécutable) automatise l'intégralité de la
-section 4 plus la synchronisation du code et le reload Nginx. À exécuter
-**depuis le serveur**, dans `/var/www/ivod` :
+`deploy.sh` (racine du dépôt) rebuild la stack en rolling update. Il est
+appelé automatiquement par le pipeline CD après le transfert rsync du code.
+
+Exécution manuelle sur le serveur (`/var/www/ivod`) :
 
 ```bash
-./deploy.sh              # branche "main" par défaut
-./deploy.sh develop      # déployer une autre branche
-./deploy.sh main --s3    # inclut docker-compose.s3-external.yml (Wasabi)
+./deploy.sh          # stack standard (MinIO local)
+./deploy.sh --s3     # stockage S3 externe (Wasabi/Backblaze)
 ```
 
-Étapes (voir les commentaires en tête du script pour le détail) :
+Étapes :
 
-1. `git fetch` + `git reset --hard origin/<branche>` — refuse s'il y a des
-   modifs locales non commitées sur le serveur.
-2. `make prod-setup` — dossiers de logs par instance + webroot ACME.
-3. Rolling update `api_1` puis `api_2` : recrée, **attend `healthy`**
-   (timeout 60s) avant de passer à l'instance suivante — pas de rollback
-   automatique si le timeout est atteint (voir limite en section 0).
-4. Recrée `video-worker` puis `web` (coupure courte, non dédoublés).
-5. `nginx -t` puis `nginx -s reload` **seulement si la config est valide** —
-   sinon l'ancienne config Nginx reste active plutôt que de planter le
-   conteneur.
+1. `make prod-setup` — répertoires de logs, réseau Docker.
+2. Rolling update `api_1` → `api_2` : recréation séquentielle, attente
+   `healthy` (timeout 60 s par instance).
+3. Recréation du `video-worker` et du `web`.
+4. `nginx -t` puis `nginx -s reload` si la configuration est valide.
 
-Ce point de reload est directement câblé dans le script (pas besoin de
-l'ajouter manuellement) : c'est l'endroit exact où brancher un reload Nginx
-si un jour la config `apps/api/nginx/nginx.prod.conf` change — elle est déjà
-versionnée avec le reste du repo, donc `git reset --hard` à l'étape 1 la met
-à jour automatiquement avant le reload de l'étape 5.
+Le code doit déjà être à jour sur le disque (transféré par le CD ou
+`make remote-deploy`). Pas de `git pull` — voir `docs/CI-CD.md`.
+
+Pas de rollback automatique : en cas d'échec, l'instance précédente reste
+active côté Nginx. Rollback manuel : redéployer un commit antérieur via
+`make remote-deploy` depuis la branche souhaitée.
 
 Comme il n'y a pas de PM2 dans ce projet (voir limite en section 0), aucune
 étape `pm2 reload` n'est nécessaire — le web est un service Docker comme
