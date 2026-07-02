@@ -38,7 +38,7 @@ export function StudioPrimaryButton({
 }: {
   href: string;
   children: React.ReactNode;
-  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  icon?: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
 }) {
   return (
     <Link
@@ -62,7 +62,7 @@ export function StudioKpiCard({
   label: string;
   value: string;
   sub?: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
   accent?: "primary" | "secondary" | "emerald";
   featured?: boolean;
 }) {
@@ -206,7 +206,7 @@ export function StudioEmpty({
   description,
   action,
 }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
   title: string;
   description?: string;
   action?: React.ReactNode;

@@ -2,6 +2,20 @@ import { get, post, patch, del } from "./client";
 
 export type PersonSummary = { id: string; fullName?: string; stageName?: string | null };
 
+export type PersonDetail = {
+  id: string;
+  fullName: string;
+  stageName?: string | null;
+  avatarObjectKey?: string | null;
+  nationality?: string | null;
+  birthDate?: string | null;
+  biography?: string | null;
+  castAppearances?: any[];
+  crewAppearances?: any[];
+  cast?: any[];
+  crew?: any[];
+};
+
 export type CreatePersonInput = {
   fullName: string;
   stageName?: string;
@@ -32,7 +46,7 @@ export const peopleApi = {
     return res?.items ?? [];
   },
 
-  getOne: (id: string) => get<Record<string, unknown>>(`/people/${id}`),
+  getOne: (id: string) => get<PersonDetail>(`/people/${id}`),
 
   create: (data: CreatePersonInput) => post<PersonSummary>("/people", data),
 
@@ -70,6 +84,6 @@ export type CastRow = {
 
 export type CrewRow = {
   id: string;
-  person?: { id: string; fullName?: string };
+  person?: { id: string; fullName?: string; stageName?: string | null };
   crewRole?: { id?: string; code?: string; label?: string };
 };

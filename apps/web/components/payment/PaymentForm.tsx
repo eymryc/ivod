@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { zodResolver } from "@/lib/zod-resolver";
+import { z } from "@/lib/zod";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Mail, ShieldCheck, ArrowRight } from "lucide-react";
 import { paymentsApi } from "@/lib/api/payments";

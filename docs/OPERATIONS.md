@@ -12,34 +12,64 @@ extension). Son contenu a été trié :
 
 ---
 
-## 1. API — Monitoring d'erreurs (Sentry)
+## 1. API — Monitoring d'erreurs (Sentry) — volontairement en attente
 
-Optionnel, mais recommandé avant d'ouvrir à de vrais utilisateurs.
+Le code est prêt (`@sentry/nestjs`, voir `src/instrument.ts`) mais **pas
+activé** : décision prise de ne pas dépendre d'un service payant tant que le
+volume ne le justifie pas. À la place, les erreurs sont déjà capturées par
+Winston et centralisées dans Loki (§ 2) — cherchables dans Grafana via
+`{container="ivod-api-1-prod"} |= "error"`.
 
-1. [sentry.io](https://sentry.io) → nouveau projet → plateforme **Node.js**
-2. Copier le DSN dans `apps/api/.env` (`SENTRY_DSN=...`, déjà présent en
-   commentaire dans `.env.production`)
-3. `SENTRY_RELEASE` (optionnel) : utile pour corréler les erreurs à un
-   déploiement précis — pourrait être automatisé plus tard dans `deploy.sh`
-   (`SENTRY_RELEASE=$(git rev-parse --short HEAD)`), pas fait aujourd'hui.
+Si le besoin de vraie capture d'exceptions (stack trace groupée, alerting
+dédié) se confirme plus tard, deux options :
+- [sentry.io](https://sentry.io) (payant au-delà du plan gratuit) → DSN dans
+  `SENTRY_DSN` (déjà présent en commentaire dans `.env.production`)
+- **GlitchTip** auto-hébergé (compatible SDK Sentry, gratuit, mais alourdit
+  le VPS avec son propre Postgres/Redis/worker) — non fait à ce jour.
 
 Sans DSN configuré, l'API démarre normalement — Sentry ne s'initialise que
-si la variable est définie (`@sentry/nestjs`, voir `src/instrument.ts`).
+si la variable est définie.
 
-## 2. API — Monitoring infra (Uptime Kuma + Grafana)
+## 2. API — Monitoring infra (Uptime Kuma + Loki/Grafana + Prometheus)
 
-`make monitoring-up` démarre Uptime Kuma + Loki + Grafana (voir
-`apps/monitoring/docker-compose.monitoring.yml`). Ports liés à `127.0.0.1`
-uniquement sur le VPS — accès via tunnel SSH (voir `docs/DEPLOY.md`).
+`make monitoring-up` démarre toute la stack (voir
+`apps/monitoring/docker-compose.monitoring.yml`) :
 
-Une fois lancé, à faire manuellement dans l'UI Uptime Kuma (`:3002`) :
+| Service | Rôle | Port (127.0.0.1 uniquement) |
+|---|---|---|
+| Uptime Kuma | Ping HTTP/TCP externe, notifications | 3002 |
+| Grafana | Dashboards + alerting | 3003 |
+| Prometheus | Stockage des métriques (debug requêtes) | 9090 |
+| node-exporter | Métriques CPU/RAM/disque de l'hôte | 9100 |
+| cAdvisor | Métriques par conteneur Docker | 8081 |
+| Loki/Promtail | Logs centralisés de tous les conteneurs | 3100 (interne) |
+
+Aucun port n'est exposé publiquement — accès via tunnel SSH (voir
+`docs/DEPLOY.md`). `GRAFANA_PASSWORD` est déjà généré dans
+`apps/api/.env.production`.
+
+**Alertes déjà provisionnées** (`apps/monitoring/grafana/provisioning/alerting/`) :
+- Disque serveur > 85 % pendant 5 min → email
+- RAM serveur > 90 % pendant 5 min → email
+
+Envoyées par email via le SMTP déjà configuré (`MAIL_*` dans `.env`), à
+`romaric.ouangni@xsel-services.com` (adresse en dur dans
+`contactpoints.yaml` — volontaire, un bug connu de Grafana empêche parfois
+la substitution `${VAR}` sur les contact points ; changez cette adresse
+directement dans le fichier si besoin, puis relancez `make monitoring-up`).
+
+Une fois lancé, à faire **manuellement** dans l'UI Uptime Kuma (`:3002`,
+pas automatisable par fichier — Uptime Kuma n'a pas de provisioning déclaratif) :
 - Monitor HTTP sur `https://ivod-preprod-srv01.xselcloud.com/api/v1/health`
 - Monitor HTTP sur `https://ivod-preprod-srv01.xselcloud.com/`
 - Monitor TCP sur le port Postgres interne (via `docker exec`, pas exposé publiquement)
-- Notifications (email/Slack/Discord) sur alerte — à configurer selon vos préférences
+- Notifications (email/Telegram/Discord) sur alerte de disponibilité — à
+  configurer selon vos préférences (Réglages → Notifications)
 
-`GRAFANA_PASSWORD` est déjà généré dans `apps/api/.env.production` — rien à
-faire de plus que le déploiement initial pour ce point.
+**Dashboards Grafana à créer/importer** (pas encore fait — les datasources
+Prometheus/Loki sont provisionnées mais aucun dashboard n'est fourni) :
+import du dashboard communautaire *Node Exporter Full* (ID `1860` sur
+grafana.com/grafana/dashboards) pour une vue CPU/RAM/disque immédiate.
 
 ## 3. API — Bascule vers stockage S3 externe (Wasabi) — scalabilité
 

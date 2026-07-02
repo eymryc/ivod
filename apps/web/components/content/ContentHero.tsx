@@ -577,6 +577,9 @@ function CompactHero({
   promoVideos?: PromoVideosBundle | null;
   comingSoon?: boolean;
 }) {
+  const heroDescription =
+    content.description?.trim() || content.shortDescription?.trim() || null;
+
   return (
     <>
       {showTvodModal && content.ppvPrice && (

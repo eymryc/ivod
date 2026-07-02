@@ -43,7 +43,7 @@ export default function DevicesPage() {
     onError: (err: ApiError) => showApiError(err),
   });
 
-  const deviceList: any[] = Array.isArray(devices) ? devices : ((devices as { items?: unknown[] })?.items ?? []);
+  const deviceList: any[] = Array.isArray(devices) ? devices : ((devices as unknown as { items?: unknown[] })?.items ?? []);
 
   useEffect(() => {
     if (!isLoading && deviceList.length === 0) {

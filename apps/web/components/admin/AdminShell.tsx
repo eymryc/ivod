@@ -81,7 +81,7 @@ export function AdminKpiCard({
   label: string;
   value: string | number;
   sub?: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
   href?: string;
   accent?: "primary" | "secondary" | "emerald" | "amber";
 }) {
@@ -204,7 +204,7 @@ export function AdminEmpty({
   description,
   action,
 }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
   title: string;
   description?: string;
   action?: React.ReactNode;

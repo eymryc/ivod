@@ -7,22 +7,11 @@ import { isJwtExpired } from "@/lib/auth/jwt";
 import { refreshAccessToken } from "@/lib/api/client";
 import { useAuthStore } from "../stores/auth.store";
 import { usePushNotifications } from "../hooks/usePushNotifications";
-import { useUIStore } from "../stores/ui.store";
 
 const SocketContext = createContext<Socket | null>(null);
 
 function AppInit() {
   usePushNotifications();
-
-  const { detectedCountry, setDetectedCountry } = useUIStore();
-  useEffect(() => {
-    if (detectedCountry) return;
-    fetch("https://ipapi.co/json/")
-      .then((r) => r.json())
-      .then((d) => { if (d.country_code) setDetectedCountry(d.country_code); })
-      .catch(() => setDetectedCountry("CI"));
-  }, [detectedCountry, setDetectedCountry]);
-
   return null;
 }
 

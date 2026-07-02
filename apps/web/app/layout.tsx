@@ -9,8 +9,14 @@ import { IvodToaster } from "@/components/ui/IvodToaster";
 const rajdhani = Rajdhani({
   variable: "--font-rajdhani",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  display: "swap",
+  // Poids 300 retiré : glyf bbox incorrects dans Firefox + préchargements inutilisés.
+  // font-light est mappé sur 400 via --font-weight-light dans globals.css.
+  // Login n'utilise que 400/600 → évite le preload inutilisé des autres graisses.
+  weight: ["400", "600", "700"],
+  display: "optional",
+  adjustFontFallback: true,
+  preload: false,
+  fallback: ["system-ui", "Segoe UI", "sans-serif"],
 });
 
 export const viewport: Viewport = {

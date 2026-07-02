@@ -1,5 +1,14 @@
 import { get, post } from "./client";
 
+export type PaystackConfig = {
+  publicKey: string;
+  currency: string;
+  configured: boolean;
+  secretKeyInvalid: boolean;
+  simulationAllowed?: boolean;
+  simulationMode: boolean;
+};
+
 export const paymentsApi = {
   list: (page = 1, limit = 20) =>
     get<any>(`/payments?page=${page}&limit=${limit}`, true),
@@ -8,7 +17,7 @@ export const paymentsApi = {
 
   syncPayment: (id: string) => post<any>(`/payments/${id}/sync`, {}),
 
-  getPaystackConfig: () => get<{ publicKey: string; currency: string }>("/payments/config/paystack"),
+  getPaystackConfig: () => get<PaystackConfig>("/payments/config/paystack"),
 
   initiatePayment: (data: {
     amount: number;

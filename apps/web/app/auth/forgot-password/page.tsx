@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { zodResolver } from "@/lib/zod-resolver";
+import { z } from "@/lib/zod";
 import { Mail } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "@/lib/toast";

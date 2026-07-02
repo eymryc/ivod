@@ -23,6 +23,9 @@
   --color-muted-foreground: #b4c0d0;
   --font-sans: var(--font-rajdhani), system-ui, sans-serif;
   --font-mono: var(--font-rajdhani), ui-monospace, monospace;
+  /* font-light → 400 ; font-medium → 600 (Rajdhani 500 retiré, voir layout.tsx) */
+  --font-weight-light: 400;
+  --font-weight-medium: 600;
 }
 
 * {
@@ -299,7 +302,7 @@ select.ivod-native-select {
   background: rgba(4, 8, 16, 0.8);
   color: rgba(255, 255, 255, 0.92);
   font-size: 0.875rem;
-  font-weight: 300;
+  font-weight: 400;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   transition:
     border-color 0.2s ease,

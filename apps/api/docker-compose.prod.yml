@@ -200,6 +200,18 @@ services:
     networks:
       - ivod-prod
     restart: unless-stopped
+    # Le worker n'expose aucun serveur HTTP — sans cet override, il hérite du
+    # HEALTHCHECK de l'image (ciblant /api/v1/health, image partagée avec
+    # api_1/api_2) et reste "unhealthy" en permanence puisque rien n'écoute
+    # sur le port 3000 ici. On vérifie plutôt que le process worker (PID 1,
+    # lancé par `exec node dist/worker-main` dans docker-entrypoint-worker-prod.sh)
+    # tourne toujours.
+    healthcheck:
+      test: ["CMD-SHELL", "grep -q worker-main /proc/1/cmdline || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   # ─── PostgreSQL ───────────────────────────────────────────────────────────────
   # ⚠️  MIGRATION MAJEURE (15 → 17) : dump/restore requis sur données existantes.
@@ -313,6 +325,10 @@ volumes:
   minio_data:
 
 # ─── Networks ─────────────────────────────────────────────────────────────────
+# Réseau externe, créé une fois par `make prod-setup` (docker network create) —
+# pas géré par ce compose : sinon la fusion avec apps/web/docker-compose.prod.yml
+# (qui le déclare `external: true`) est ambiguë selon l'ordre des -f et Compose
+# s'attend à ce qu'il existe déjà, faisant échouer le premier `up` à froid.
 networks:
   ivod-prod:
-    driver: bridge
+    external: true

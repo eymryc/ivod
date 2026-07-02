@@ -76,7 +76,7 @@ export function IvodFieldShell({
   );
 }
 
-type IvodInputProps = InputHTMLAttributes<HTMLInputElement> & {
+type IvodInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & {
   label?: string;
   hint?: ReactNode;
   error?: string;
@@ -132,7 +132,7 @@ export function IvodTextarea({
   );
 }
 
-type IvodNativeSelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
+type IvodNativeSelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "size"> & {
   label?: string;
   hint?: ReactNode;
   error?: string;

@@ -14,6 +14,13 @@
 #   apps/web/.env. C'est pour ça que les NEXT_PUBLIC_* sont dans la section
 #   "Prod uniquement" de apps/api/.env.example, et pas dans apps/web/.env.
 #   apps/web/.env (s'il existe) n'est utilisé qu'en dev local (next dev).
+#
+# ⚠️  Chemins relatifs (build.context) : pour la MÊME raison que ci-dessus,
+#   Compose résout les chemins relatifs d'un fichier -f additionnel par
+#   rapport au dossier du PREMIER fichier -f (apps/api/), PAS par rapport à
+#   ce fichier. "context: ." pointerait donc vers apps/api/ (mauvais
+#   Dockerfile !) — d'où "../web" ci-dessous. Vérifié avec :
+#   docker compose -f apps/api/docker-compose.prod.yml -f apps/web/docker-compose.prod.yml config
 # =============================================================================
 
 services:
@@ -21,7 +28,7 @@ services:
   # ─── Web Next.js (standalone) ────────────────────────────────────────────────
   web:
     build:
-      context: .
+      context: ../web
       dockerfile: Dockerfile
       args:
         # Baked dans le bundle JS + le manifeste standalone — voir next.config.ts
@@ -67,7 +74,7 @@ services:
       - ivod-prod
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/"]
       interval: 30s
       timeout: 10s
       retries: 3

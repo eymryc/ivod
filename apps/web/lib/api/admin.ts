@@ -77,9 +77,10 @@ export const adminApi = {
   refundPayment: (paymentId: string, data?: { reason?: string; merchantNote?: string }) =>
     post<any>(`/refunds/admin/payments/${paymentId}`, data ?? {}),
 
-  getRefunds: (params?: { page?: number; status?: string }) => {
+  getRefunds: (params?: { page?: number; limit?: number; status?: string }) => {
     const q = new URLSearchParams();
     if (params?.page) q.set("page", String(params.page));
+    if (params?.limit) q.set("limit", String(params.limit));
     if (params?.status) q.set("status", params.status);
     const qs = q.toString();
     return get<any>(`/refunds/admin/list${qs ? `?${qs}` : ""}`, true);

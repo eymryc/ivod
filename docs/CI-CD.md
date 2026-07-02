@@ -1,46 +1,64 @@
-# iVOD — Pipeline CI/CD complet (API + Web + Mobile)
+# iVOD — CI/CD
 
-Voir aussi `docs/DEPLOY.md` (mise en route serveur) et `docs/OPERATIONS.md`.
-
----
-
-## 1. Les 3 façons de déployer
-
-| Méthode | Quand l'utiliser | Commande |
-|---|---|---|
-| **remote-deploy** (recommandé) | Depuis votre Mac, CI bloquée, déploiement immédiat | `make remote-deploy` |
-| **GitHub Actions** | Push sur `main` (après approbation) | Automatique via `deploy-server` |
-| **deploy.sh sur serveur** | Serveur avec git remote valide + accès GitHub | `ssh root@… 'cd /var/www/ivod && ./deploy.sh main'` |
-
-### Pourquoi rsync plutôt que `git fetch` sur le serveur ?
-
-L'ancienne approche (`./deploy.sh main` = `git fetch` sur le serveur) échouait souvent :
-
-- dépôt git vide sans `origin` (bootstrap partiel) ;
-- repo GitHub **privé** sans credentials sur le serveur ;
-- divergence entre le code rsyncé et l'état git.
-
-**Nouvelle approche** : la CI et `remote-deploy.sh` font un **rsync** du code puis `./deploy.sh --no-sync` (rebuild Docker uniquement). Le git sur le serveur devient optionnel.
+Voir aussi `docs/DEPLOY.md` (première mise en route serveur).
 
 ---
 
-## 2. Ce qui se déclenche sur GitHub
+## Architecture (2 workflows)
 
-| Déclencheur | Workflow | Jobs |
-|---|---|---|
-| PR vers `main`/`develop` | `ci.yml` | lint + build api/web/mobile |
-| Push sur `main` | `ci.yml` | ci + `docker-api` + **`deploy-server`** (rsync + rebuild) + `eas-update` |
-| Manuel | `mobile-release.yml` | build natif EAS |
+```
+push/PR ──► ci.yml          lint + build (api, web, mobile)
+push main ─► ci.yml job deploy ──► deploy.yml   rsync + ./deploy.sh
+```
 
-### ⚠️ Billing GitHub
-
-Si les jobs ne démarrent pas avec le message *"account is locked due to a billing issue"*, **aucun workflow ne peut tourner** — réglez la facturation dans GitHub → Settings → Billing, puis relancez le workflow.
-
-En attendant : `make remote-deploy` depuis votre Mac.
+| Fichier | Rôle |
+|---|---|
+| `.github/workflows/ci.yml` | **CI** — lint, build, push image API GHCR, OTA mobile |
+| `.github/workflows/deploy.yml` | **CD** — rsync vers le VPS + rebuild Docker (appelé par ci.yml) |
 
 ---
 
-## 3. Secrets GitHub (Settings → Secrets → Actions)
+## Pourquoi rsync dans le CD ?
+
+GitHub Actions **ne peut pas** simplement faire `git pull` sur le serveur :
+
+- le repo est souvent **privé** (pas de credentials git sur le VPS) ;
+- le **web Next.js** doit être buildé **sur le serveur** avec `apps/api/.env` (les `NEXT_PUBLIC_*` sont inlinées au build Docker).
+
+Le flux CD est donc : **Actions rsync le code → `deploy.sh` rebuild les containers**.
+
+`make remote-deploy` fait exactement la même chose en local (secours si billing GitHub bloqué).
+
+---
+
+## Scripts (le minimum)
+
+| Script | Quand |
+|---|---|
+| `deploy.sh` | Sur le serveur — rebuild Docker uniquement |
+| `scripts/rsync-to-server.sh` | Transfert code (utilisé par Actions + remote-deploy) |
+| `scripts/remote-deploy.sh` | Fallback local = même flux que Actions |
+| `scripts/remote-bootstrap.sh` | **Une seule fois** — première install serveur |
+| `scripts/prod-seed.sh` | Peupler la base (`make prod-db-seed`) |
+
+Pas de git sur le serveur pour déployer — le code arrive par rsync.
+
+---
+
+## Déclencheurs
+
+| Événement | Résultat |
+|---|---|
+| PR vers `main`/`develop` | CI uniquement (lint + build) |
+| Push sur `main` | CI + **Deploy** (après build réussi, si api/web/ops modifiés) |
+| Push sur `develop` | CI + OTA mobile preview |
+| Manuel | `mobile-release.yml` — build natif store |
+
+Le job `deploy` dans ci.yml appelle `deploy.yml` et attend l'environment `production` (approbation manuelle optionnelle).
+
+---
+
+## Secrets GitHub
 
 | Secret | Valeur |
 |---|---|
@@ -48,40 +66,25 @@ En attendant : `make remote-deploy` depuis votre Mac.
 | `PROD_USER` | `root` |
 | `PROD_PORT` | `22` |
 | `PROD_APP_DIR` | `/var/www/ivod` |
-| `PROD_SSH_KEY` | Clé privée SSH dédiée au déploiement |
+| `PROD_SSH_KEY` | Clé privée SSH dédiée déploiement |
 | `EXPO_TOKEN` | Token Expo (mobile OTA) |
 
+---
+
+## Billing GitHub
+
+Si les jobs ne démarrent pas (*account locked due to billing issue*), réglez la facturation GitHub, ou utilisez temporairement :
+
 ```bash
-ssh-keygen -t ed25519 -f ivod_deploy_key -N "" -C "github-actions-deploy"
-ssh-copy-id -i ivod_deploy_key.pub root@ivod-preprod-srv01.xselcloud.com
-# Coller ivod_deploy_key (privée) dans PROD_SSH_KEY
+make remote-deploy
 ```
 
 ---
 
-## 4. Environment "production" (approbation manuelle)
+## Checklist
 
-Settings → Environments → `production` → **Required reviewers**.
-
-Sans ça, `deploy-server` s'exécute immédiatement après un push sur `main`.
-
----
-
-## 5. Première mise en route vs déploiements suivants
-
-| Étape | Script |
-|---|---|
-| **Première fois** | `make remote-bootstrap` (rsync + certbot + `make prod-build` + seed si base vide) |
-| **Déploiements suivants** | `make remote-deploy` (depuis Mac) ou CI `deploy-server` |
-| **Seed manuel** | `make prod-db-seed` (sur le serveur) |
-| **Réparer git cassé** | `./scripts/repair-server-git.sh` (sur le serveur) |
-
----
-
-## 6. Checklist avant le premier push CI
-
-- [ ] Billing GitHub actif (sinon utiliser `make remote-deploy`)
-- [ ] Les 6 secrets du § 3 créés
-- [ ] Environment `production` configuré (optionnel)
+- [ ] Billing GitHub actif
+- [ ] Secrets § ci-dessus configurés
 - [ ] `apps/api/.env` rempli sur le serveur
-- [ ] `ssh -i ivod_deploy_key root@ivod-preprod-srv01.xselcloud.com true` réussit
+- [ ] Environment `production` + reviewers (optionnel)
+- [ ] `make prod-db-seed` après première install

@@ -148,7 +148,7 @@ export function CatalogHeroFeatured({
             ) : null}
             {genres.slice(0, 2).map((g) => (
               <span
-                key={g.id ?? g.code ?? g.label}
+                key={g.code ?? g.label}
                 className="catalog-hero-meta-chip catalog-hero-meta-chip--genre rounded-none px-3 py-1 text-[11px] font-semibold uppercase tracking-wide"
               >
                 {g.label}

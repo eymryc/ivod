@@ -197,7 +197,7 @@ prod-db-migrate: ## Applique les migrations Prisma sur la prod (déjà fait au d
 prod-db-seed: ## Exécute le seed Prisma sur la prod (voir scripts/prod-seed.sh)
 	./scripts/prod-seed.sh
 
-remote-deploy: ## Déploie sur le serveur via rsync + rebuild Docker (depuis votre Mac)
+remote-deploy: ## Secours local — même flux que GitHub Actions Deploy (rsync + rebuild)
 	./scripts/remote-deploy.sh
 
 remote-bootstrap: ## Première mise en route du serveur (rsync + bootstrap complet)

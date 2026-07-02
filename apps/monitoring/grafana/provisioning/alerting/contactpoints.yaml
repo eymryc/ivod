@@ -1,0 +1,16 @@
+apiVersion: 1
+
+# Adresse en dur (pas de substitution ${VAR} ici — bug connu de Grafana sur
+# l'expansion des variables d'environnement spécifiquement pour les contact
+# points d'alerting, cf. github.com/grafana/grafana/issues/56437). Une alerte
+# qui ne part jamais silencieusement est pire qu'une adresse figée à changer
+# manuellement si besoin.
+contactPoints:
+  - orgId: 1
+    name: email-ops
+    receivers:
+      - uid: email-ops-receiver
+        type: email
+        settings:
+          addresses: romaric.ouangni@xsel-services.com
+          singleEmail: true

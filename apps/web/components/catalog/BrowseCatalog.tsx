@@ -200,11 +200,26 @@ export function BrowseCatalog({ section }: Props) {
     : null;
   const featuredResumeWithEpisode =
     featuredResume && featured
-      ? (historyItems.find(
-          (h) =>
-            (h.contentId ?? h.content?.id) === featured.id &&
-            h.episodeId === featuredResume.episodeId,
-        ) ?? null)
+      ? (() => {
+          const match = historyItems.find(
+            (h) =>
+              (h.contentId ?? h.content?.id) === featured.id &&
+              h.episodeId === featuredResume.episodeId,
+          );
+          if (!match) return null;
+          const contentId = match.contentId ?? match.content?.id;
+          if (!contentId) return null;
+          return {
+            id: `${contentId}-${match.episodeId ?? ""}`,
+            contentId,
+            episodeId: match.episodeId ?? null,
+            percentage: match.percentage,
+            completed: match.completed,
+            watchedSeconds: match.watchedSeconds,
+            lastWatchedAt: match.lastWatchedAt,
+            episode: match.episode ?? null,
+          };
+        })()
       : null;
   const heroLoading = useGenreRowsLayout ? isOverviewLoading : isLoading;
 

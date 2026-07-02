@@ -1,16 +1,18 @@
 # =============================================================================
-# iVOD — Stack monitoring (Uptime Kuma + Loki + Promtail + Grafana)
+# iVOD — Stack monitoring (Uptime Kuma + Loki + Promtail + Grafana + Prometheus)
 #
 # Prérequis : être sur le même hôte que le stack prod (réseau ivod-prod).
 #
 # Démarrage :
-#   docker compose -f apps/monitoring/docker-compose.monitoring.yml up -d
+#   make monitoring-up   # charge apps/api/.env (SMTP, GRAFANA_PASSWORD, ALERT_EMAIL_TO)
 #
 # Accès (derrière Nginx/VPN — ne pas exposer directement sur internet) :
 #   Uptime Kuma  → http://localhost:3002
 #   Grafana      → http://localhost:3003   admin / voir GRAFANA_PASSWORD
+#   Prometheus   → http://localhost:9090   (debug requêtes/alertes uniquement)
 #
-# Ports non exposés publiquement : configurer Nginx ou un tunnel SSH si besoin.
+# Ports tous bindés sur 127.0.0.1 — accès depuis votre poste via tunnel SSH :
+#   ssh -L 3002:localhost:3002 -L 3003:localhost:3003 root@<host>
 # =============================================================================
 
 services:
@@ -72,7 +74,77 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # ─── Grafana — dashboards ─────────────────────────────────────────────────────
+  # ─── node-exporter — métriques CPU/RAM/disque de l'hôte ──────────────────────
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: ivod-node-exporter
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    ports:
+      - "127.0.0.1:9100:9100"
+    restart: unless-stopped
+    networks:
+      - monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── cAdvisor — métriques par conteneur Docker ───────────────────────────────
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: ivod-cadvisor
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+    ports:
+      - "127.0.0.1:8081:8080"
+    restart: unless-stopped
+    networks:
+      - monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── Prometheus — collecte les métriques node-exporter + cAdvisor ───────────
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: ivod-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+    networks:
+      - monitoring
+    depends_on:
+      - node-exporter
+      - cadvisor
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── Grafana — dashboards + alertes (disque/RAM par email) ───────────────────
   grafana:
     image: grafana/grafana:11.2.0
     container_name: ivod-grafana
@@ -84,6 +156,13 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3003}
       GF_ANALYTICS_REPORTING_ENABLED: "false"
+      # Alertes par email (disque/RAM) — réutilise le SMTP déjà configuré pour l'API
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: "${MAIL_HOST}:${MAIL_PORT}"
+      GF_SMTP_USER: "${MAIL_USERNAME}"
+      GF_SMTP_PASSWORD: "${MAIL_PASSWORD}"
+      GF_SMTP_FROM_ADDRESS: "${MAIL_FROM_ADDRESS}"
+      GF_SMTP_FROM_NAME: "${MAIL_FROM_NAME}"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -92,6 +171,7 @@ services:
       - monitoring
     depends_on:
       - loki
+      - prometheus
     logging:
       driver: "json-file"
       options:
@@ -102,6 +182,7 @@ volumes:
   uptime_kuma_data:
   loki_data:
   grafana_data:
+  prometheus_data:
 
 networks:
   ivod-prod:

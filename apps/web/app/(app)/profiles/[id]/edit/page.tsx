@@ -2,8 +2,8 @@
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { zodResolver } from "@/lib/zod-resolver";
+import { z } from "@/lib/zod";
 import { Loader2, Trash2, Camera } from "lucide-react";
 import { ProfilesShell, ProfilesPanel, PROFILE_INPUT_CLASS, ProfileSecurityPasswordField } from "@/components/profile/ProfilesUI";
 import { useMutation, useQueryClient } from "@tanstack/react-query";

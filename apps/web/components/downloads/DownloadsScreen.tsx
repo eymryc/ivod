@@ -18,7 +18,10 @@ import { ApiError } from "@/lib/api/client";
 import { PAGE_X } from "@/components/public/PublicShell";
 import { BrandLoader } from "@/components/ui/BrandLoader";
 import { DownloadProgressBar } from "@/components/downloads/DownloadProgressBar";
-import { DownloadItemCard } from "@/components/downloads/DownloadItemCard";
+import {
+  DownloadItemCard,
+  type DownloadItemCardData,
+} from "@/components/downloads/DownloadItemCard";
 import { DownloadSeriesGroup } from "@/components/downloads/DownloadSeriesGroup";
 import { ActiveDownloadJobsSection } from "@/components/downloads/ActiveDownloadJobsSection";
 import { useDownloadProgressStore } from "@/lib/stores/download-progress.store";
@@ -52,11 +55,11 @@ function resolveThumb(row: DownloadRow): string | null {
   return posterUrl(row.content);
 }
 
-function resolveSeriesTitle(row: DownloadRow): string {
+function resolveSeriesTitle(row: DownloadItemCardData): string {
   return row.content?.title ?? row.title ?? "Série";
 }
 
-function resolveEpisodeTitle(row: DownloadRow): string {
+function resolveEpisodeTitle(row: DownloadItemCardData): string {
   if (row.episode) {
     const epLabel = `S${row.episode.seasonNumber} · Ép. ${row.episode.episodeNumber}`;
     if (row.episode.title?.trim()) {
@@ -73,7 +76,7 @@ function resolveSingleTitle(row: DownloadRow): string {
   return resolveSeriesTitle(row);
 }
 
-function resolveWatchHref(row: DownloadRow): string {
+function resolveWatchHref(row: DownloadItemCardData): string {
   const id = row.content?.id ?? row.contentId;
   const epId = row.episodeId ?? row.episode?.id;
   if (epId) return `/watch/${id}?ep=${epId}`;

@@ -3,8 +3,8 @@
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { zodResolver } from "@/lib/zod-resolver";
+import { z } from "@/lib/zod";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/lib/hooks/useAuth";
 import {

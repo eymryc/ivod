@@ -28,7 +28,7 @@ const STATUS_FILTERS = [
   { code: "REJECTED", label: "Rejetés" },
 ] as const;
 
-const VALID_STATUS = new Set(STATUS_FILTERS.map((f) => f.code).filter(Boolean));
+const VALID_STATUS: Set<string> = new Set(STATUS_FILTERS.map((f) => f.code).filter(Boolean));
 
 export default function StudioContentsPage() {
   const searchParams = useSearchParams();

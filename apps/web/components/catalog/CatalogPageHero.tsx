@@ -24,6 +24,7 @@ type Props = {
   featured?: ContentCardContent | null;
   featuredProgress?: number | null;
   featuredResume?: {
+    id: string;
     contentId: string;
     episodeId?: string | null;
     percentage?: number;

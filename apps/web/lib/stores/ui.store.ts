@@ -8,7 +8,7 @@ interface UIState {
   theme: "dark" | "light";
   dataSaver: boolean;       // Fix 23 — mode économie de données
   preferredQuality: string; // Fix 23 — qualité vidéo mémorisée
-  detectedCountry: string | null; // Fix 25 — pays détecté
+  detectedCountry: string; // défaut CI — bannières géo ; surcharge possible via setDetectedCountry
   setSidebarOpen: (open: boolean) => void;
   openModal: (id: string) => void;
   closeModal: () => void;
@@ -26,7 +26,7 @@ export const useUIStore = create<UIState>()(
       theme: "dark",
       dataSaver: false,
       preferredQuality: "auto",
-      detectedCountry: null,
+      detectedCountry: "CI",
 
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       openModal: (id) => set({ activeModal: id }),

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { zodResolver } from "@/lib/zod-resolver";
+import { z } from "@/lib/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2, Eye, EyeOff, Shield, MapPin, CheckCircle2, XCircle } from "lucide-react";
 import { showApiError, showApiSuccess } from "@/lib/api/feedback";
@@ -63,7 +63,7 @@ export default function SecurityPage() {
 
   const history: any[] = Array.isArray(loginHistory)
     ? loginHistory
-    : ((loginHistory as { items?: unknown[] })?.items ?? []);
+    : ((loginHistory as unknown as { items?: unknown[] })?.items ?? []);
 
   return (
     <div className="space-y-6 md:space-y-8">

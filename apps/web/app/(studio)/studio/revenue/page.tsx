@@ -129,7 +129,7 @@ export default function RevenuePage() {
         20,
         statusFilter || undefined,
       ),
-    getNextPageParam: (lastPage: { total?: number }, allPages) => {
+    getNextPageParam: (lastPage: { items?: RevenueStatement[]; total?: number }, allPages) => {
       const loaded = allPages.flatMap((p) => p?.items ?? []).length;
       return loaded < (lastPage?.total ?? 0) ? allPages.length + 1 : undefined;
     },

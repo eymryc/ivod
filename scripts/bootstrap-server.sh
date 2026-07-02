@@ -218,5 +218,6 @@ Reste à faire manuellement (pas automatisable depuis ce script) :
 Commandes prod utiles (sur le serveur, depuis /var/www/ivod) :
   make prod-db-migrate   # migrations (normalement auto au démarrage API)
   make prod-db-seed      # seed manuel (références + comptes démo)
-  ./deploy.sh main       # déploiements suivants (git fetch + rolling update)
+
+Déploiements suivants : push sur main → GitHub Actions (CI + Deploy)
 EOF

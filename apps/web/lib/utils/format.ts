@@ -29,7 +29,8 @@ export function formatDuration(seconds: number): string {
   return `${s} s`;
 }
 
-export function formatRelative(date: string | Date): string {
+export function formatRelative(date?: string | Date | null): string {
+  if (!date) return "—";
   return formatDistanceToNow(new Date(date), { addSuffix: true, locale: fr });
 }
 

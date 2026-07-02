@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { zodResolver } from "@/lib/zod-resolver";
+import { z } from "@/lib/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { X, Loader2, UserPlus, Baby } from "lucide-react";
 import { toast } from "@/lib/toast";
