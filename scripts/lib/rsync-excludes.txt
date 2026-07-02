@@ -1,0 +1,12 @@
+node_modules
+.git
+.next
+.turbo
+dist
+apps/*/logs
+apps/api/backups
+apps/api/certbot-webroot
+apps/api/nginx/ssl/*.pem
+.env
+.env.local
+.DS_Store

@@ -2,42 +2,20 @@
 # =============================================================================
 # IVOD — Déploiement production (zero-downtime API)
 #
-# À exécuter DEPUIS LE SERVEUR, dans le dossier du projet (/var/www/ivod).
-# Suppose : apps/api/.env déjà rempli, certificats déjà en place dans
-# apps/api/nginx/ssl/ (voir docs/DEPLOY.md section 1).
+# À exécuter SUR LE SERVEUR dans /var/www/ivod.
 #
 # Usage :
-#   ./deploy.sh [branche] [--s3]
-#     branche   défaut : main
-#     --s3      inclut docker-compose.s3-external.yml (Wasabi/Backblaze)
+#   ./deploy.sh [branche|sha] [--s3] [--no-sync]
 #
-# Étapes :
-#   1. git fetch + reset --hard sur la branche cible (refuse si modifs locales)
-#   2. Prépare les dossiers de logs / webroot ACME (make prod-setup)
-#   3. Rolling update api_1 puis api_2 : recrée une instance, ATTEND qu'elle
-#      soit "healthy" avant de toucher à l'autre — Nginx (least_conn +
-#      max_fails/fail_timeout) bascule le trafic sur l'instance saine pendant
-#      ce temps (voir apps/api/nginx/nginx.prod.conf)
-#   4. Recrée video-worker puis web (coupure courte acceptée — pas dédoublés)
-#   5. nginx -t && nginx -s reload SEULEMENT si la config est valide (sinon
-#      l'ancienne config reste active, pas de risque de casser un déploiement
-#      en cours à cause d'une erreur de syntaxe Nginx)
+# Modes de synchronisation du code :
+#   (défaut)     git fetch + reset — nécessite un remote origin valide
+#   --no-sync    saute git — le code est déjà à jour (rsync CI ou remote-deploy)
 #
-# Pas de rollback automatique : en cas d'échec (ex. api_2 jamais "healthy"),
-# le script s'arrête (set -e) en laissant l'ancienne instance en place.
-# Rollback manuel : git checkout <sha-précédent> && ./deploy.sh <sha-précédent>
+# Variables :
+#   GIT_REMOTE_URL  URL du dépôt (défaut : déduit ou https://github.com/eymryc/ivod.git)
 # =============================================================================
 
 set -euo pipefail
-
-BRANCH="main"
-INCLUDE_S3=""
-for arg in "$@"; do
-  case "$arg" in
-    --s3) INCLUDE_S3="-f apps/api/docker-compose.s3-external.yml" ;;
-    *) BRANCH="$arg" ;;
-  esac
-done
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
@@ -45,67 +23,42 @@ cd "$PROJECT_DIR"
 SCRIPT_TAG="deploy"
 # shellcheck source=scripts/lib/common.sh
 source "${PROJECT_DIR}/scripts/lib/common.sh"
+# shellcheck source=scripts/lib/sync-git.sh
+source "${PROJECT_DIR}/scripts/lib/sync-git.sh"
+# shellcheck source=scripts/lib/deploy-core.sh
+source "${PROJECT_DIR}/scripts/lib/deploy-core.sh"
 
-HEALTH_TIMEOUT_TRIES=30   # 30 x 2s = 60s max d'attente par instance
+BRANCH="main"
+INCLUDE_S3=""
+NO_SYNC=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --s3) INCLUDE_S3="-f apps/api/docker-compose.s3-external.yml" ;;
+    --no-sync) NO_SYNC="1" ;;
+    --*) die "option inconnue : ${arg}" ;;
+    *) BRANCH="$arg" ;;
+  esac
+done
+
+HEALTH_TIMEOUT_TRIES=30
 HEALTH_POLL_INTERVAL=2
+
+# ── 1. Synchronisation du code ───────────────────────────────────────────────
+if [ -n "${NO_SYNC}" ]; then
+  log "Mode --no-sync : le code sur disque est supposé à jour (rsync/CI)."
+  if git rev-parse --short HEAD >/dev/null 2>&1; then
+    log "Révision git locale : $(git rev-parse --short HEAD)"
+  fi
+else
+  GIT_REMOTE_URL="${GIT_REMOTE_URL:-https://github.com/eymryc/ivod.git}"
+  sync_from_git "${BRANCH}"
+fi
 
 # shellcheck disable=SC2046
 COMPOSE="$(compose_cmd "${INCLUDE_S3}")"
 
-# ── 1. Synchronisation du code ───────────────────────────────────────────────
-# "${BRANCH}" accepte aussi bien un nom de branche qu'un SHA de commit (pour
-# un rollback manuel : ./deploy.sh <sha-précédent>) — on ne peut donc pas
-# faire `git fetch origin "${BRANCH}"` ni `origin/${BRANCH}` sans distinguer
-# les deux cas.
-log "Récupération de ${BRANCH}..."
-git fetch origin
+# ── 2. Rolling update ─────────────────────────────────────────────────────────
+run_prod_deploy "${HEALTH_TIMEOUT_TRIES}" "${HEALTH_POLL_INTERVAL}"
 
-if ! git diff --quiet HEAD; then
-  die "modifications locales non commitées détectées sur ${PROJECT_DIR} — annulation (vérifier 'git status')."
-fi
-
-git checkout "${BRANCH}"
-if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
-  git reset --hard "origin/${BRANCH}"   # branche connue du remote — prend le dernier commit poussé
-else
-  git reset --hard "${BRANCH}"          # SHA ou tag précis (rollback) — déjà téléchargé par le fetch
-fi
-log "Code à jour sur $(git rev-parse --short HEAD)."
-
-# ── 2. Dossiers requis (logs par instance, webroot ACME) ────────────────────
-make prod-setup
-
-# ── 3. Rolling update API — une instance à la fois ───────────────────────────
-deploy_api_instance() {
-  local svc="$1" container="$2"
-  log "Redéploiement de ${svc} (${container})..."
-  # --no-deps : ne touche pas à postgres/redis/minio, déjà en service
-  $COMPOSE up -d --no-deps --build "${svc}"
-  log "Attente de l'état healthy de ${container}..."
-  # "die" en timeout : un rolling update en cours doit s'arrêter net plutôt
-  # que de continuer vers l'instance suivante dans un état incertain.
-  wait_healthy "${container}" "${HEALTH_TIMEOUT_TRIES}" "${HEALTH_POLL_INTERVAL}" die
-  log "${container} healthy — bascule effective, passage à l'instance suivante."
-}
-
-deploy_api_instance api_1 ivod-api-1-prod
-deploy_api_instance api_2 ivod-api-2-prod
-
-# ── 4. Worker vidéo + Web (une seule instance chacun, coupure courte) ───────
-log "Redéploiement du worker vidéo..."
-$COMPOSE up -d --no-deps --build video-worker
-
-log "Redéploiement du web..."
-$COMPOSE up -d --no-deps --build web
-
-# ── 5. Nginx — reload uniquement si la config est valide ────────────────────
-log "Vérification de la config Nginx avant reload..."
-if docker exec ivod-nginx-prod nginx -t; then
-  docker exec ivod-nginx-prod nginx -s reload
-  log "Nginx rechargé (config valide)."
-else
-  warn "config Nginx invalide — reload ignoré, l'ancienne config reste active."
-fi
-
-log "Déploiement terminé sur $(git rev-parse --short HEAD)."
-$COMPOSE ps
+log "Déploiement terminé."

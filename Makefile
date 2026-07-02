@@ -30,6 +30,7 @@ MONITORING_COMPOSE := $(PROD_ENV_FILE) -f apps/monitoring/docker-compose.monitor
         prod-setup prod-up prod-down prod-build prod-logs \
         prod-db-migrate prod-db-seed \
         prod-s3-up prod-s3-build \
+        remote-deploy remote-bootstrap \
         monitoring-up monitoring-down monitoring-logs \
         prod-logs-api prod-logs-worker prod-logs-nginx prod-logs-web \
         backup-postgres backup-minio \
@@ -195,6 +196,12 @@ prod-db-migrate: ## Applique les migrations Prisma sur la prod (déjà fait au d
 
 prod-db-seed: ## Exécute le seed Prisma sur la prod (voir scripts/prod-seed.sh)
 	./scripts/prod-seed.sh
+
+remote-deploy: ## Déploie sur le serveur via rsync + rebuild Docker (depuis votre Mac)
+	./scripts/remote-deploy.sh
+
+remote-bootstrap: ## Première mise en route du serveur (rsync + bootstrap complet)
+	./scripts/remote-bootstrap.sh
 
 # ─── Sauvegardes ─────────────────────────────────────────────────────────────
 backup-postgres: ## Dump Postgres immédiat (gzip + rotation) — voir docs/DEPLOY.md section 6

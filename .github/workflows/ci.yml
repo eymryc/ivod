@@ -24,6 +24,7 @@ jobs:
       api: ${{ steps.filter.outputs.api }}
       web: ${{ steps.filter.outputs.web }}
       mobile: ${{ steps.filter.outputs.mobile }}
+      ops: ${{ steps.filter.outputs.ops }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -36,6 +37,11 @@ jobs:
               - 'apps/web/**'
             mobile:
               - 'apps/mobile/**'
+            ops:
+              - 'deploy.sh'
+              - 'scripts/**'
+              - 'Makefile'
+              - '.github/workflows/**'
 
   api:
     needs: changes
@@ -135,27 +141,53 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ─── Déploiement serveur (API + Web, main uniquement) ───────────────────────
-  # `environment: production` : nécessite une "Required reviewer" configurée
-  # dans Settings → Environments → production côté GitHub (pas faisable depuis
-  # ce repo — voir docs/CI-CD.md) pour que le job se mette en pause en
-  # attendant une approbation manuelle avant d'exécuter `./deploy.sh` sur le
-  # serveur. Sans cette config GitHub, le job s'exécute immédiatement.
-  #
-  # `needs: [api, web]` avec des jobs potentiellement "skipped" (si seul l'un
-  # des deux a changé) : le `if` ci-dessous tolère explicitement skipped, sinon
-  # GitHub Actions annule ce job dès qu'un needs est skipped plutôt que success.
+  # ─── Déploiement serveur (rsync + rebuild Docker, main uniquement) ──────────
+  # Ne dépend PAS d'un git remote fonctionnel sur le serveur : la CI pousse le
+  # code via rsync puis lance ./deploy.sh --no-sync (rebuild containers seulement).
+  # Méthode équivalente en local : ./scripts/remote-deploy.sh
   deploy-server:
     needs: [changes, api, web]
     if: |
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      (needs.changes.outputs.api == 'true' || needs.changes.outputs.web == 'true') &&
+      (needs.changes.outputs.api == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.ops == 'true') &&
       (needs.api.result == 'success' || needs.api.result == 'skipped') &&
       (needs.web.result == 'success' || needs.web.result == 'skipped')
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Déploiement via SSH (./deploy.sh sur le serveur)
+      - uses: actions/checkout@v4
+
+      - name: Configurer l'accès SSH
+        env:
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${PROD_SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${PROD_PORT:-22}" -H "${PROD_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Rsync du code vers le serveur
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_APP_DIR: ${{ secrets.PROD_APP_DIR }}
+        run: |
+          EXCLUDES=()
+          while IFS= read -r line || [ -n "${line}" ]; do
+            line="${line%%#*}"
+            line="${line#"${line%%[![:space:]]*}"}"
+            line="${line%"${line##*[![:space:]]}"}"
+            [ -n "${line}" ] || continue
+            EXCLUDES+=(--exclude "${line}")
+          done < scripts/lib/rsync-excludes.txt
+          rsync -avz "${EXCLUDES[@]}" \
+            -e "ssh -i ~/.ssh/deploy_key -p ${PROD_PORT:-22} -o StrictHostKeyChecking=accept-new" \
+            ./ "${PROD_USER}@${PROD_HOST}:${PROD_APP_DIR}/"
+
+      - name: Rebuild Docker (deploy.sh --no-sync)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.PROD_HOST }}
@@ -164,7 +196,7 @@ jobs:
           port: ${{ secrets.PROD_PORT }}
           script: |
             cd ${{ secrets.PROD_APP_DIR }}
-            ./deploy.sh main
+            ./deploy.sh --no-sync
 
   # ─── Mise à jour OTA mobile (JS uniquement, pas de review store) ───────────
   # Automatique — sûr par nature : EAS Update ne pousse que du JS/assets, pas

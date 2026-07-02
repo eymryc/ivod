@@ -1,98 +1,87 @@
 # iVOD — Pipeline CI/CD complet (API + Web + Mobile)
 
-Ce document couvre ce que je **ne peux pas configurer moi-même** (secrets
-GitHub, règles d'approbation) — tout le reste (fichiers `.yml`, scripts) est
-déjà en place dans le repo. Voir aussi `docs/DEPLOY.md` (mise en route
-serveur) et `docs/OPERATIONS.md` (tâches restantes, dont 2 blocages mobile
-avant une vraie sortie store — § 5).
+Voir aussi `docs/DEPLOY.md` (mise en route serveur) et `docs/OPERATIONS.md`.
 
 ---
 
-## 1. Vue d'ensemble — qu'est-ce qui se déclenche quand
+## 1. Les 3 façons de déployer
 
-| Déclencheur | Workflow | Job(s) | Automatique ? |
-|---|---|---|---|
-| Pull request vers `main`/`develop` | `ci.yml` | `changes`, `api`, `web`, `mobile` (lint+build) | Oui — bloque la PR si rouge |
-| Push sur `develop` | `ci.yml` | idem + `eas-update` (branche `preview`) si mobile a changé | Oui |
-| Push sur `main` | `ci.yml` | idem + `docker-api` (build+push GHCR) + `deploy-server` (⚠️ **approbation requise**, voir § 3) + `eas-update` (branche `production`) | CI auto, déploiement serveur **en pause** tant que non approuvé |
-| Clic manuel "Run workflow" | `mobile-release.yml` | `build` (EAS Build natif iOS/Android) | Jamais automatique — coûte des crédits EAS + review store |
-
-`deploy-server` exécute `./deploy.sh main` sur le serveur via SSH — c'est le
-même script que vous pouvez lancer manuellement, juste déclenché par CI.
-`eas-update` publie une mise à jour OTA (JS/assets uniquement, pas de review
-store) — sûr par nature, donc automatique.
-
----
-
-## 2. Secrets GitHub à créer (Settings → Secrets and variables → Actions)
-
-Je ne peux pas les créer moi-même (pas d'accès à l'API GitHub depuis cet
-environnement) — à ajouter manuellement :
-
-| Secret | Valeur | Où l'obtenir |
+| Méthode | Quand l'utiliser | Commande |
 |---|---|---|
-| `PROD_HOST` | `ivod-preprod-srv01.xselcloud.com` | déjà connu |
-| `PROD_USER` | `root` (ou un user dédié moins privilégié, recommandé à terme) | — |
-| `PROD_PORT` | `22` (ou le port SSH réel si personnalisé) | — |
-| `PROD_APP_DIR` | `/var/www/ivod` | déjà connu |
-| `PROD_SSH_KEY` | Clé **privée** SSH dédiée au déploiement (PAS votre clé perso) | `ssh-keygen -t ed25519 -f deploy_key -N ""` en local, puis ajouter `deploy_key.pub` dans `~/.ssh/authorized_keys` du serveur, et coller le contenu de `deploy_key` (privée) dans ce secret |
-| `EXPO_TOKEN` | Token d'accès Expo (scope "robot", pas votre login perso) | [expo.dev](https://expo.dev) → Account Settings → Access Tokens → Create |
+| **remote-deploy** (recommandé) | Depuis votre Mac, CI bloquée, déploiement immédiat | `make remote-deploy` |
+| **GitHub Actions** | Push sur `main` (après approbation) | Automatique via `deploy-server` |
+| **deploy.sh sur serveur** | Serveur avec git remote valide + accès GitHub | `ssh root@… 'cd /var/www/ivod && ./deploy.sh main'` |
 
-`GITHUB_TOKEN` (utilisé par `docker-api` pour pousser vers GHCR) est fourni
-automatiquement par GitHub, rien à créer.
+### Pourquoi rsync plutôt que `git fetch` sur le serveur ?
 
-### Générer une clé SSH dédiée au déploiement (recommandé, pas votre clé perso)
+L'ancienne approche (`./deploy.sh main` = `git fetch` sur le serveur) échouait souvent :
+
+- dépôt git vide sans `origin` (bootstrap partiel) ;
+- repo GitHub **privé** sans credentials sur le serveur ;
+- divergence entre le code rsyncé et l'état git.
+
+**Nouvelle approche** : la CI et `remote-deploy.sh` font un **rsync** du code puis `./deploy.sh --no-sync` (rebuild Docker uniquement). Le git sur le serveur devient optionnel.
+
+---
+
+## 2. Ce qui se déclenche sur GitHub
+
+| Déclencheur | Workflow | Jobs |
+|---|---|---|
+| PR vers `main`/`develop` | `ci.yml` | lint + build api/web/mobile |
+| Push sur `main` | `ci.yml` | ci + `docker-api` + **`deploy-server`** (rsync + rebuild) + `eas-update` |
+| Manuel | `mobile-release.yml` | build natif EAS |
+
+### ⚠️ Billing GitHub
+
+Si les jobs ne démarrent pas avec le message *"account is locked due to a billing issue"*, **aucun workflow ne peut tourner** — réglez la facturation dans GitHub → Settings → Billing, puis relancez le workflow.
+
+En attendant : `make remote-deploy` depuis votre Mac.
+
+---
+
+## 3. Secrets GitHub (Settings → Secrets → Actions)
+
+| Secret | Valeur |
+|---|---|
+| `PROD_HOST` | `ivod-preprod-srv01.xselcloud.com` |
+| `PROD_USER` | `root` |
+| `PROD_PORT` | `22` |
+| `PROD_APP_DIR` | `/var/www/ivod` |
+| `PROD_SSH_KEY` | Clé privée SSH dédiée au déploiement |
+| `EXPO_TOKEN` | Token Expo (mobile OTA) |
 
 ```bash
 ssh-keygen -t ed25519 -f ivod_deploy_key -N "" -C "github-actions-deploy"
-# Copier la clé publique sur le serveur :
 ssh-copy-id -i ivod_deploy_key.pub root@ivod-preprod-srv01.xselcloud.com
-# Coller le CONTENU de ivod_deploy_key (privée, sans .pub) dans le secret PROD_SSH_KEY
-cat ivod_deploy_key
+# Coller ivod_deploy_key (privée) dans PROD_SSH_KEY
 ```
 
 ---
 
-## 3. Environment GitHub "production" — approbation manuelle avant déploiement
+## 4. Environment "production" (approbation manuelle)
 
-Le job `deploy-server` référence `environment: production` dans `ci.yml`.
-Sans configuration côté GitHub, ça n'a **aucun effet** (le job s'exécute
-immédiatement dès que les conditions sont remplies). Pour activer la pause
-d'approbation qu'on a décidée ensemble :
+Settings → Environments → `production` → **Required reviewers**.
 
-1. GitHub → repo → **Settings** → **Environments** → **New environment**
-2. Nommer exactement `production` (doit correspondre à `environment:` dans `ci.yml`)
-3. Cocher **Required reviewers** → ajouter votre compte (ou celui d'un lead)
-4. (Optionnel) **Wait timer** — délai fixe avant exécution, en plus/à la place des reviewers
-5. Sauvegarder
-
-À partir de là : un push sur `main` déclenche CI normalement, mais le job
-`deploy-server` reste **"Waiting"** dans l'onglet Actions jusqu'à ce qu'un
-reviewer clique **"Review deployments" → "Approve and deploy"**.
+Sans ça, `deploy-server` s'exécute immédiatement après un push sur `main`.
 
 ---
 
-## 4. Vérifications avant le premier push qui déclenche tout ça
+## 5. Première mise en route vs déploiements suivants
 
-- [ ] Les 6 secrets du § 2 sont créés
-- [ ] L'environment `production` du § 3 est configuré avec au moins 1 reviewer
-- [ ] La clé SSH dédiée est bien autorisée sur le serveur (`ssh -i ivod_deploy_key root@ivod-preprod-srv01.xselcloud.com true` doit réussir)
-- [ ] `apps/api/.env` existe déjà sur le serveur et est rempli (voir `docs/DEPLOY.md`) — `deploy.sh` ne le crée pas, il suppose qu'il existe déjà
-- [ ] Le serveur a un accès réseau sortant vers GitHub (`deploy.sh` fait `git fetch origin` depuis le serveur lui-même)
+| Étape | Script |
+|---|---|
+| **Première fois** | `make remote-bootstrap` (rsync + certbot + `make prod-build` + seed si base vide) |
+| **Déploiements suivants** | `make remote-deploy` (depuis Mac) ou CI `deploy-server` |
+| **Seed manuel** | `make prod-db-seed` (sur le serveur) |
+| **Réparer git cassé** | `./scripts/repair-server-git.sh` (sur le serveur) |
 
 ---
 
-## 5. Ce qui reste manuel, volontairement
+## 6. Checklist avant le premier push CI
 
-- **`eas submit`** (soumission App Store/Play Store) : pas automatisé du
-  tout — `apps/mobile/eas.json` a encore des identifiants placeholder
-  (`ascAppId`, `appleTeamId`, `google-service-account.json`). Une fois les
-  vrais identifiants configurés, ce sera un choix séparé (manuel ou lié à
-  `mobile-release.yml`).
-- **Builds natifs mobile** : toujours `workflow_dispatch` manuel (§ 1) —
-  décision prise ensemble pour éviter de gaspiller des crédits EAS ou de
-  soumettre une build cassée aux stores sans review humaine.
-- **Rollback serveur** : `deploy-server` ne fait pas de rollback automatique
-  (`deploy.sh` lui-même n'en fait pas non plus, voir `docs/DEPLOY.md` § 0) —
-  en cas de souci, ré-approuver un déploiement sur un commit précédent, ou
-  se connecter en SSH et lancer `./deploy.sh <sha-précédent>` directement.
+- [ ] Billing GitHub actif (sinon utiliser `make remote-deploy`)
+- [ ] Les 6 secrets du § 3 créés
+- [ ] Environment `production` configuré (optionnel)
+- [ ] `apps/api/.env` rempli sur le serveur
+- [ ] `ssh -i ivod_deploy_key root@ivod-preprod-srv01.xselcloud.com true` réussit
