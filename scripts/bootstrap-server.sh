@@ -62,6 +62,7 @@ else
 fi
 
 command -v dig >/dev/null 2>&1 || dnf install -y bind-utils
+command -v make >/dev/null 2>&1 || dnf install -y make
 
 # ── 3. Firewalld ─────────────────────────────────────────────────────────────
 log "3/10 — Firewalld (ssh, http, https uniquement — 3000/3001 jamais publiés par Docker de toute façon)"
@@ -179,8 +180,23 @@ systemctl daemon-reload
 systemctl enable --now ivod-backup-postgres.timer ivod-backup-minio.timer
 log "Timers installés et activés"
 
-# ── 10. Smoke test ────────────────────────────────────────────────────────────
-log "10/10 — Smoke test HTTP"
+# ── 10. Seed initial (base vide uniquement) ───────────────────────────────────
+log "10/11 — Seed initial (si la base est vide)"
+
+load_env
+
+USER_COUNT="$(docker exec ivod-postgres-prod psql -U "${POSTGRES_USER:-ivod}" -d "${POSTGRES_DB:-ivod}" -tAc "SELECT COUNT(*) FROM users;" 2>/dev/null | tr -d '[:space:]' || echo "")"
+if [ "${USER_COUNT}" = "0" ]; then
+  log "Aucun utilisateur — exécution du seed (make prod-db-seed)..."
+  make -C "${PROJECT_DIR}" prod-db-seed
+elif [ -n "${USER_COUNT}" ]; then
+  log "Base déjà peuplée (${USER_COUNT} utilisateur(s)) — seed ignoré"
+else
+  warn "Impossible de lire le nombre d'utilisateurs — seed ignoré (lancez manuellement : make prod-db-seed)"
+fi
+
+# ── 11. Smoke test ────────────────────────────────────────────────────────────
+log "11/11 — Smoke test HTTP"
 
 sleep 5
 API_HEALTH="$(curl -sk -o /dev/null -w '%{http_code}' "https://${DOMAIN}/api/v1/health" || echo "000")"
@@ -199,6 +215,8 @@ Reste à faire manuellement (pas automatisable depuis ce script) :
   - Smoke test FONCTIONNEL manuel : inscription (email OTP), upload image + vidéo,
     notification temps réel entre 2 onglets/navigateurs différents
 
-Pour les déploiements suivants (code déjà en place, stack déjà démarrée) :
-  ./deploy.sh main
+Commandes prod utiles (sur le serveur, depuis /var/www/ivod) :
+  make prod-db-migrate   # migrations (normalement auto au démarrage API)
+  make prod-db-seed      # seed manuel (références + comptes démo)
+  ./deploy.sh main       # déploiements suivants (git fetch + rolling update)
 EOF

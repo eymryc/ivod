@@ -21,13 +21,14 @@ DEV_COMPOSE       := apps/api/docker-compose.dev.yml
 PROD_ENV_FILE     := --env-file apps/api/.env
 PROD_COMPOSE      := $(PROD_ENV_FILE) -f apps/api/docker-compose.prod.yml -f apps/web/docker-compose.prod.yml
 PROD_S3_COMPOSE   := $(PROD_COMPOSE) -f apps/api/docker-compose.s3-external.yml
-MONITORING_COMPOSE := -f apps/monitoring/docker-compose.monitoring.yml
+MONITORING_COMPOSE := $(PROD_ENV_FILE) -f apps/monitoring/docker-compose.monitoring.yml
 
 .PHONY: help install \
         dev-up dev-down dev-build dev-rebuild dev-logs dev-restart dev-clean \
         api-logs video-worker-logs api-shell \
         db-generate db-migrate db-migrate-new db-seed db-reset db-adminer db-studio \
         prod-setup prod-up prod-down prod-build prod-logs \
+        prod-db-migrate prod-db-seed \
         prod-s3-up prod-s3-build \
         monitoring-up monitoring-down monitoring-logs \
         prod-logs-api prod-logs-worker prod-logs-nginx prod-logs-web \
@@ -135,7 +136,7 @@ db-studio: ## Ouvre Prisma Studio (UI base de données) sur le port 5555
 	@echo "Prisma Studio disponible sur http://localhost:5555"
 
 # ─── Production ──────────────────────────────────────────────────────────────
-prod-setup: ## Prépare les dossiers de logs + webroot ACME (à exécuter une fois avant prod-up)
+prod-setup: ## Prépare les dossiers de logs + webroot ACME + réseau Docker (à exécuter une fois avant prod-up)
 	@echo "Création des dossiers de logs..."
 	@mkdir -p apps/api/logs/api/1 apps/api/logs/api/2 apps/api/logs/worker apps/api/logs/nginx
 	@# api_1/api_2 partagent la même image — répertoires de logs séparés pour ne pas interleaver les fichiers Winston
@@ -144,7 +145,10 @@ prod-setup: ## Prépare les dossiers de logs + webroot ACME (à exécuter une fo
 	@chmod 777 apps/api/logs/api/1 apps/api/logs/api/2 apps/api/logs/worker
 	@# Nginx tourne en root dans le container Alpine
 	@chmod 755 apps/api/logs/nginx
-	@echo "OK → apps/api/logs/{api/1,api/2,worker,nginx} + apps/api/certbot-webroot"
+	@# Réseau externe partagé par apps/api/*.yml et apps/web/*.yml (external: true
+	@# des deux côtés — évite l'ambiguïté de fusion si Compose devait le créer lui-même)
+	@docker network inspect ivod-prod >/dev/null 2>&1 || docker network create ivod-prod
+	@echo "OK → apps/api/logs/{api/1,api/2,worker,nginx} + apps/api/certbot-webroot + réseau ivod-prod"
 
 prod-up: prod-setup ## Démarre l'environnement de production (MinIO self-hosted)
 	docker compose $(PROD_COMPOSE) up -d
@@ -185,6 +189,12 @@ prod-logs-web: ## Suit les logs du frontend Next.js (stdout uniquement)
 prod-logs-nginx: ## Affiche les dernières lignes des logs Nginx (fichiers disque)
 	@echo "=== access.log ===" && tail -50 apps/api/logs/nginx/access.log 2>/dev/null || echo "(vide)"
 	@echo "=== error.log ===" && tail -50 apps/api/logs/nginx/error.log 2>/dev/null || echo "(vide)"
+
+prod-db-migrate: ## Applique les migrations Prisma sur la prod (déjà fait au démarrage API)
+	docker exec ivod-api-1-prod node_modules/.bin/prisma migrate deploy
+
+prod-db-seed: ## Exécute le seed Prisma sur la prod (voir scripts/prod-seed.sh)
+	./scripts/prod-seed.sh
 
 # ─── Sauvegardes ─────────────────────────────────────────────────────────────
 backup-postgres: ## Dump Postgres immédiat (gzip + rotation) — voir docs/DEPLOY.md section 6
