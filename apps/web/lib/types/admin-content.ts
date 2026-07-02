@@ -1,0 +1,44 @@
+export type AdminEpisodeModerationItem = {
+  id: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  title: string;
+  status?: { code?: string; label?: string };
+  rejectionReason?: string | null;
+  canPlayVideo?: boolean;
+  videoStatus?: string | null;
+};
+
+export type AdminContentListItem = {
+  id: string;
+  title: string;
+  slug?: string;
+  shortDescription?: string | null;
+  description?: string | null;
+  releaseYear?: number | null;
+  duration?: number | null;
+  ppvPrice?: number | null;
+  tags?: string[];
+  viewCount?: number;
+  likeCount?: number;
+  rejectionReason?: string | null;
+  createdAt?: string;
+  publishedAt?: string | null;
+  isExclusive?: boolean;
+  canPlayVideo?: boolean;
+  previewEpisodeId?: string | null;
+  status?: { code?: string; label?: string };
+  contentType?: { code?: string; label?: string };
+  visibility?: { code?: string; label?: string };
+  maturityRating?: { code?: string; label?: string };
+  creator?: { id?: string; stageName?: string; verified?: boolean };
+  uploadedBy?: { email?: string; firstName?: string; lastName?: string };
+  contentGenres?: { genre?: { code?: string; label?: string } }[];
+  mediaAssets?: { objectKey?: string }[];
+  videoAssets?: { id?: string; status?: string; height?: number; duration?: number }[];
+  primaryRightsholder?: { displayName?: string; type?: { label?: string } };
+  distributor?: { displayName?: string };
+  _count?: { episodes?: number; seasons?: number };
+  episodes?: AdminEpisodeModerationItem[];
+  publishedEpisodeCount?: number;
+};

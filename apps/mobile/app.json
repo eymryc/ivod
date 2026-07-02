@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "iVOD",
+    "slug": "ivod",
+    "version": "1.0.0",
+    "orientation": "default",
+    "scheme": "ivod",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#00050d"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ci.ivod.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#00050d"
+      },
+      "package": "ci.ivod.app"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-video",
+        {
+          "supportsPictureInPicture": true
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#e6007e"
+        }
+      ],
+      "expo-screen-orientation"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2fe45e94-b60f-46c4-bf70-73356efe62e0"
+      }
+    },
+    "owner": "romsy96"
+  }
+}

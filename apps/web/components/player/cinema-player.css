@@ -1,0 +1,619 @@
+/* ─── iVOD Cinema Player — plein écran ───────────────────────────────────── */
+
+.watch-stage,
+.ivod-cinema-screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.ivod-cinema {
+  --cinema-purple: #7c3aed;
+  --cinema-magenta: #e6007e;
+  --cinema-orange: #f97316;
+  --cinema-gold: #eab308;
+  --cinema-accent: var(--cinema-magenta);
+  --cinema-accent-soft: rgba(230, 0, 126, 0.4);
+  --cinema-progress: linear-gradient(
+    90deg,
+    var(--cinema-purple) 0%,
+    var(--cinema-magenta) 35%,
+    var(--cinema-orange) 72%,
+    var(--cinema-gold) 100%
+  );
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+.ivod-cinema .video-js .vjs-tech {
+  filter: none !important;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Video.js default spinner (avoid double loader) */
+.ivod-cinema .video-js .vjs-loading-spinner,
+.ivod-cinema .video-js .vjs-seeking .vjs-loading-spinner,
+.ivod-cinema .video-js.vjs-waiting .vjs-loading-spinner {
+  display: none !important;
+}
+
+/* Vignette UI — très légère pour ne pas voiler la vidéo */
+.ivod-cinema::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.22) 0%,
+    transparent 10%,
+    transparent 88%,
+    rgba(0, 0, 0, 0.28) 100%
+  );
+  opacity: 0.4;
+  transition: opacity 0.55s ease;
+}
+
+.ivod-cinema.ivod-cinema--idle::before {
+  opacity: 0.12;
+}
+
+/* Mode net (watch) — quasi pas de voile sur l’image */
+.ivod-cinema.ivod-cinema--sharp::before {
+  opacity: 0.08;
+}
+
+.ivod-cinema.ivod-cinema--sharp.ivod-cinema--idle::before {
+  opacity: 0;
+}
+
+.ivod-cinema::after {
+  display: none;
+}
+
+.ivod-cinema .ivod-cinema-scrim-top,
+.ivod-cinema .ivod-cinema-scrim-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+.ivod-cinema .ivod-cinema-scrim-top {
+  top: 0;
+  height: 14%;
+  background: linear-gradient(180deg, rgba(2, 2, 8, 0.45) 0%, transparent 100%);
+  opacity: 0.55;
+}
+
+.ivod-cinema .ivod-cinema-scrim-bottom {
+  bottom: 0;
+  height: 22%;
+  max-height: 180px;
+  background: linear-gradient(0deg, rgba(2, 2, 8, 0.5) 0%, transparent 100%);
+  opacity: 0.6;
+}
+
+.ivod-cinema.ivod-cinema--sharp .ivod-cinema-scrim-top,
+.ivod-cinema.ivod-cinema--sharp .ivod-cinema-scrim-bottom {
+  opacity: 0.22;
+}
+
+.ivod-cinema.ivod-cinema--idle .ivod-cinema-scrim-top,
+.ivod-cinema.ivod-cinema--idle .ivod-cinema-scrim-bottom {
+  opacity: 0;
+}
+
+.ivod-cinema .ivod-cinema-toolbar,
+.ivod-cinema .ivod-cinema-badge,
+.ivod-cinema .ivod-cinema-hint,
+.ivod-cinema .ivod-cinema-brand {
+  transition:
+    opacity 0.45s ease,
+    transform 0.45s ease;
+}
+
+.ivod-cinema.ivod-cinema--idle .ivod-cinema-toolbar,
+.ivod-cinema.ivod-cinema--idle .ivod-cinema-badge,
+.ivod-cinema.ivod-cinema--idle .ivod-cinema-hint,
+.ivod-cinema.ivod-cinema--idle .ivod-cinema-brand {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
+.ivod-cinema .video-js {
+  width: 100% !important;
+  height: 100% !important;
+  font-family: var(--font-rajdhani), system-ui, sans-serif;
+  background: transparent;
+  z-index: 5;
+}
+
+.ivod-cinema .video-js .vjs-tech {
+  object-fit: contain;
+}
+
+.ivod-cinema.ivod-cinema--edge .video-js .vjs-tech {
+  object-fit: cover !important;
+}
+
+.ivod-cinema .video-js .vjs-big-play-button {
+  display: none !important;
+}
+
+/* Barre de contrôles — pleine largeur, sans carte */
+.ivod-cinema .video-js .vjs-control-bar {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  height: 4.75rem !important;
+  padding: 1.35rem 1rem 0.75rem !important;
+  margin: 0 !important;
+  width: 100% !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  background: linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.55) 55%,
+    transparent 100%
+  ) !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transition:
+    opacity 0.45s ease,
+    transform 0.45s ease !important;
+  z-index: 20 !important;
+}
+
+.ivod-cinema.ivod-cinema--idle .video-js.vjs-user-inactive .vjs-control-bar,
+.ivod-cinema.ivod-cinema--idle .video-js .vjs-control-bar {
+  opacity: 0 !important;
+  transform: translateY(16px);
+  pointer-events: none;
+}
+
+.ivod-cinema .video-js .vjs-progress-control {
+  position: absolute !important;
+  left: 1rem !important;
+  right: 1rem !important;
+  top: 0.45rem !important;
+  width: calc(100% - 2rem) !important;
+  height: 8px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  z-index: 2 !important;
+}
+
+.ivod-cinema .video-js .vjs-progress-holder {
+  height: 8px !important;
+  margin: 0 !important;
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-radius: 999px;
+}
+
+.ivod-cinema .video-js .vjs-progress-holder:hover {
+  height: 10px !important;
+}
+
+.ivod-cinema .video-js .vjs-load-progress {
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-radius: 999px;
+}
+
+.ivod-cinema .video-js .vjs-load-progress div {
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+
+.ivod-cinema .video-js .vjs-play-progress {
+  background: var(--cinema-progress) !important;
+  border-radius: 999px;
+  box-shadow: 0 0 16px rgba(230, 0, 126, 0.45);
+}
+
+.ivod-cinema .video-js .vjs-slider-horizontal .vjs-play-progress::before {
+  content: "" !important;
+  font-family: inherit !important;
+  position: absolute !important;
+  right: -6px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 14px !important;
+  height: 14px !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  box-shadow:
+    0 0 0 2px var(--cinema-magenta),
+    0 0 12px rgba(230, 0, 126, 0.6),
+    0 2px 8px rgba(0, 0, 0, 0.5) !important;
+  transition: transform 0.15s ease;
+}
+
+.ivod-cinema .video-js .vjs-progress-holder:hover .vjs-play-progress::before {
+  transform: translateY(-50%) scale(1.15) !important;
+}
+
+.ivod-cinema .video-js .vjs-slider:focus {
+  box-shadow: 0 0 0 2px rgba(230, 0, 126, 0.45) !important;
+}
+
+.ivod-cinema .video-js .vjs-control-bar > .vjs-control:not(.vjs-progress-control) {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.ivod-cinema .video-js .vjs-control {
+  width: 2.75rem;
+  height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ivod-cinema .video-js .vjs-button {
+  border-radius: 10px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.ivod-cinema .video-js .vjs-button:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.ivod-cinema .video-js .vjs-button > .vjs-icon-placeholder::before {
+  font-size: 1.4rem;
+  line-height: 2.75rem;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.ivod-cinema .video-js .vjs-play-control .vjs-icon-placeholder::before {
+  font-size: 1.55rem;
+}
+
+.ivod-cinema .video-js .vjs-time-control {
+  font-size: 0.8125rem !important;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  min-width: auto !important;
+  padding: 0 0.35rem !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  line-height: 2.75rem !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.ivod-cinema .video-js .vjs-current-time,
+.ivod-cinema .video-js .vjs-duration {
+  display: block !important;
+}
+
+.ivod-cinema .video-js .vjs-time-divider {
+  display: flex !important;
+  align-items: center;
+  min-width: 0.4rem !important;
+  padding: 0 !important;
+}
+
+.ivod-cinema .video-js .vjs-time-divider span {
+  color: rgba(255, 255, 255, 0.45) !important;
+  font-weight: 500;
+}
+
+.ivod-cinema .video-js .vjs-volume-panel {
+  align-items: center;
+  min-width: 3.5em;
+}
+
+.ivod-cinema .video-js .vjs-volume-panel.vjs-volume-panel-horizontal {
+  width: 5.5em;
+}
+
+.ivod-cinema .video-js .vjs-volume-bar {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 999px;
+  margin: 1rem 0.4rem 0 !important;
+  height: 5px !important;
+}
+
+.ivod-cinema .video-js .vjs-volume-level {
+  background: var(--cinema-progress) !important;
+  border-radius: 999px;
+}
+
+.ivod-cinema .video-js .vjs-picture-in-picture-control,
+.ivod-cinema .video-js .vjs-fullscreen-control {
+  order: 10;
+}
+
+.ivod-cinema .video-js .vjs-playback-rate .vjs-playback-rate-value {
+  font-size: 0.75rem !important;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9) !important;
+  line-height: 2.75rem !important;
+}
+
+.ivod-cinema .video-js .vjs-menu-button-popup .vjs-menu {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 8, 16, 0.96) !important;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+}
+
+.ivod-cinema .video-js .vjs-menu li.vjs-selected,
+.ivod-cinema .video-js .vjs-menu li:hover {
+  background: rgba(230, 0, 126, 0.18) !important;
+  color: #f472b6 !important;
+}
+
+/* Bouton lecture central */
+.ivod-cinema-play-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.ivod-cinema.ivod-cinema--idle .ivod-cinema-play-overlay {
+  opacity: 0;
+}
+
+.ivod-cinema-play-overlay button {
+  pointer-events: auto;
+  width: 5rem;
+  height: 5rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(8, 8, 16, 0.55);
+  backdrop-filter: blur(16px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.ivod-cinema-play-overlay button::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  padding: 3px;
+  background: linear-gradient(
+    135deg,
+    var(--cinema-purple),
+    var(--cinema-magenta),
+    var(--cinema-orange),
+    var(--cinema-gold)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.85;
+  transition: opacity 0.22s ease;
+}
+
+.ivod-cinema-play-overlay button:hover {
+  transform: scale(1.08);
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.55),
+    0 0 40px rgba(230, 0, 126, 0.2);
+}
+
+.ivod-cinema-play-overlay button:hover::before {
+  opacity: 1;
+}
+
+.ivod-cinema:not(.ivod-cinema--paused) .ivod-cinema-play-overlay {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ivod-cinema:not(.ivod-cinema--paused) .ivod-cinema-play-overlay button {
+  pointer-events: none;
+}
+
+/* Buffering */
+.ivod-cinema-buffering {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.ivod-cinema-buffering-ring {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-top-color: var(--cinema-magenta);
+  border-right-color: var(--cinema-orange);
+  animation: ivod-cinema-spin 0.85s linear infinite;
+}
+
+@keyframes ivod-cinema-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ivod-cinema-buffering p {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Toolbar qualité / sous-titres — icônes seules */
+.ivod-cinema-toolbar {
+  position: absolute;
+  bottom: 5.5rem;
+  right: 0.75rem;
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+@media (min-width: 768px) {
+  .ivod-cinema-toolbar {
+    right: 1rem;
+  }
+}
+
+.ivod-cinema-brand {
+  position: absolute;
+  top: 3.5rem;
+  left: 1rem;
+  z-index: 7;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.ivod-cinema-brand span {
+  background: linear-gradient(
+    102deg,
+    #a78bfa 0%,
+    #e6007e 40%,
+    #fb923c 80%,
+    #fde047 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ivod-cinema-hint {
+  display: none;
+}
+
+/* Storyboard scrub preview — vignette au survol de la barre */
+.ivod-cinema-storyboard {
+  position: absolute;
+  bottom: 5.25rem;
+  z-index: 19;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: none;
+  animation: ivod-cinema-storyboard-in 0.16s ease both;
+}
+
+.ivod-cinema-storyboard-frame {
+  border-radius: 8px;
+  background-repeat: no-repeat;
+  background-color: #000;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 0 24px -6px rgba(230, 0, 126, 0.4);
+  overflow: hidden;
+}
+
+.ivod-cinema-storyboard-time {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(8, 8, 16, 0.82);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes ivod-cinema-storyboard-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Skip flash */
+.ivod-cinema-skip-flash {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+  animation: ivod-cinema-skip 0.65s ease forwards;
+  pointer-events: none;
+}
+
+.ivod-cinema-skip-flash--left {
+  left: 10%;
+}
+
+.ivod-cinema-skip-flash--right {
+  right: 10%;
+}
+
+@keyframes ivod-cinema-skip {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.9);
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) scale(1);
+  }
+}

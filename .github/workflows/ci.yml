@@ -1,0 +1,206 @@
+name: CI
+
+# Restauré après suppression accidentelle (présent au commit 765ca2b, absent
+# de l'arbre de travail). Réécrit car l'original appelait `npx turbo run
+# build --filter=api` depuis la racine — ça ne peut pas fonctionner : il n'y
+# a pas de champ "workspaces" dans le package.json racine ni de
+# pnpm-workspace.yaml (voir sa description : "chaque app est indépendante
+# avec ses propres node_modules"), donc Turborepo n'a aucun package à
+# filtrer. Chaque job installe et exécute directement dans son propre
+# dossier d'app avec son propre gestionnaire de paquets (pnpm pour
+# api/mobile, npm pour web — cohérent avec les lockfiles réellement présents).
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [develop, main]
+
+jobs:
+  # Détecte quels apps ont changé pour ne pas tout builder
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+            web:
+              - 'apps/web/**'
+            mobile:
+              - 'apps/mobile/**'
+
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: apps/api/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/api
+      - run: pnpm run lint
+        working-directory: apps/api
+      - run: pnpm run build
+        working-directory: apps/api
+      # Pas d'étape "test" : `npm run test` échoue actuellement sur les 4
+      # specs existantes (pas de config ts-jest — babel-jest par défaut ne
+      # sait pas parser le TS). Bug préexistant, hors périmètre CI/CD ; à
+      # corriger séparément avant de pouvoir gater les PR dessus.
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+        working-directory: apps/web
+      - run: npm run lint
+        working-directory: apps/web
+      - run: npm run build
+        working-directory: apps/web
+
+  mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: apps/mobile/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/mobile
+      - run: pnpm run lint
+        working-directory: apps/mobile
+
+  # ─── Build & push l'image API (main/develop uniquement, jamais sur les PR) ──
+  # Découple le build du VPS de prod : `deploy.sh` continue de rebuilder
+  # localement pour l'instant (voir docs/DEPLOY.md), mais l'image versionnée
+  # ici sert de trace/rollback et prépare une future bascule vers
+  # `docker compose pull` au lieu de `--build`.
+  #
+  # L'image WEB n'est volontairement PAS poussée ici : les NEXT_PUBLIC_* sont
+  # inlinées dans le bundle JS AU BUILD (voir apps/web/Dockerfile) — une image
+  # construite en CI avec des valeurs génériques serait fonctionnellement
+  # cassée si déployée telle quelle (mauvaise URL API baked-in). La pousser
+  # nécessiterait de dupliquer les secrets prod (JWT_SECRET notamment) dans
+  # les secrets GitHub — décision à prendre séparément, pas incluse ici.
+  docker-api:
+    needs: [changes, api]
+    if: github.event_name == 'push' && needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          target: production
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/api:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─── Déploiement serveur (API + Web, main uniquement) ───────────────────────
+  # `environment: production` : nécessite une "Required reviewer" configurée
+  # dans Settings → Environments → production côté GitHub (pas faisable depuis
+  # ce repo — voir docs/CI-CD.md) pour que le job se mette en pause en
+  # attendant une approbation manuelle avant d'exécuter `./deploy.sh` sur le
+  # serveur. Sans cette config GitHub, le job s'exécute immédiatement.
+  #
+  # `needs: [api, web]` avec des jobs potentiellement "skipped" (si seul l'un
+  # des deux a changé) : le `if` ci-dessous tolère explicitement skipped, sinon
+  # GitHub Actions annule ce job dès qu'un needs est skipped plutôt que success.
+  deploy-server:
+    needs: [changes, api, web]
+    if: |
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      (needs.changes.outputs.api == 'true' || needs.changes.outputs.web == 'true') &&
+      (needs.api.result == 'success' || needs.api.result == 'skipped') &&
+      (needs.web.result == 'success' || needs.web.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Déploiement via SSH (./deploy.sh sur le serveur)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_PORT }}
+          script: |
+            cd ${{ secrets.PROD_APP_DIR }}
+            ./deploy.sh main
+
+  # ─── Mise à jour OTA mobile (JS uniquement, pas de review store) ───────────
+  # Automatique — sûr par nature : EAS Update ne pousse que du JS/assets, pas
+  # de nouveau binaire natif. Les builds natifs (iOS/Android) restent
+  # volontairement manuels — voir .github/workflows/mobile-release.yml.
+  eas-update:
+    needs: [changes, mobile]
+    if: |
+      github.event_name == 'push' &&
+      needs.changes.outputs.mobile == 'true' &&
+      needs.mobile.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: apps/mobile/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/mobile
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Publier la mise à jour OTA
+        working-directory: apps/mobile
+        # Passer par env: (pas d'interpolation ${{ }} directe dans le script)
+        # évite l'injection de commande si le message de commit ou le nom de
+        # branche contenait des métacaractères shell.
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          BRANCH="preview"
+          [ "$REF_NAME" = "main" ] && BRANCH="production"
+          eas update --branch "$BRANCH" --message "$COMMIT_MSG" --non-interactive

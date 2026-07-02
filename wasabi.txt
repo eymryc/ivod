@@ -1,0 +1,55 @@
+Pourquoi Wasabi + CDN plutôt que garder MinIO pour les vidéos
+Le problème avec MinIO sur le même VPS
+Ton VPS KVM 8 a un disque local limité (typiquement 200-400 Go chez Hostinger). Une plateforme VOD avec du transcodage produit beaucoup de données :
+
+
+1 film 90 min → transcodé en 4 qualités (480p, 720p, 1080p, 4K)
+→ segments HLS + manifestes
+→ environ 8-15 Go par film
+Sur MinIO local : 30 films = 300-450 Go → disque plein. Et le transcodage FFmpeg utilise déjà beaucoup de CPU/RAM sur ce même VPS.
+
+Le vrai problème : le streaming depuis un seul VPS
+Quand un utilisateur regarde une vidéo en HLS, son player fait des dizaines de requêtes par minute pour récupérer les segments .ts. Si 50 utilisateurs regardent en simultané :
+
+
+50 users × 1 segment toutes les 2s × 5-8 Mo/segment
+= le VPS répond à des centaines de petites requêtes/seconde
+= bande passante saturée + CPU Nginx sous charge
+Un VPS à 65€/mois n'est pas dimensionné pour ça.
+
+Ce que Wasabi résout
+Problème	Solution
+Disque limité	Wasabi = stockage illimité à ~6$/TB/mois
+Bande passante VPS saturée	Wasabi sert les fichiers directement, le VPS ne touche plus aux vidéos
+Single point of failure	Si le VPS redémarre, les vidéos restent accessibles
+Backup	Wasabi gère la redondance des données
+Le VPS ne fait plus que de l'API et du transcodage. Il ne sert plus les fichiers vidéo.
+
+Ce que le CDN Cloudflare ajoute
+Wasabi seul a un problème : si ton serveur est en Europe et tes utilisateurs en Côte d'Ivoire ou au Sénégal, la latence pour récupérer chaque segment HLS depuis un datacenter européen est élevée.
+
+Cloudflare (plan gratuit) place un cache entre l'utilisateur et Wasabi :
+
+
+Utilisateur Abidjan
+      ↓
+Cloudflare (PoP Lagos ou Johannesburg — le plus proche)
+      ↓ (seulement si pas en cache)
+Wasabi Europe
+Les segments .ts sont mis en cache au PoP le plus proche. La deuxième fois qu'un utilisateur regarde la même vidéo, Cloudflare répond directement depuis l'Afrique.
+
+Comparaison concrète pour iVOD
+
+Sans Wasabi + CDN :
+  VPS → transcodage + API + base de données + servir les vidéos
+  Risque : saturation à 20-30 users simultanés
+  Coût stockage : limité au disque du VPS
+
+Avec Wasabi + CDN :
+  VPS → transcodage + API + base de données UNIQUEMENT
+  Wasabi → stockage illimité des vidéos HLS
+  Cloudflare → cache des segments près des users africains
+  Capacité : peut absorber des centaines de viewers simultanés
+  Coût : +6$/mois pour le stockage vidéo, bande passante Cloudflare gratuite
+Quand le faire
+Pas obligatoire pour un POC ou une beta avec 10-20 users. Le code est déjà prêt (VIDEO_CDN_BASE_URL existe, MinioService supporte Wasabi). C'est une variable d'environnement à changer quand tu passes à l'échelle.

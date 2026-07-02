@@ -1,0 +1,97 @@
+# =============================================================================
+# iVOD — Override S3 externe (Wasabi / Backblaze B2)
+#
+# Remplace MinIO self-hosted par un bucket S3 externe pour les vidéos.
+# Assets légers (images, posters) peuvent rester sur MinIO si souhaité.
+#
+# Usage (combiner avec docker-compose.prod.yml) :
+#   docker compose \
+#     -f apps/api/docker-compose.prod.yml \
+#     -f apps/web/docker-compose.prod.yml \
+#     -f apps/api/docker-compose.s3-external.yml \
+#     up -d
+#
+# Variables à définir dans .env :
+#   MINIO_ENDPOINT=s3.wasabisys.com            # ou s3.eu-central-1.wasabisys.com
+#   MINIO_PORT=443
+#   MINIO_USE_SSL=true
+#   MINIO_ACCESS_KEY=<wasabi-access-key>
+#   MINIO_SECRET_KEY=<wasabi-secret-key>
+#   MINIO_REGION=eu-west-1                     # région du bucket Wasabi
+#   MINIO_PUBLIC_ENDPOINT=s3.wasabisys.com
+#   MINIO_PUBLIC_PORT=443
+#   MINIO_SKIP_BUCKET_INIT=true                # buckets créés dans la console Wasabi
+#   VIDEO_CDN_BASE_URL=https://cdn.ivod.africa # CDN Cloudflare devant le bucket
+# =============================================================================
+
+services:
+  # Désactive MinIO — les buckets sont sur S3 externe
+  # ⚠️ `profiles:` empêche minio de démarrer mais ne retire PAS les
+  # `depends_on: minio` de la base — sans l'override explicite ci-dessous sur
+  # api_1/api_2/video-worker, `docker compose config` échoue avec
+  # "depends on undefined service minio" (dépendance non supprimable par
+  # fusion, contrairement à `environment:`).
+  minio:
+    profiles:
+      - disabled
+
+  # L'API (2 réplicas — voir docker-compose.prod.yml) et le worker pointent
+  # vers S3 externe via les env vars. `environment:` d'un override FUSIONNE
+  # clé par clé avec la base ; `depends_on:` FUSIONNE AUSSI par clé (il
+  # n'existe pas de façon de retirer une clé par simple omission) — d'où le
+  # tag `!override` ci-dessous pour forcer un vrai remplacement et retirer la
+  # dépendance à `minio` (désactivé plus haut).
+  api_1: &s3-api-env
+    environment:
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_PORT: ${MINIO_PORT:-443}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-true}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_REGION: ${MINIO_REGION:-eu-west-1}
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-${MINIO_ENDPOINT}}
+      MINIO_PUBLIC_PORT: ${MINIO_PUBLIC_PORT:-443}
+      MINIO_SKIP_BUCKET_INIT: "true"
+      VIDEO_CDN_BASE_URL: ${VIDEO_CDN_BASE_URL:-}
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  api_2:
+    <<: *s3-api-env
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  video-worker:
+    environment:
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_PORT: ${MINIO_PORT:-443}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-true}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_REGION: ${MINIO_REGION:-eu-west-1}
+      MINIO_SKIP_BUCKET_INIT: "true"
+      VIDEO_CDN_BASE_URL: ${VIDEO_CDN_BASE_URL:-}
+    depends_on: !override
+      api_1:
+        condition: service_healthy
+
+  # Nginx sert les assets statiques depuis Wasabi directement via le CDN
+  # (pas de proxy local des vidéos — Cloudflare ou accès direct Wasabi)
+  #
+  # ⚠️  `volumes:` dans un override REMPLACE toute la liste de la base au lieu
+  # de la fusionner (contrairement à `environment:`) — cette liste doit donc
+  # rester synchronisée avec celle de docker-compose.prod.yml (webroot ACME +
+  # suffixes SELinux :z inclus), sous peine de perdre silencieusement le
+  # montage du webroot certbot lors du renouvellement.
+  nginx:
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./certbot-webroot:/var/www/certbot:ro,z
+      - ./logs/nginx:/var/log/nginx:z

@@ -1,0 +1,318 @@
+# =============================================================================
+# IVOD — Infrastructure production
+#
+# Prérequis sur le serveur :
+#   cp .env.example .env   # puis remplir avec les vraies valeurs
+#   Placer les certificats SSL dans apps/api/nginx/ssl/
+#     fullchain.pem + privkey.pem
+#   (Let's Encrypt : voir la séquence certbot dans docs/DEPLOY.md — webroot,
+#    domaine ivod-preprod-srv01.xselcloud.com)
+#
+# Démarrage combiné :
+#   docker compose \
+#     -f apps/api/docker-compose.prod.yml \
+#     -f apps/web/docker-compose.prod.yml \
+#     up -d
+#
+# ── Zero-downtime API ────────────────────────────────────────────────────────
+# `deploy.replicas` n'a d'effet que sous `docker stack deploy` (mode Swarm) ;
+# avec `docker compose up` classique il est silencieusement ignoré. On utilise
+# donc DEUX services distincts (api_1 / api_2) partageant la même image :
+# Nginx (upstream api_backend, least_conn + max_fails/fail_timeout) bascule le
+# trafic sur l'instance saine pendant qu'on recrée l'autre :
+#   docker compose -f ... up -d --no-deps --build api_1   # attendre "healthy"
+#   docker compose -f ... up -d --no-deps --build api_2
+# Limite connue : les deux conteneurs tournent sur le MÊME hôte Docker — ce
+# n'est pas une HA multi-nœud, seulement un zero-downtime de déploiement.
+# `prisma migrate deploy` (docker-entrypoint-prod.sh) est protégé par un verrou
+# consultatif Prisma : deux démarrages simultanés n'entrent pas en conflit.
+# =============================================================================
+
+services:
+
+  # ─── Nginx (reverse proxy + SSL termination) ──────────────────────────────
+  nginx:
+    image: nginx:1.28-alpine
+    container_name: ivod-nginx-prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      # Webroot ACME HTTP-01 partagé avec certbot (host) — renouvellement sans coupure
+      - ./certbot-webroot:/var/www/certbot:ro,z
+      - ./logs/nginx:/var/log/nginx:z
+    depends_on:
+      api_1:
+        condition: service_healthy
+      api_2:
+        condition: service_healthy
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t 2>/dev/null && wget -qO- http://localhost/ > /dev/null 2>&1; exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── API NestJS — réplica 1/2 ───────────────────────────────────────────────
+  api_1: &api-base
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: ivod-api-1-prod
+    env_file:
+      - .env
+    # Ports exposés uniquement en interne (Nginx fait le routage public)
+    # Décommenter temporairement pour debug direct si besoin
+    # ports:
+    #   - "${API_PORT:-3000}:3000"
+    volumes:
+      - ./logs/api/1:/app/logs:z
+    environment: &api-env
+      NODE_ENV: production
+      PORT: 3000
+      IVOD_APP_MODE: api
+      # Surcharge des hostnames Docker (remplace localhost du .env)
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ivod}?schema=public
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_USE_SSL: "false"
+      MINIO_BUCKET_VIDEOS: ${MINIO_BUCKET_VIDEOS:-ivod-videos}
+      MINIO_BUCKET_ASSETS: ${MINIO_BUCKET_ASSETS:-ivod-assets}
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ─── API NestJS — réplica 2/2 (même image, même config) ────────────────────
+  api_2:
+    <<: *api-base
+    container_name: ivod-api-2-prod
+    volumes:
+      - ./logs/api/2:/app/logs:z
+    environment:
+      <<: *api-env
+
+  # ─── Worker transcodage vidéo (BullMQ + ffmpeg) ─────────────────────────────
+  video-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: ivod-video-worker-prod
+    entrypoint: ["./docker-entrypoint-worker-prod.sh"]
+    env_file:
+      - .env
+    volumes:
+      - ./logs/worker:/app/logs:z
+    environment:
+      NODE_ENV: production
+      IVOD_APP_MODE: worker
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ivod}?schema=public
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_USE_SSL: "false"
+      MINIO_BUCKET_VIDEOS: ${MINIO_BUCKET_VIDEOS:-ivod-videos}
+      MINIO_BUCKET_ASSETS: ${MINIO_BUCKET_ASSETS:-ivod-assets}
+      # Pipeline vidéo — surcharger au besoin dans .env
+      VIDEO_TWO_PHASE: ${VIDEO_TWO_PHASE:-true}
+      VIDEO_CPU_PARALLEL: ${VIDEO_CPU_PARALLEL:-2}
+      VIDEO_WORKER_CONCURRENCY: ${VIDEO_WORKER_CONCURRENCY:-2}
+      VIDEO_FFMPEG_THREADS: ${VIDEO_FFMPEG_THREADS:-4}
+      VIDEO_JOB_LOCK_MS: ${VIDEO_JOB_LOCK_MS:-3600000}
+      VIDEO_JOB_LOCK_RENEW_MS: ${VIDEO_JOB_LOCK_RENEW_MS:-300000}
+      VIDEO_SINGLE_PASS_LADDER: ${VIDEO_SINGLE_PASS_LADDER:-true}
+      # GPU : nvenc | vaapi | none (défaut CPU)
+      # Avec NVIDIA : décommenter aussi le bloc deploy.resources ci-dessous
+      VIDEO_HW_ACCEL: ${VIDEO_HW_ACCEL:-none}
+      VIDEO_WEBHOOK_URLS: ${VIDEO_WEBHOOK_URLS:-}
+      VIDEO_WEBHOOK_SECRET: ${VIDEO_WEBHOOK_SECRET:-}
+    # ─── Ressources CPU/RAM du worker (FFmpeg est gourmand) ──────────────────
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G
+        reservations:
+          cpus: "1"
+          memory: 512M
+    # ─── GPU NVIDIA (décommenter si le serveur a une carte NVIDIA + drivers) ──
+    # Remplacer aussi deploy.resources par :
+    #   deploy:
+    #     resources:
+    #       reservations:
+    #         devices:
+    #           - driver: nvidia
+    #             count: 1
+    #             capabilities: [gpu]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    depends_on:
+      api_1:
+        condition: service_healthy
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+
+  # ─── PostgreSQL ───────────────────────────────────────────────────────────────
+  # ⚠️  MIGRATION MAJEURE (15 → 17) : dump/restore requis sur données existantes.
+  #     pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup.sql
+  #     (après upgrade) psql -U $POSTGRES_USER $POSTGRES_DB < backup.sql
+  #     Nouvelles fonctionnalités utilisables : VACUUM amélioré, JSON_TABLE(), incremental backup.
+  postgres:
+    image: postgres:17-alpine
+    container_name: ivod-postgres-prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-ivod}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ────────────────────────────────────────────────────────────────────
+  # Redis 8 (GA 2025) : meilleure persistance AOF v2, performances améliorées,
+  # Vector Sets, ACL Pub/Sub renforcée — compatible RDB/AOF Redis 7.
+  redis:
+    image: redis:8-alpine
+    container_name: ivod-redis-prod
+    # AOF (appendonly) en complément de RDB : durabilité sub-seconde si le container plante.
+    # allkeys-lru : éviction LRU sur toutes les clés quand maxmemory est atteint (cache BullMQ safe).
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 384M
+        reservations:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── MinIO (S3 Compatible) ────────────────────────────────────────────────────
+  # Épingler à une version stable — ne jamais utiliser `latest` en production
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    container_name: ivod-minio-prod
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+# ─── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  ivod-prod:
+    driver: bridge

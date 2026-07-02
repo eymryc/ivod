@@ -1,0 +1,79 @@
+# =============================================================================
+# IVOD — Web Next.js (production)
+#
+# Fichier manquant jusqu'ici bien que référencé par le Makefile racine
+# (PROD_COMPOSE) et par apps/api/nginx/nginx.prod.conf (upstream web_backend).
+# Rejoint le réseau "ivod-prod" créé par apps/api/docker-compose.prod.yml —
+# TOUJOURS lancé combiné :
+#   docker compose -f apps/api/docker-compose.prod.yml \
+#                   -f apps/web/docker-compose.prod.yml up -d --build
+#
+# ⚠️  Résolution du fichier .env pour l'interpolation ${VAR} (build.args) :
+#   Docker Compose charge le .env du "répertoire de projet", qui correspond
+#   au dossier du PREMIER fichier -f passé — donc apps/api/.env, PAS
+#   apps/web/.env. C'est pour ça que les NEXT_PUBLIC_* sont dans la section
+#   "Prod uniquement" de apps/api/.env.example, et pas dans apps/web/.env.
+#   apps/web/.env (s'il existe) n'est utilisé qu'en dev local (next dev).
+# =============================================================================
+
+services:
+
+  # ─── Web Next.js (standalone) ────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Baked dans le bundle JS + le manifeste standalone — voir next.config.ts
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
+        NEXT_PUBLIC_MINIO_URL: ${NEXT_PUBLIC_MINIO_URL}
+        NEXT_PUBLIC_MINIO_ASSETS_BUCKET: ${MINIO_BUCKET_ASSETS:-ivod-assets}
+        NEXT_PUBLIC_MINIO_VIDEOS_BUCKET: ${MINIO_BUCKET_VIDEOS:-ivod-videos}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-iVOD}
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
+        # Rewrite serveur "/media" (next.config.ts) → api_1 directement.
+        # LIMITE CONNUE : ne bascule pas sur api_2 si api_1 est en cours de
+        # recréation lors d'un déploiement (le reste du trafic public passe
+        # bien par Nginx et son load-balancing least_conn) — impact mineur,
+        # ce chemin ne sert que le proxy d'assets média, pas l'app entière.
+        API_REWRITE_ORIGIN: http://api_1:3000
+        # Doit être identique à JWT_SECRET (apps/api/.env) — réutilise la
+        # même variable pour éviter de dupliquer le secret à deux endroits.
+        JWT_VERIFY_SECRET: ${JWT_SECRET}
+    container_name: ivod-web-prod
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOSTNAME: 0.0.0.0
+      # Re-déclarés en runtime par prudence (cf. limite ci-dessus sur le
+      # "baking" au build vs lecture runtime selon le runtime Middleware Next 16)
+      API_REWRITE_ORIGIN: http://api_1:3000
+      JWT_VERIFY_SECRET: ${JWT_SECRET}
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - ivod-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# ─── Réseau externe — créé par apps/api/docker-compose.prod.yml ───────────────
+networks:
+  ivod-prod:
+    external: true

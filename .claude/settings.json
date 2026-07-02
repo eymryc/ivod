@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker ps*)",
+      "Bash(docker logs*)",
+      "Bash(docker exec ivod-api-dev*)",
+      "Bash(docker exec ivod-video-worker-dev*)",
+      "Bash(docker restart ivod-api-dev)",
+      "Bash(docker restart ivod-video-worker-dev)",
+      "Bash(docker compose -f apps/api/docker-compose.dev.yml*)",
+      "Bash(psql postgresql://ivod:password@localhost:5432/ivod*)",
+      "Bash(find . -not -path '*/node_modules/*' -not -path '*/.next/*' -not -path '*/dist/*'*)",
+      "Bash(grep -rn * apps/api/src*)",
+      "Bash(grep -rn * apps/web*)",
+      "Bash(grep -rn * apps/mobile/src*)"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "Bash(git reset --hard*)",
+      "Bash(git checkout -- *)",
+      "Bash(rm -rf *)",
+      "Bash(npx prisma migrate dev*)",
+      "Bash(npx prisma db push*)",
+      "Bash(npx prisma db reset*)",
+      "Bash(docker system prune*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo '$TOOL_INPUT' | grep -q 'apps/api/prisma/schema.prisma'; then echo '⚠️  schema.prisma modifié — penser à : docker exec ivod-api-dev npx prisma generate && docker restart ivod-api-dev'; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

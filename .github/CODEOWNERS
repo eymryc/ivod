@@ -1,0 +1,24 @@
+# ─── CODEOWNERS ─────────────────────────────────────────────────────────────
+# Assigne automatiquement les reviewers sur les PR GitHub.
+# Remplacer @InfintyVOD/team-* par vos vrais noms de teams GitHub.
+# ────────────────────────────────────────────────────────────────────────────
+
+# Équipe API (backend NestJS)
+/apps/api/                @InfintyVOD/team-api
+
+# Équipe Web (frontend Next.js)
+/apps/web/                @InfintyVOD/team-web
+
+# Équipe Mobile (React Native / Expo)
+/apps/mobile/             @InfintyVOD/team-mobile
+
+# Documentation
+/docs/                    @InfintyVOD/team-api
+
+# Infrastructure & config partagée (review Lead requis)
+/.env.example             @InfintyVOD/leads
+/Makefile                 @InfintyVOD/leads
+/turbo.json               @InfintyVOD/leads
+/package.json             @InfintyVOD/leads
+/tsconfig.json            @InfintyVOD/leads
+/.github/                 @InfintyVOD/leads

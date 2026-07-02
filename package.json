@@ -1,0 +1,15 @@
+{
+  "name": "ivod-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dépôt IVOD — chaque app est indépendante avec ses propres node_modules.",
+  "scripts": {
+    "api": "cd apps/api && npm run dev",
+    "web": "cd apps/web && npm run dev",
+    "mobile": "cd apps/mobile && npm run dev"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

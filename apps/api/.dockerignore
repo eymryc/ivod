@@ -1,0 +1,44 @@
+# ─── Dependencies ─────────────────────────────────────────────────────────────
+node_modules
+
+# ─── Build artifacts ──────────────────────────────────────────────────────────
+dist
+*.tsbuildinfo
+
+# ─── Tests (inutiles dans le container) ───────────────────────────────────────
+test
+**/*.spec.ts
+**/*.e2e-spec.ts
+
+# ─── Environnement ────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Caches ───────────────────────────────────────────────────────────────────
+.turbo
+.cache
+coverage
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ─── Docker (inutile dans le container) ───────────────────────────────────────
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# ─── Docs / scripts dev ───────────────────────────────────────────────────────
+README.md
+SWAGGER_GUIDE.md
+Makefile
+
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Version control ──────────────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes

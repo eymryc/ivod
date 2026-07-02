@@ -1,0 +1,22 @@
+{
+  "name": "iVOD — Streaming Africain",
+  "short_name": "iVOD",
+  "description": "La plateforme VOD africaine — Films, Séries & Documentaires",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#00050d",
+  "theme_color": "#00050d",
+  "orientation": "portrait-primary",
+  "lang": "fr",
+  "icons": [
+    { "src": "/logo/logo_sans_fond.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/logo/logo_sans_fond.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["entertainment", "video"],
+  "screenshots": [],
+  "shortcuts": [
+    { "name": "Films", "url": "/films", "description": "Explorer les films" },
+    { "name": "Ma liste", "url": "/favorites", "description": "Mes favoris" },
+    { "name": "Live", "url": "/live", "description": "Événements en direct" }
+  ]
+}
