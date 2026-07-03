@@ -6,6 +6,19 @@
 #
 # Chaque app est buildée dans son propre répertoire avec son gestionnaire
 # de paquets (pnpm pour api/mobile, npm pour web).
+#
+# ── Sécurité automatisée ──────────────────────────────────────────────────
+# secrets-scan  : BLOQUANT — un secret détecté dans l'historique Git empêche
+#                 le déploiement (deploy.yml). Vérifié sans faux positif sur
+#                 les 5 commits actuels avant mise en place (2026-07-03).
+# dependency-audit, sast-scan, container-scan : RAPPORT SEUL (non-bloquants)
+#                 — l'API a aujourd'hui 9 vulnérabilités "high" préexistantes
+#                 (dépendances de dev/test, ex: multer, form-data via
+#                 @types/supertest) et l'analyse statique 24 pistes à trier
+#                 (essentiellement path.join sur des IDs internes dans le
+#                 pipeline vidéo). Bloquer dessus dès aujourd'hui casserait
+#                 la CI sans lien avec le code qu'on modifie réellement.
+#                 À faire évoluer vers bloquant une fois le backlog trié.
 # =============================================================================
 
 name: CI
@@ -102,6 +115,69 @@ jobs:
       - run: pnpm run lint
         working-directory: apps/mobile
 
+  secrets-scan:
+    name: Sécurité — secrets exposés (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # historique complet — un clone superficiel ne scannerait que le dernier commit
+      - name: Installer gitleaks (dernière version publiée)
+        run: |
+          set -euo pipefail
+          TAG="$(curl -sSL https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep -m1 '"tag_name"' | cut -d '"' -f4)"
+          VERSION="${TAG#v}"
+          curl -sSL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/${TAG}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+          gitleaks version
+      - name: Scanner l'historique Git (bloquant)
+        run: gitleaks detect --source . --redact --exit-code 1
+
+  dependency-audit:
+    name: Sécurité — dépendances vulnérables (rapport)
+    needs: changes
+    if: needs.changes.outputs.api == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Audit API (pnpm)
+        if: needs.changes.outputs.api == 'true'
+        working-directory: apps/api
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm audit --audit-level high || true
+      - name: Audit Web (npm)
+        if: needs.changes.outputs.web == 'true'
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm audit --audit-level high || true
+      - name: Audit Mobile (pnpm)
+        if: needs.changes.outputs.mobile == 'true'
+        working-directory: apps/mobile
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm audit --audit-level high || true
+
+  sast-scan:
+    name: Sécurité — analyse statique (rapport)
+    needs: changes
+    if: needs.changes.outputs.api == 'true' || needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install semgrep
+      - name: Analyser api + web
+        run: semgrep --config auto --error apps/api/src apps/web/lib apps/web/app || true
+
   docker-api:
     name: API — push image GHCR
     needs: [changes, api]
@@ -129,14 +205,30 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  container-scan:
+    name: Sécurité — image Docker (rapport)
+    needs: [changes, docker-api]
+    if: github.event_name == 'push' && needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+          severity: "CRITICAL,HIGH"
+          exit-code: "0" # rapport seul — voir note en tête de fichier
+
   deploy:
     name: CD — déploiement production
-    needs: [changes, api, web]
+    needs: [changes, api, web, secrets-scan]
     if: |
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
       (needs.changes.outputs.api == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.ops == 'true') &&
       (needs.api.result == 'success' || needs.api.result == 'skipped') &&
-      (needs.web.result == 'success' || needs.web.result == 'skipped')
+      (needs.web.result == 'success' || needs.web.result == 'skipped') &&
+      needs['secrets-scan'].result == 'success'
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
 
