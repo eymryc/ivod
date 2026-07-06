@@ -690,7 +690,7 @@ async function seedDefaultRightsholder() {
 
 // ─── 22. Utilisateurs par défaut ──────────────────────────────────────────────
 
-const DEFAULT_PASSWORD = 'Password123!';
+const DEFAULT_PASSWORD = '0281a99a9788bb8788';
 
 interface SeedUser {
   email: string;
@@ -712,50 +712,32 @@ interface SeedUser {
 
 const SEED_USERS: SeedUser[] = [
   {
-    email: 'morooumar99@gmail.com',
+    email: 'demo@xsel-ci.com',
     firstName: 'Super',
     lastName: 'Admin',
     roleCode: 'SUPER_ADMIN',
   },
-  // {
-  //   email: 'ouangni@gmail.com',
-  //   firstName: 'Romaric',
-  //   lastName: 'Ouangni',
-  //   roleCode: 'ADMIN',
-  // },
-  // {
-  //   email: 'romaric747@gmail.com',
-  //   firstName: 'Romaric',
-  //   lastName: 'Ouangni',
-  //   roleCode: 'CREATOR',
-  //   phone: '+2250708091011',
-  //   creator: {
-  //     stageName: 'Romaric O.',
-  //     bio: 'Réalisateur et producteur — contenus fiction et documentaires pour la plateforme IVOD.',
-  //     verified: true,
-  //   },
-  // },
-  // {
-  //   email: 'josephyobouet68@gmail.com',
-  //   firstName: 'Joseph',
-  //   lastName: 'Yoboué',
-  //   roleCode: 'VIEWER',
-  // },
-  // {
-  //   email: 'viewer.premium@ivod.africa',
-  //   firstName: 'Aya',
-  //   lastName: 'Koné',
-  //   roleCode: 'VIEWER',
-  //   phone: '+2250700000001',
-  //   subscription: { planCode: 'PREMIUM', providerCode: 'WAVE' },
-  // },
-  // {
-  //   email: 'viewer.basic@ivod.africa',
-  //   firstName: 'Kofi',
-  //   lastName: 'Mensah',
-  //   roleCode: 'VIEWER',
-  //   subscription: { planCode: 'BASIC', providerCode: 'ORANGE_MONEY' },
-  // },
+  {
+    email: 'wangny.ouangni@gmail.com',
+    firstName: 'Eymard Romaric',
+    lastName: 'OUANGNI',
+    roleCode: 'CREATOR',
+    phone: '+2250708091011',
+    creator: {
+      stageName: 'Romaric O.',
+      bio: 'Réalisateur et producteur — contenus fiction et documentaires pour la plateforme IVOD.',
+      verified: true,
+    },
+  },
+  {
+    email: 'romaric747@gmail.com',
+    firstName: 'Romaric',
+    lastName: 'OUANGNI',
+    roleCode: 'VIEWER',
+    subscription: {
+      planCode: 'PREMIUM',
+    },
+  },
 ];
 
 async function seedUsers() {

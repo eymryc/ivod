@@ -1150,6 +1150,40 @@ model VideoAsset {
   @@map("video_assets")
 }
 
+/// Paramètres du pipeline de transcodage, modifiables depuis l'admin sans
+/// redéploiement (contrairement aux variables d'environnement Docker
+/// actuelles). Ligne unique (id fixe "default").
+model VideoPipelineSettings {
+  id String @id @default("default")
+
+  /// Plafond de qualité par défaut ("1080p", "1440p", "2160p"...) — au-delà
+  /// de la hauteur source, aucun effet (la ladder ne fait jamais d'upscale).
+  maxQualityCode String @default("1080p")
+
+  /// Overrides par code de plan, ex: {"PREMIUM": "2160p"} — plafond global
+  /// utilisé si absent pour ce plan.
+  maxQualityCodeByPlan Json?
+
+  /// null = valeur auto-détectée au démarrage du worker (CPU réellement
+  /// alloué au conteneur) utilisée à la place.
+  workerConcurrencyOverride Int?
+  ffmpegThreadsOverride     Int?
+
+  /// Dernière détection CPU faite par le worker (voir applyAndPersistDetection).
+  /// Le conteneur API a une limite CPU différente du worker (2 vs 4 sur ce
+  /// serveur) — l'admin doit refléter la limite du worker (qui encode
+  /// réellement), pas celle du process API qui sert la page. Trouvé le
+  /// 2026-07-03 en testant l'endpoint : sans ce champ, la page admin
+  /// affiche la mauvaise limite CPU.
+  lastDetectedCpuLimit Float?
+  lastAppliedAt        DateTime?
+
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("video_pipeline_settings")
+}
+
 model VideoRendition {
   id           String   @id @default(cuid())
   assetId      String

@@ -288,10 +288,22 @@ export class CreatorsService {
             publishedAt: true,
           },
         },
+        // Non filtrable dans `_count` (Prisma ne permet pas de where sur un _count
+        // de relation ici) — sert de repli grossier ; le vrai total publié est
+        // recompté juste après avec un count() filtré par statut.
         _count: { select: { contents: true } },
       },
     });
     if (!creator) throw new NotFoundException({ code: 'CREATOR_001', message: 'Créateur introuvable' });
+
+    // Le profil public créateur affichait `creator.totalContents` — un champ qui
+    // n'a jamais existé sur cette réponse (undefined en silence), retombant sur
+    // la longueur de la liste des 12 derniers contenus. Un créateur avec plus de
+    // 12 œuvres publiées voyait donc un total tronqué. Trouvé le 2026-07-06.
+    const publishedContentsCount = await this.prisma.content.count({
+      where: { creatorId: id, status: { code: 'PUBLISHED' } },
+    });
+
     // Normalize category response shape for the frontend (expects `category` as a string code)
     const normalized = creator as any;
     if (Array.isArray(normalized.contents)) {
@@ -301,6 +313,7 @@ export class CreatorsService {
         return { ...rest, category };
       });
     }
+    normalized.publishedContentsCount = publishedContentsCount;
     return normalized;
   }
 

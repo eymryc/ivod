@@ -80,9 +80,25 @@ export function resolveProfileAllowlist(): Set<string> | null {
   return null;
 }
 
-/** Ladder HLS attendu pour une hauteur source (logique identique au worker). */
-export function resolveProfilesForSource(sourceHeight: number): RenditionProfile[] {
-  const maxHeight = sourceHeight * (1 + UPSCALE_TOLERANCE);
+/**
+ * Ladder HLS attendu pour une hauteur source — SOURCE UNIQUE de cette
+ * logique, utilisée à la fois par le worker (VideoPipelineProcessor, décide
+ * quelles renditions encoder) et par l'API (videos.service, calcule la liste
+ * "attendue" affichée dans /videos/:id/status). Avant le 2026-07-03, ces deux
+ * usages avaient chacun leur propre implémentation qui a fini par diverger :
+ * le worker respectait le plafond de qualité admin, pas le statut affiché —
+ * deux qualités restaient "en cours" indéfiniment côté UI. Ne plus jamais
+ * dupliquer cette fonction.
+ *
+ * `maxAllowedHeight` : plafond configurable en admin (voir
+ * VideoPipelineSettingsService) — Infinity = pas de plafond au-delà de la
+ * source (comportement historique).
+ */
+export function resolveProfilesForSource(
+  sourceHeight: number,
+  maxAllowedHeight = Infinity,
+): RenditionProfile[] {
+  const maxHeight = Math.min(sourceHeight * (1 + UPSCALE_TOLERANCE), maxAllowedHeight);
   let matching = RENDITION_PROFILES.filter((p) => p.height <= maxHeight);
 
   const allowlist = resolveProfileAllowlist();
@@ -164,8 +180,21 @@ export function resolveWorkerConcurrency(): number {
  * Formule recommandée : Math.floor(cpuCores / VIDEO_WORKER_CONCURRENCY).
  * Ex : 8 cœurs, concurrency=2 → VIDEO_FFMPEG_THREADS=4
  * Défaut : 4 (adapté à un serveur 8 cœurs avec concurrency=2).
+ *
+ * `setEffectiveFFmpegThreads` permet à VideoPipelineSettingsService de
+ * surcharger cette valeur avec la détection CPU réelle du conteneur +
+ * l'éventuel réglage admin, sans passer par une variable d'environnement
+ * (donc sans redéploiement). Rafraîchi à chaque nouveau job PROBE — voir
+ * VideoPipelineProcessor.applyPipelineSettings().
  */
+let _effectiveFFmpegThreads: number | null = null;
+
+export function setEffectiveFFmpegThreads(threads: number | null): void {
+  _effectiveFFmpegThreads = threads;
+}
+
 export function resolveFFmpegThreads(): number {
+  if (_effectiveFFmpegThreads !== null) return _effectiveFFmpegThreads;
   const n = parseInt(process.env.VIDEO_FFMPEG_THREADS ?? '4', 10);
   if (Number.isNaN(n) || n < 1) return 4;
   return Math.min(n, 16);

@@ -6,6 +6,7 @@ import { ContentDurationService } from '../../common/services/content-duration.s
 import { NotificationsCoreModule } from '../notifications/notifications-core.module';
 import { VideoPipelineService, VIDEO_FLOW_NAME } from './video-pipeline.service';
 import { VideoPipelineProcessor } from './video-pipeline.processor';
+import { VideoPipelineSettingsService } from './video-pipeline-settings.service';
 import { VIDEO_QUEUE } from './video-pipeline.constants';
 
 /**
@@ -29,6 +30,12 @@ import { VIDEO_QUEUE } from './video-pipeline.constants';
     }),
     BullModule.registerFlowProducer({ name: VIDEO_FLOW_NAME }),
   ],
-  providers: [VideoPipelineProcessor, VideoPipelineService, MinioService, ContentDurationService],
+  providers: [
+    VideoPipelineProcessor,
+    VideoPipelineService,
+    VideoPipelineSettingsService,
+    MinioService,
+    ContentDurationService,
+  ],
 })
 export class VideoWorkerModule {}

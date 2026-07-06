@@ -10,6 +10,7 @@ import { MinioService } from '../../common/services/minio.service';
 import { VideoPipelineService } from './video-pipeline.service';
 import { VideoSubtitlesService } from './video-subtitles.service';
 import { VideoPipelineAdminService } from './video-pipeline-admin.service';
+import { VideoPipelineSettingsService } from './video-pipeline-settings.service';
 import { VIDEO_QUEUE } from './video-pipeline.constants';
 import { VIDEO_FLOW_NAME } from './video-pipeline.service';
 
@@ -46,6 +47,7 @@ import { VIDEO_FLOW_NAME } from './video-pipeline.service';
     VideoPipelineService,
     VideoSubtitlesService,
     VideoPipelineAdminService,
+    VideoPipelineSettingsService,
   ],
   exports: [
     VideosService,
@@ -53,6 +55,7 @@ import { VIDEO_FLOW_NAME } from './video-pipeline.service';
     VideoPipelineService,
     VideoSubtitlesService,
     VideoPipelineAdminService,
+    VideoPipelineSettingsService,
   ],
 })
 export class VideosModule {}

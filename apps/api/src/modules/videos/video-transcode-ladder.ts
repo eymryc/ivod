@@ -121,13 +121,15 @@ export interface BuildSinglePassArgsInput {
   meta: LadderSourceMeta;
   /** Arguments encodeur libx264 par profil (preset, crf, maxrate, …) */
   videoEncoderArgs: (profile: RenditionProfile) => string[];
+  /** Threads ffmpeg — valeur effective (settings admin + détection CPU), repli sur resolveFFmpegThreads() si omis. */
+  threads?: number;
 }
 
 /**
  * Arguments ffmpeg complets : -filter_complex + N sorties HLS.
  */
 export function buildSinglePassFfmpegArgs(input: BuildSinglePassArgsInput): string[] {
-  const { sourceFile, tmpDir, profiles, meta, videoEncoderArgs } = input;
+  const { sourceFile, tmpDir, profiles, meta, videoEncoderArgs, threads } = input;
   const graph = buildLadderFilterGraph(profiles, meta);
   const gopSize = computeGopSize(meta.frameRate);
   const hasAudio = meta.audioChannels > 0;
@@ -139,7 +141,7 @@ export function buildSinglePassFfmpegArgs(input: BuildSinglePassArgsInput): stri
     'error',
     '-hide_banner',
     '-threads',
-    String(resolveFFmpegThreads()),
+    String(threads ?? resolveFFmpegThreads()),
     '-max_muxing_queue_size',
     '1024',
     '-i',

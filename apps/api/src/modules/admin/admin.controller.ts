@@ -1,11 +1,15 @@
 import { Controller, Get, Post, Put, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { IsOptional, IsString, IsInt, IsObject, Min, Max } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { CreatorsService } from '../creators/creators.service';
 import { VideoPipelineAdminService } from '../videos/video-pipeline-admin.service';
+import { VideoPipelineSettingsService } from '../videos/video-pipeline-settings.service';
 import { CreateCreatorFullAdminDto } from '../creators/dto/creators.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -17,6 +21,26 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ApiErrorResponse, ApiSuccessResponse } from '../../common/swagger/api-response.decorator';
+
+class UpdateVideoPipelineSettingsDto {
+  @ApiProperty({ required: false, example: '1080p', description: 'Plafond de qualité par défaut' })
+  @IsOptional() @IsString() maxQualityCode?: string;
+
+  @ApiProperty({
+    required: false,
+    example: { PREMIUM: '2160p' },
+    description: 'Plafond par code de plan — remplace maxQualityCode pour ce plan',
+  })
+  @IsOptional() @IsObject() maxQualityCodeByPlan?: Record<string, string> | null;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'null = auto-détecté depuis le CPU du conteneur. Les threads ffmpeg ne sont plus réglables ' +
+      'indépendamment — toujours dérivés de CPU détecté ÷ concurrency effective (voir VideoPipelineSettingsService).',
+  })
+  @IsOptional() @IsInt() @Min(1) @Max(8) workerConcurrencyOverride?: number | null;
+}
 
 @ApiTags('Admin')
 @ApiBearerAuth('BearerAuth')
@@ -30,6 +54,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly creatorsService: CreatorsService,
     private readonly videoPipelineAdmin: VideoPipelineAdminService,
+    private readonly videoPipelineSettings: VideoPipelineSettingsService,
   ) {}
 
   @Get('dashboard')
@@ -282,5 +307,23 @@ export class AdminController {
   @ApiParam({ name: 'assetId' })
   retryVideoPipeline(@Param('assetId') assetId: string) {
     return this.videoPipelineAdmin.retryPipeline(assetId);
+  }
+
+  @Get('video-pipeline/settings')
+  @ApiOperation({
+    summary: 'Paramètres du pipeline vidéo — ressources détectées, valeurs effectives, recommandation',
+  })
+  getVideoPipelineSettings() {
+    return this.videoPipelineSettings.getEffectiveSettings();
+  }
+
+  @Put('video-pipeline/settings')
+  @ApiOperation({ summary: 'Modifier les paramètres du pipeline vidéo (appliqué sans redéploiement)' })
+  @ApiBody({ type: UpdateVideoPipelineSettingsDto })
+  updateVideoPipelineSettings(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateVideoPipelineSettingsDto,
+  ) {
+    return this.videoPipelineSettings.updateSettings(dto, userId);
   }
 }

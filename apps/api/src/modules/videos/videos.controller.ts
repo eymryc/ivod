@@ -13,7 +13,8 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsOptional, IsNumber, IsString } from 'class-validator';
+import { IsArray, IsOptional, IsNumber, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { VideosService } from './videos.service';
 import { VideoSubtitlesService } from './video-subtitles.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -24,12 +25,16 @@ class CreateUploadUrlDto {
   @ApiProperty() @IsString() contentId!: string;
   @ApiProperty({ required: false, example: 'video/mp4', description: 'MIME type du fichier source (ex: video/webm, video/mp4, video/x-matroska)' })
   @IsOptional() @IsString() mimeType?: string;
+  @ApiProperty({ required: false, description: 'Taille du fichier source en octets — permet d\'adapter la taille des parties multipart' })
+  @IsOptional() @IsNumber() fileSizeBytes?: number;
 }
 
 class CreateEpisodeUploadUrlDto {
   @ApiProperty() @IsString() episodeId!: string;
   @ApiProperty({ required: false, example: 'video/mp4' })
   @IsOptional() @IsString() mimeType?: string;
+  @ApiProperty({ required: false, description: 'Taille du fichier source en octets — permet d\'adapter la taille des parties multipart' })
+  @IsOptional() @IsNumber() fileSizeBytes?: number;
 }
 
 class MarkCompleteDto {
@@ -47,10 +52,23 @@ class MultipartPartUrlDto {
   @ApiProperty({ example: 1 }) @IsNumber() partNumber!: number;
 }
 
-class MultipartCompleteDto {
+export class MultipartCompletePartDto {
+  @ApiProperty({ example: 1 }) @IsNumber() partNumber!: number;
+  @ApiProperty() @IsString() etag!: string;
+}
+
+export class MultipartCompleteDto {
   @ApiProperty() @IsString() uploadId!: string;
-  @ApiProperty({ type: 'array', items: { type: 'object' } })
-  parts!: Array<{ partNumber: number; etag: string }>;
+  // whitelist:true + forbidNonWhitelisted:true (voir main.ts) rejette toute
+  // propriété non décorée — sans @IsArray/@ValidateNested ici, ce champ était
+  // traité comme intrus et la requête entière était rejetée avant d'atteindre
+  // le contrôleur, faisant échouer TOUT upload multipart au moment du
+  // "complete" (bug préexistant, découvert le 2026-07-03).
+  @ApiProperty({ type: [MultipartCompletePartDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MultipartCompletePartDto)
+  parts!: MultipartCompletePartDto[];
 }
 
 class SubtitleRegisterDto {
@@ -76,7 +94,24 @@ export class VideosController {
   @ApiOperation({ summary: 'Initier un upload multipart (gros fichiers)' })
   @ApiBody({ type: CreateUploadUrlDto })
   initMultipart(@CurrentUser('id') userId: string, @Body() dto: CreateUploadUrlDto) {
-    return this.videosService.initMultipartUpload(userId, dto.contentId, dto.mimeType);
+    return this.videosService.initMultipartUpload(
+      userId,
+      dto.contentId,
+      dto.mimeType,
+      dto.fileSizeBytes,
+    );
+  }
+
+  @Post('episodes/multipart/init')
+  @ApiOperation({ summary: 'Initier un upload multipart pour un épisode (gros fichiers)' })
+  @ApiBody({ type: CreateEpisodeUploadUrlDto })
+  initEpisodeMultipart(@CurrentUser('id') userId: string, @Body() dto: CreateEpisodeUploadUrlDto) {
+    return this.videosService.initEpisodeMultipartUpload(
+      userId,
+      dto.episodeId,
+      dto.mimeType,
+      dto.fileSizeBytes,
+    );
   }
 
   @Post('assets/:assetId/multipart/part-url')

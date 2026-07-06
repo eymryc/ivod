@@ -39,6 +39,14 @@ export class VideoPipelineService {
    *   PROBE → TRANSCODE_PREVIEW → PACKAGE(preview) → TRANSCODE_FULL → PACKAGE(full) → THUMBNAIL
    */
   async createPipelineFlow(assetId: string, opts?: EnqueueOpts): Promise<void> {
+    // Sans ce nettoyage, un pipeline précédent interrompu (crash, redémarrage
+    // worker) laisse ses jobs Redis en place sous les mêmes IDs déterministes
+    // (probe_<assetId>, transcode_preview_<assetId>...) — flowProducer.add()
+    // ci-dessous les retrouverait tels quels au lieu d'en créer de nouveaux,
+    // et "relancer le pipeline" ne ferait alors silencieusement rien. Trouvé
+    // le 2026-07-03 sur un asset interrompu par un déploiement.
+    await this.removeExistingJobTree(assetId);
+
     const p = opts?.priority;
     // BullMQ interdit ':' dans les custom job IDs (délimiteur interne Redis)
     const o = (jobId: string) => ({ ...BASE_JOB_OPTIONS, jobId, priority: p });
@@ -133,5 +141,35 @@ export class VideoPipelineService {
       { assetId },
       { ...BASE_JOB_OPTIONS, jobId: `thumbnail_${assetId}`, priority: opts?.priority },
     );
+  }
+
+  /**
+   * Supprime toute trace Redis (job hash, dépendances, verrous) d'un
+   * pipeline précédent pour cet asset. Utilise SCAN (pas KEYS, qui bloque
+   * Redis sous charge) même si le volume de clés concerné ici reste faible.
+   *
+   * Une éventuelle référence orpheline dans une liste d'état (ex:
+   * bull:video-pipeline:active) pointant vers un ID désormais sans hash
+   * n'est pas nettoyée explicitement — BullMQ l'ignore silencieusement au
+   * prochain accès (job introuvable), et le point important est que
+   * flowProducer.add() ci-dessus recrée bien un job avec des données
+   * fraîches sous ce même ID plutôt que de retomber sur l'ancien.
+   */
+  private async removeExistingJobTree(assetId: string): Promise<void> {
+    const client = await this.queue.client;
+    const prefix = `bull:${VIDEO_QUEUE}:`;
+    const pattern = `${prefix}*${assetId}*`;
+
+    const keys: string[] = [];
+    let cursor: string | number = '0';
+    do {
+      const [next, batch] = await client.scan(cursor, { MATCH: pattern, COUNT: 100 });
+      cursor = next;
+      keys.push(...batch);
+    } while (cursor !== '0');
+
+    if (keys.length > 0) {
+      await client.del(...keys);
+    }
   }
 }

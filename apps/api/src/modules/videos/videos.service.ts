@@ -18,6 +18,7 @@ import { PLAYABLE_VIDEO_STATUSES } from '../../common/constants/video-playback';
 import { ALLOWED_IMAGE_MIME_TYPES } from '../../common/constants/upload-mime-types';
 import { resolveUserHasStaffRole } from '../../common/helpers/user-roles.helper';
 import { resolveProfilesForSource, resolvePriorityForPlan } from './video-pipeline.constants';
+import { VideoPipelineSettingsService } from './video-pipeline-settings.service';
 import {
   buildHlsDeliveryUrl,
   resolvePlaybackTokenTtl,
@@ -37,6 +38,7 @@ export class VideosService {
     private pipeline: VideoPipelineService,
     private config: ConfigService,
     private jwt: JwtService,
+    private pipelineSettings: VideoPipelineSettingsService,
   ) {}
 
   /**
@@ -547,6 +549,29 @@ export class VideosService {
     'video/x-ms-wmv':    'wmv',
   };
 
+  /**
+   * Taille de partie multipart adaptée au poids du fichier. À 10 Mo fixes,
+   * un film de 20 Go = ~2000 parties = ~2000 requêtes HTTP distinctes sur
+   * une connexion créateur potentiellement instable — chacune est un point
+   * de défaillance possible. Des parties plus grosses pour les gros
+   * fichiers réduisent ce nombre tout en restant loin des limites S3/MinIO
+   * (10 000 parties max, 5 Go max par partie).
+   */
+  private static readonly PART_SIZE_TIERS: Array<{ maxFileSizeBytes: number; partSizeBytes: number }> = [
+    { maxFileSizeBytes: 2 * 1024 * 1024 * 1024, partSizeBytes: 10 * 1024 * 1024 }, // ≤2 Go → 10 Mo
+    { maxFileSizeBytes: 10 * 1024 * 1024 * 1024, partSizeBytes: 25 * 1024 * 1024 }, // ≤10 Go → 25 Mo
+    { maxFileSizeBytes: 30 * 1024 * 1024 * 1024, partSizeBytes: 50 * 1024 * 1024 }, // ≤30 Go → 50 Mo
+  ];
+  private static readonly DEFAULT_LARGE_PART_SIZE_BYTES = 100 * 1024 * 1024; // >30 Go → 100 Mo
+
+  private computeMultipartPartSize(fileSizeBytes?: number): number {
+    if (!fileSizeBytes || fileSizeBytes <= 0) {
+      return VideosService.PART_SIZE_TIERS[0].partSizeBytes;
+    }
+    const tier = VideosService.PART_SIZE_TIERS.find((t) => fileSizeBytes <= t.maxFileSizeBytes);
+    return tier ? tier.partSizeBytes : VideosService.DEFAULT_LARGE_PART_SIZE_BYTES;
+  }
+
   private objectKey(prefix: string, mimeType?: string) {
     // Avant ce correctif, un mimeType inconnu retombait silencieusement sur
     // l'extension .mp4 sans jamais rejeter la requête — la table MIME_TO_EXT
@@ -598,7 +623,12 @@ export class VideosService {
   }
 
   /** Upload multipart reprise (gros fichiers) — init */
-  async initMultipartUpload(userId: string, contentId: string, mimeType?: string) {
+  async initMultipartUpload(
+    userId: string,
+    contentId: string,
+    mimeType?: string,
+    fileSizeBytes?: number,
+  ) {
     const creator = await this.prisma.creator.findUnique({ where: { userId } });
     if (!creator) throw new ForbiddenException({ code: 'CREATOR_002', message: 'Compte créateur requis' });
 
@@ -627,7 +657,53 @@ export class VideosService {
       objectKey,
       bucket: this.minio.bucketVideos,
       contentId,
-      partSizeBytes: 10 * 1024 * 1024,
+      partSizeBytes: this.computeMultipartPartSize(fileSizeBytes),
+      expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+      message: 'Uploader chaque partie via multipart/part-url puis multipart/complete',
+    };
+  }
+
+  /** Upload multipart reprise (gros fichiers) — init, variante épisode */
+  async initEpisodeMultipartUpload(
+    userId: string,
+    episodeId: string,
+    mimeType?: string,
+    fileSizeBytes?: number,
+  ) {
+    const creator = await this.prisma.creator.findUnique({ where: { userId } });
+    if (!creator) throw new ForbiddenException({ code: 'CREATOR_002', message: 'Compte créateur requis' });
+
+    const episode = await this.prisma.episode.findUnique({
+      where: { id: episodeId },
+      include: { content: { include: { creator: true } } },
+    });
+    if (!episode || episode.content.creatorId !== creator.id) {
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Épisode introuvable ou accès refusé' });
+    }
+
+    const objectKey = this.objectKey(`videos/episodes/${episodeId}`, mimeType);
+    const asset = await this.prisma.videoAsset.create({
+      data: {
+        contentId: episode.contentId,
+        episodeId,
+        sourceObjectKey: objectKey,
+        status: VideoAssetStatus.CREATED,
+      },
+    });
+
+    const uploadId = await this.minio.initiateMultipartUpload(
+      this.minio.bucketVideos,
+      objectKey,
+    );
+
+    return {
+      assetId: asset.id,
+      uploadId,
+      objectKey,
+      bucket: this.minio.bucketVideos,
+      contentId: episode.contentId,
+      episodeId,
+      partSizeBytes: this.computeMultipartPartSize(fileSizeBytes),
       expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
       message: 'Uploader chaque partie via multipart/part-url puis multipart/complete',
     };
@@ -1132,6 +1208,7 @@ export class VideosService {
         assetStatus: null,
         status: 'PENDING_UPLOAD',
         playable: false,
+        previewAvailable: false,
         progress: { percentage: 0, currentStep: 'pending_upload' },
         durationSec: null,
         errorMessage: null,
@@ -1155,13 +1232,29 @@ export class VideosService {
       FAILED: 0,
     };
     const assetStatus = asset?.status ?? 'CREATED';
-    const playable = ['READY_PREVIEW', 'READY', 'PUBLISHED'].includes(assetStatus);
 
     const completedProfiles = [
       ...new Set(asset?.renditions?.map((r) => r.name).filter(Boolean) ?? []),
     ];
+    // Une fois la phase 2 (qualité complète) démarrée, `prepareTranscode`
+    // repasse le statut à TRANSCODING — ce qui masquait à tort l'aperçu déjà
+    // publié (rendition preview toujours présente en base, juste ignorée ici
+    // car on ne regardait que le statut instantané). Corrigé le 2026-07-03.
+    const previewAvailable = completedProfiles.length > 0;
+    const playable = ['READY_PREVIEW', 'READY', 'PUBLISHED'].includes(assetStatus) || previewAvailable;
+
     const sourceHeight = asset?.height ?? 1080;
-    const expectedProfiles = resolveProfilesForSource(sourceHeight).map((p) => p.name);
+    // Doit refléter le même plafond que celui réellement appliqué par le
+    // worker (VideoPipelineSettingsService.resolveMaxQualityHeightForAsset)
+    // — sans ça, la liste "attendue" incluait toujours 1440p/2160p même une
+    // fois le plafond ramené à 1080p, laissant deux badges "en cours" qui ne
+    // se terminaient jamais côté UI. Corrigé le 2026-07-03.
+    const maxAllowedHeight = asset
+      ? await this.pipelineSettings.resolveMaxQualityHeightForAsset(asset.id)
+      : Infinity;
+    const expectedProfiles = resolveProfilesForSource(sourceHeight, maxAllowedHeight).map(
+      (p) => p.name,
+    );
     const remainingProfiles = expectedProfiles.filter((p) => !completedProfiles.includes(p));
 
     const activeJob = asset?.jobs?.[0];
@@ -1174,6 +1267,7 @@ export class VideosService {
       assetStatus,
       status: assetStatus,
       playable,
+      previewAvailable,
       progress: { percentage: statusMap[assetStatus] ?? 0, currentStep: assetStatus.toLowerCase() },
       durationSec: asset?.durationSec ?? null,
       posterObjectKey: asset?.posterObjectKey ?? null,

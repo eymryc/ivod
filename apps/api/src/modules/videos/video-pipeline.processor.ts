@@ -11,20 +11,19 @@ import { VideoAssetStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MinioService } from '../../common/services/minio.service';
 import { VideoPipelineService } from './video-pipeline.service';
+import { VideoPipelineSettingsService } from './video-pipeline-settings.service';
 import { VideoPipelineNotificationService } from '../notifications/video-pipeline-notification.service';
 import { ContentDurationService } from '../../common/services/content-duration.service';
 import {
   VIDEO_QUEUE,
   VIDEO_JOB_TYPES,
-  RENDITION_PROFILES,
   MINIO_UPLOAD_CONCURRENCY,
   RenditionProfile,
   VideoEncoder,
   HLS_SEGMENT_DURATION,
   THUMBNAIL_COUNT,
-  UPSCALE_TOLERANCE,
   resolveHlsSegmentType,
-  resolveProfileAllowlist,
+  resolveProfilesForSource,
   resolveCpuParallelism,
   isTwoPhasePipelineEnabled,
   resolvePreviewProfile,
@@ -33,6 +32,7 @@ import {
   resolveJobLockRenewTime,
   resolveX264Preset,
   resolveFFmpegThreads,
+  setEffectiveFFmpegThreads,
 } from './video-pipeline.constants';
 import {
   buildScaleFormatChain,
@@ -137,8 +137,13 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
   // Cached encoder detection (per process lifetime)
   private _encoder: VideoEncoder | null = null;
 
-  /** Processus ffmpeg actifs — pour les tuer proprement sur SIGTERM. */
-  private readonly _activeProcs = new Set<ReturnType<typeof spawn>>();
+  /** Processus ffmpeg actifs → assetId — pour les tuer proprement sur SIGTERM
+   * ET marquer immédiatement l'asset en échec (voir onApplicationShutdown). */
+  private readonly _activeProcs = new Map<ReturnType<typeof spawn>, string>();
+
+  /** Réapplication périodique des réglages pipeline (voir applyPipelineSettings). */
+  private _settingsPollTimer: ReturnType<typeof setInterval> | null = null;
+  private static readonly SETTINGS_POLL_MS = 30_000;
 
   constructor(
     private readonly prisma:    PrismaService,
@@ -146,14 +151,49 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
     private readonly pipeline:  VideoPipelineService,
     private readonly videoNotifications: VideoPipelineNotificationService,
     private readonly contentDuration: ContentDurationService,
+    private readonly pipelineSettings: VideoPipelineSettingsService,
   ) {
     super();
+  }
+
+  /**
+   * Applique la concurrence worker + les threads ffmpeg effectifs (détection
+   * CPU du conteneur + éventuelle surcharge admin en base) — remplace les
+   * variables d'environnement VIDEO_WORKER_CONCURRENCY/VIDEO_FFMPEG_THREADS
+   * comme source de vérité à l'exécution, sans nécessiter de redéploiement.
+   * `this.worker` (WorkerHost) expose l'instance BullMQ Worker sous-jacente,
+   * dont `.concurrency` est modifiable dynamiquement (pas figée au démarrage).
+   * Appelé une première fois à onModuleInit, puis à chaque nouveau PROBE pour
+   * refléter un changement de réglage admin sans attendre un redémarrage.
+   */
+  private async applyPipelineSettings(): Promise<void> {
+    try {
+      const settings = await this.pipelineSettings.applyAndPersistDetection();
+      this.worker.concurrency = settings.workerConcurrency;
+      setEffectiveFFmpegThreads(settings.ffmpegThreads);
+      this.logger.log(
+        `Pipeline settings : CPU détecté=${settings.detectedCpuLimit} concurrency=${settings.workerConcurrency}` +
+          `${settings.workerConcurrencyIsOverride ? ' (admin)' : ' (auto)'} threads=${settings.ffmpegThreads} (dérivé)` +
+          ` maxQuality=${settings.maxQualityCode}`,
+      );
+    } catch (err) {
+      this.logger.error(`applyPipelineSettings: ${(err as Error).message}`);
+    }
   }
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
   /** Récupération au démarrage : assets bloqués en TRANSCODING/PROBING/PACKAGING → FAILED. */
   async onModuleInit(): Promise<void> {
+    await this.applyPipelineSettings();
+    // Réapplique les réglages toutes les 30s : un changement de concurrency
+    // en admin est ainsi pris en compte à chaud (Worker.concurrency est lu à
+    // chaque itération de la boucle BullMQ, pas figé au démarrage — vérifié
+    // dans le code source bullmq), sans redémarrer le worker ni interrompre
+    // les jobs en cours.
+    this._settingsPollTimer = setInterval(() => {
+      void this.applyPipelineSettings();
+    }, VideoPipelineProcessor.SETTINGS_POLL_MS);
     try {
       const staleMs = Math.max(JOB_LOCK_DURATION, 3_600_000);
       const staleDate = new Date(Date.now() - staleMs);
@@ -179,16 +219,53 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
     }
   }
 
-  /** Arrêt gracieux : envoie SIGTERM puis SIGKILL aux processus ffmpeg actifs. */
+  /**
+   * Arrêt gracieux : envoie SIGTERM puis SIGKILL aux processus ffmpeg actifs,
+   * ET marque immédiatement les assets concernés en FAILED.
+   *
+   * Avant ce correctif, un déploiement (qui redémarre ce worker — même image
+   * que l'API) tuait le process ffmpeg sans jamais mettre à jour le statut en
+   * base : l'asset restait bloqué en TRANSCODING jusqu'au recovery de
+   * onModuleInit, qui n'agit qu'après 1h (voir JOB_LOCK_DURATION). Le
+   * créateur n'avait donc aucun bouton "Relancer" disponible (il n'apparaît
+   * qu'en statut FAILED) pendant tout ce temps. Découvert et corrigé le
+   * 2026-07-03 après interruption réelle d'un upload en production.
+   */
   async onApplicationShutdown(signal?: string): Promise<void> {
+    if (this._settingsPollTimer) {
+      clearInterval(this._settingsPollTimer);
+      this._settingsPollTimer = null;
+    }
     if (this._activeProcs.size === 0) return;
-    this.logger.warn(`Arrêt ${signal ?? 'gracieux'} — interruption de ${this._activeProcs.size} processus ffmpeg`);
-    for (const proc of this._activeProcs) {
+
+    const interruptedAssetIds = [...new Set(this._activeProcs.values())];
+    this.logger.warn(
+      `Arrêt ${signal ?? 'gracieux'} — interruption de ${this._activeProcs.size} processus ffmpeg (assets: ${interruptedAssetIds.join(', ')})`,
+    );
+
+    for (const proc of this._activeProcs.keys()) {
       proc.kill('SIGTERM');
     }
     await new Promise<void>((r) => setTimeout(r, 5_000));
-    for (const proc of this._activeProcs) {
+    for (const proc of this._activeProcs.keys()) {
       if (!proc.killed) proc.kill('SIGKILL');
+    }
+
+    try {
+      await this.prisma.videoAsset.updateMany({
+        where: {
+          id: { in: interruptedAssetIds },
+          status: {
+            in: [VideoAssetStatus.TRANSCODING, VideoAssetStatus.PROBING, VideoAssetStatus.PACKAGING],
+          },
+        },
+        data: {
+          status: VideoAssetStatus.FAILED,
+          errorMessage: 'Interrompu par un déploiement — relancez l’encodage',
+        },
+      });
+    } catch (err) {
+      this.logger.error(`Marquage FAILED après interruption: ${(err as Error).message}`);
     }
   }
 
@@ -219,6 +296,10 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
   private async handleProbe(job: Job<ProbePayload>): Promise<ProbeMeta> {
     const { assetId } = job.data;
     const tmpDir = this.tmpDir(assetId);
+
+    // Rafraîchit concurrency/threads à chaque nouveau pipeline — reflète un
+    // changement de réglage admin sans attendre un redémarrage du worker.
+    await this.applyPipelineSettings();
 
     const asset = await this.prisma.videoAsset.findUniqueOrThrow({ where: { id: assetId } });
 
@@ -385,7 +466,8 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
     }
 
     const encoder = await this.detectEncoder();
-    let profiles = this.selectProfiles(meta.displayHeight);
+    const maxAllowedHeight = await this.pipelineSettings.resolveMaxQualityHeightForAsset(assetId);
+    let profiles = resolveProfilesForSource(meta.displayHeight, maxAllowedHeight);
 
     if (opts?.skipExistingRenditions) {
       const existing = await this.prisma.videoRendition.findMany({
@@ -908,26 +990,6 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
   }
 
   /** Select rendition profiles that don't upscale from the source */
-  private selectProfiles(sourceHeight: number): RenditionProfile[] {
-    const maxHeight = sourceHeight * (1 + UPSCALE_TOLERANCE);
-    let matching = RENDITION_PROFILES.filter((p) => p.height <= maxHeight);
-
-    const allowlist = resolveProfileAllowlist();
-    if (allowlist) {
-      const filtered = matching.filter((p) => allowlist.has(p.name));
-      if (filtered.length > 0) {
-        matching = filtered;
-      } else {
-        matching = matching.length > 0 ? [matching[matching.length - 1]!] : [RENDITION_PROFILES[0]!];
-      }
-      this.logger.log(
-        `Profils limités [${[...allowlist].join(', ')}] — ladder: ${matching.map((p) => p.name).join(', ')}`,
-      );
-    }
-
-    return matching.length > 0 ? matching : [RENDITION_PROFILES[0]];
-  }
-
   /** Exécute des tâches avec un parallélisme maximal (file d'attente). */
   private async runWithConcurrency<T>(
     items: T[],
@@ -1045,7 +1107,7 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const proc = spawn(this.ffmpegPath, ['-progress', 'pipe:2', ...args]);
-      this._activeProcs.add(proc);
+      this._activeProcs.set(proc, (job.data as { assetId: string }).assetId);
 
       // Timeout : 8× durée vidéo, min 1h, max 12h
       const timeoutMs = totalSec > 0
