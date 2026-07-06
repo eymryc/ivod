@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BrandLogo } from "@/components/brand/BrandLogo";
-import { GradientText } from "./GradientText";
 import { AccentLine } from "./AccentLine";
 import { typography } from "@/theme/typography";
 import { layout } from "@/theme/layout";
@@ -41,7 +40,7 @@ export function PageHeader({
         {brandKicker ? (
           <BrandLogo size="sm" />
         ) : (
-          <GradientText style={typography.kicker}>{kicker}</GradientText>
+          <Text style={typography.kicker}>{kicker}</Text>
         )}
         <Text style={typography.h1}>{title}</Text>
         <AccentLine width={accentWidth} style={styles.line} />

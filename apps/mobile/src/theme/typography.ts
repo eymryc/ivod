@@ -11,11 +11,21 @@ export const fontFamily = {
 } as const;
 
 export const typography = {
+  /** Kicker éditorial — sentence case, magenta (aligné web text-caption) */
   kicker: {
     fontFamily: fontFamily.semiBold,
     fontSize: 11,
-    letterSpacing: 2.2,
-    textTransform: "uppercase",
+    fontWeight: "600",
+    color: colors.magenta,
+    letterSpacing: 0.2,
+  } satisfies TextStyle,
+  /** Label de formulaire / section */
+  fieldLabel: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.mutedDim,
+    letterSpacing: 0.2,
   } satisfies TextStyle,
   h1: {
     fontFamily: fontFamily.bold,

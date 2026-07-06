@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ResumeThumbnail } from '@/components/content/ResumeThumbnail';
 import { buildWatchHref, formatResumeLabel, canResumeSession, type WatchHistoryEntry } from '@/core/entities';
 import { colors, gradients } from '@/theme/colors';
+import { typography } from '@/theme/typography';
 import { contentPosterUrl } from '@/utils/assets';
 import { Image } from 'react-native';
 
@@ -96,11 +97,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: 'rgba(123,0,153,0.35)',
   },
-  thumb: { width: 88, height: 50, borderRadius: 6, overflow: 'hidden' },
+  thumb: { width: 88, height: 50,     borderRadius: 0,
+    overflow: 'hidden' },
   poster: { width: 88, height: 50 },
   posterPh: { width: 88, height: 50, backgroundColor: colors.backgroundElevated },
   playBadge: {
@@ -110,7 +112,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
   body: { flex: 1, gap: 2 },
-  kicker: { fontSize: 11, fontWeight: '600', color: colors.magenta, textTransform: 'uppercase' },
+  kicker: typography.kicker,
   title: { fontSize: 15, fontWeight: '700', color: colors.foreground },
   meta: { fontSize: 12, color: 'rgba(255,255,255,0.65)' },
 });

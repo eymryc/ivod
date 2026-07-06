@@ -118,13 +118,7 @@ export function PaymentForm({
 
 const styles = StyleSheet.create({
   panel: { gap: 12 },
-  kicker: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 2,
-    textTransform: "uppercase",
-    color: colors.magenta,
-  },
+  kicker: typography.kicker,
   accent: {
     width: 40,
     height: 2,

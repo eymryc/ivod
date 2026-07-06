@@ -21,7 +21,7 @@ export const layout = {
   /** Largeur carte grille 2 colonnes */
   gridCardWidth: (SW - 16 * 2 - 12) / 2,
   gridCardWidthCatalog: 160,
-  /** Coins arrondis panneaux / cartes premium */
-  radiusSm: 4,
-  radiusMd: 8,
+  /** Coins rectangulaires — charte iVOD (aligné web IVOD_RADIUS) */
+  radiusSm: 0,
+  radiusMd: 0,
 } as const;

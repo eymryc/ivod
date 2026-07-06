@@ -482,10 +482,8 @@ const styles = StyleSheet.create({
   },
   activeTitle: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "600",
     color: colors.success,
-    letterSpacing: 1,
-    textTransform: "uppercase",
   },
   activePlan: { fontSize: 20, fontWeight: "800", color: colors.foreground },
   activeEnd: { fontSize: 13, color: colors.muted },

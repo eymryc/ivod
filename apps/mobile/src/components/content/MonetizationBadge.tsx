@@ -33,5 +33,5 @@ export function MonetizationBadge({
 
 const styles = StyleSheet.create({
   badge: { paddingHorizontal: 6, paddingVertical: 2 },
-  text: { fontSize: 9, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
+  text: { fontSize: 9, fontWeight: "700" },
 });

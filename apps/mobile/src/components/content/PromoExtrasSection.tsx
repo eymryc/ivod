@@ -67,14 +67,7 @@ const styles = StyleSheet.create({
   wrap: { gap: 12 },
   title: { ...typography.h3, fontSize: 17, marginBottom: 4 },
   group: { gap: 8 },
-  groupTitle: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    color: colors.muted,
-    marginBottom: 2,
-  },
+  groupTitle: typography.fieldLabel,
   row: {
     flexDirection: "row",
     alignItems: "center",

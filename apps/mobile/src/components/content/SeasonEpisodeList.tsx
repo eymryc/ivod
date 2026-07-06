@@ -13,6 +13,7 @@ import { Play, Check, Lock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AccentLine } from '@/components/layout/AccentLine';
 import { colors, gradients } from '@/theme/colors';
+import { typography } from '@/theme/typography';
 import type { Season } from '@/core/entities';
 import { episodeThumbnailUrl } from '@/utils/assets';
 import { formatEpisodeDisplayTitle } from '@/core/utils/episode-display';
@@ -273,11 +274,7 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: '100%' },
   epNum: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: colors.magenta,
+    ...typography.kicker,
     paddingHorizontal: 10,
     paddingTop: 8,
   },

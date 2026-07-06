@@ -109,10 +109,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   loadingLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 2.2,
-    textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.45)',
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.5)',
   },
 });

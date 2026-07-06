@@ -182,10 +182,7 @@ const styles = StyleSheet.create({
   },
   tvodBody: { gap: 6 },
   tvodKicker: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 2,
-    textTransform: "uppercase",
+    ...typography.kicker,
     color: colors.orange,
   },
   tvodTitle: { fontSize: 18, fontWeight: "600", color: colors.foreground },
@@ -210,6 +207,6 @@ const styles = StyleSheet.create({
   trustText: { fontSize: 12, color: colors.muted },
   faqSection: { marginTop: 32, gap: 16 },
   sectionHead: { alignItems: "center", paddingHorizontal: 16 },
-  sectionKicker: { fontSize: 11, fontWeight: "600", letterSpacing: 2, textTransform: "uppercase" },
+  sectionKicker: typography.kicker,
   sectionTitle: { fontSize: 20, fontWeight: "600", color: colors.foreground, marginTop: 6 },
 });

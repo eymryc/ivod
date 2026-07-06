@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, type TextInputProp
 import { Eye, EyeOff } from "lucide-react-native";
 import { colors } from "@/theme/colors";
 import { layout } from "@/theme/layout";
+import { typography } from "@/theme/typography";
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -43,13 +44,7 @@ export function Input({ label, error, style, secureTextEntry, ...props }: InputP
 
 const styles = StyleSheet.create({
   wrap: { gap: 6 },
-  label: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    color: colors.mutedDim,
-  },
+  label: typography.fieldLabel,
   row: {
     position: "relative",
   },

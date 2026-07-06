@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SkipForward, X } from 'lucide-react-native';
 import { colors, gradients } from '@/theme/colors';
+import { typography } from '@/theme/typography';
 
 interface Props {
   episodeNumber: number;
@@ -81,13 +82,7 @@ const styles = StyleSheet.create({
   body: { padding: 16, gap: 12 },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   meta: { flex: 1, gap: 4 },
-  kicker: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    color: colors.magenta,
-  },
+  kicker: typography.kicker,
   title: { fontSize: 14, fontWeight: '700', color: '#fff' },
   close: { padding: 4 },
   cta: {

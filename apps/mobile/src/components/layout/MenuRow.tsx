@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: "rgba(10,16,24,0.65)",
     marginBottom: 8,
-    borderRadius: 4,
+    borderRadius: 0,
   },
   rowEmbedded: {
     borderWidth: 0,

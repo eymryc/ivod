@@ -37,9 +37,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    fontWeight: '600',
   },
   previewText: { color: colors.magenta },
   moderationText: { color: '#fcd34d' },

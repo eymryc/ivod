@@ -236,12 +236,10 @@ export default function BrowseScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   filterLabel: {
-    ...typography.caption,
+    ...typography.kicker,
     paddingHorizontal: layout.pagePaddingX,
     marginBottom: 6,
     marginTop: 4,
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
   },
   filterLabelSpaced: { marginTop: 10 },
   sortBar: { marginBottom: 8 },

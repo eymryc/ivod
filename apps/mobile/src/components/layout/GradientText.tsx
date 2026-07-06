@@ -1,29 +1,26 @@
-import { Text, StyleSheet, type TextStyle } from "react-native";
-import MaskedView from "@react-native-masked-view/masked-view";
-import { LinearGradient } from "expo-linear-gradient";
-import { gradients } from "@/theme/colors";
+import { Text, type TextStyle } from "react-native";
+import { colors } from "@/theme/colors";
+import { typography } from "@/theme/typography";
 
 interface Props {
   children: string;
   style?: TextStyle;
 }
 
-/** Texte en dégradé brand — équivalent `.ivod-gradient-text` */
+/** Kicker / accent — magenta uni (ex-`.ivod-gradient-text`, aligné web) */
 export function GradientText({ children, style }: Props) {
   return (
-    <MaskedView maskElement={<Text style={[styles.mask, style]}>{children}</Text>}>
-      <LinearGradient
-        colors={[...gradients.brand]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      >
-        <Text style={[styles.placeholder, style]}>{children}</Text>
-      </LinearGradient>
-    </MaskedView>
+    <Text style={[typography.kicker, style]} numberOfLines={2}>
+      {children}
+    </Text>
   );
 }
 
-const styles = StyleSheet.create({
-  mask: { backgroundColor: "transparent" },
-  placeholder: { opacity: 0 },
-});
+/** Accent inline dans un titre (ex. « expérience » sur page tarifs) */
+export function AccentText({ children, style }: Props) {
+  return (
+    <Text style={[{ color: colors.magenta, fontWeight: "600" }, style]}>
+      {children}
+    </Text>
+  );
+}

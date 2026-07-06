@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 4,
+    borderRadius: 0,
   },
   placeholder: { backgroundColor: colors.backgroundElevated },
   bottomGrad: {
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
   },
-  typeText: { fontSize: 8, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" },
+  typeText: { fontSize: 8, fontWeight: "700" },
   rating: {
     position: "absolute",
     top: 6,
@@ -219,13 +219,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.magenta,
     paddingHorizontal: 5,
     paddingVertical: 2,
-    borderRadius: 3,
+    borderRadius: 0,
   },
   offlineText: {
     fontSize: 8,
     fontWeight: "700",
     color: "#fff",
-    textTransform: "uppercase",
   },
   progressTrack: {
     position: "absolute",

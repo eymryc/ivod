@@ -193,10 +193,8 @@ const styles = StyleSheet.create({
   },
   popularText: {
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#fff",
-    letterSpacing: 1,
-    textTransform: "uppercase",
   },
   activeBadge: {
     position: "absolute",
@@ -208,10 +206,8 @@ const styles = StyleSheet.create({
   },
   activeBadgeText: {
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#fff",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
   },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
   iconBox: {
@@ -239,8 +235,6 @@ const styles = StyleSheet.create({
   period: {
     fontSize: 11,
     color: colors.mutedDim,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
     marginBottom: 4,
   },
   features: { gap: 8, marginVertical: 10 },

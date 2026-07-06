@@ -40,6 +40,7 @@ import {
 import { saveMoment } from '@/infrastructure/services/watch-moments.service';
 import { toast } from '@/presentation/utils/toast';
 import { colors, gradients } from '@/theme/colors';
+import { typography } from '@/theme/typography';
 import type { SubtitleTrack } from '@/infrastructure/api/modules/video.api';
 
 const IDLE_MS = 3200;
@@ -880,11 +881,9 @@ const styles = StyleSheet.create({
     borderRightColor: colors.orange,
   },
   bufferingLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 2.2,
-    textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.45)',
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.5)',
   },
   skipFlash: {
     position: 'absolute',
@@ -921,7 +920,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.7)',
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 24,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
@@ -947,7 +946,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -959,10 +958,9 @@ const styles = StyleSheet.create({
     zIndex: 7,
   },
   brandMask: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 3.2,
-    textTransform: 'uppercase',
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.magenta,
   },
   bottomGradient: {
     position: 'absolute',
@@ -1074,24 +1072,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(8,8,16,0.96)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 14,
     minWidth: 200,
     zIndex: 22,
   },
   menuTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: colors.muted,
+    ...typography.fieldLabel,
     marginBottom: 10,
   },
   speedRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   speedChip: {
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 8,
+    borderRadius: 0,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
     borderColor: 'transparent',

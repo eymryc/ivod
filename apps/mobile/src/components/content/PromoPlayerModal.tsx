@@ -71,13 +71,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headerText: { flex: 1, gap: 4 },
-  kicker: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    color: colors.magenta,
-  },
+  kicker: typography.kicker,
   title: { ...typography.h3, fontSize: 16 },
   player: {
     flex: 1,

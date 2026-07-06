@@ -3,7 +3,6 @@ import { View, Text, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackButton } from "./BackButton";
 import { AccentLine } from "./AccentLine";
-import { GradientText } from "./GradientText";
 import { typography } from "@/theme/typography";
 import { layout } from "@/theme/layout";
 
@@ -31,7 +30,7 @@ export function TabPageHeader({
       {showBack ? <BackButton safeTop /> : null}
       <View style={styles.titleRow}>
         <View style={styles.body}>
-          <GradientText style={styles.kicker}>{kicker}</GradientText>
+          <Text style={styles.kicker}>{kicker}</Text>
           <Text style={styles.title}>{title}</Text>
           <AccentLine width={56} style={styles.line} />
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -59,7 +58,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.pagePaddingX,
   },
   body: { flex: 1, alignItems: "flex-start", gap: 4, minWidth: 0 },
-  kicker: { fontSize: 10, letterSpacing: 2.8 },
+  kicker: typography.kicker,
   title: {
     ...typography.h1,
     fontSize: 28,

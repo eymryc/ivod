@@ -17,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { X, Sparkles, ExternalLink } from "lucide-react-native";
 import { colors, gradients } from "@/theme/colors";
+import { typography } from "@/theme/typography";
 
 export interface AdConfig {
   id?: string;
@@ -313,17 +314,10 @@ const branded = StyleSheet.create({
     marginBottom: 16,
     padding: 8,
     backgroundColor: "rgba(230,0,126,0.06)",
-    borderRadius: 8,
+    borderRadius: 0,
   },
   logo: { width: 120, height: 48 },
-  kicker: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 2,
-    textTransform: "uppercase",
-    color: colors.magenta,
-    marginBottom: 4,
-  },
+  kicker: { ...typography.kicker, marginBottom: 4 },
   title: {
     fontSize: 18,
     fontWeight: "800",

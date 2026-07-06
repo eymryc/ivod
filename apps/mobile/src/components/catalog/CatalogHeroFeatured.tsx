@@ -260,11 +260,7 @@ const styles = StyleSheet.create({
   },
   poster: { width: "100%", height: "100%" },
   sectionMeta: {
-    fontSize: 11,
-    fontWeight: "500",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    color: "rgba(255,255,255,0.4)",
+    ...typography.fieldLabel,
     marginBottom: 10,
   },
   sectionMetaDot: { color: "rgba(255,255,255,0.25)" },
@@ -278,9 +274,7 @@ const styles = StyleSheet.create({
   editorialLine: { width: 32, height: 1 },
   editorial: {
     fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 2,
-    textTransform: "uppercase",
+    fontWeight: "600",
     color: colors.gold,
   },
   title: {
@@ -303,9 +297,7 @@ const styles = StyleSheet.create({
   },
   offerChipText: {
     fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
+    fontWeight: "600",
   },
   description: {
     fontSize: 15,

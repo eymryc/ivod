@@ -505,9 +505,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.8,
-    textTransform: "uppercase",
+    fontWeight: "600",
     color: "#fff",
   },
   title: {
@@ -587,8 +585,6 @@ const styles = StyleSheet.create({
   carouselLabel: {
     fontSize: 9,
     fontWeight: "600",
-    letterSpacing: 1.4,
-    textTransform: "uppercase",
     color: "rgba(255,255,255,0.55)",
     textAlign: "right",
   },

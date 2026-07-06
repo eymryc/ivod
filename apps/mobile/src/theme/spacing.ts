@@ -10,6 +10,8 @@ export const spacing = {
 
 export const radius = {
   none: 0,
-  sm: 4,
-  md: 8,
+  sm: 0,
+  md: 0,
+  /** Orbes player / avatars circulaires uniquement */
+  full: 9999,
 } as const;

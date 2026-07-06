@@ -44,9 +44,7 @@ const styles = StyleSheet.create({
   text: {
     ...typography.caption,
     fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
+    fontWeight: "600",
     color: "rgba(255,255,255,0.72)",
   },
   textGenre: { color: colors.orange },

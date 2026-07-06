@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.pagePaddingX,
     marginBottom: 6,
   },
-  historyLabel: { ...typography.caption, textTransform: "uppercase", letterSpacing: 1 },
+  historyLabel: typography.kicker,
   filtersBar: { marginBottom: 0, maxHeight: 40 },
   hint: { flex: 1, justifyContent: "center", padding: 32 },
   loader: { marginTop: 48 },

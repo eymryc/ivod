@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { PageCanvas } from "@/components/layout/PageCanvas";
-import { GradientText } from "@/components/layout/GradientText";
 import { AccentLine } from "@/components/layout/AccentLine";
 import { PremiumPanel } from "@/components/layout/PremiumPanel";
 import { BrandLogo } from "@/components/brand/BrandLogo";
@@ -48,7 +47,7 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
           <View style={styles.column}>
             <View style={styles.brandBlock}>
               <BrandLogo size="md" />
-              <GradientText style={styles.kicker}>Cinéma & séries africains</GradientText>
+              <Text style={styles.kicker}>Cinéma & séries africains</Text>
               <AccentLine width={48} style={styles.accent} />
             </View>
 
@@ -102,9 +101,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   kicker: {
-    fontSize: 10,
-    letterSpacing: 2.4,
+    ...typography.kicker,
     marginTop: 4,
+    textAlign: "center",
   },
   accent: { marginVertical: 0 },
   titles: {

@@ -286,14 +286,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   bannerCopy: { flex: 1, minWidth: 0 },
-  kicker: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: colors.magenta,
-    letterSpacing: 1.8,
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
+  kicker: { ...typography.kicker, marginBottom: 4 },
   title: {
     ...typography.h2,
     fontSize: 20,
@@ -340,13 +333,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 4,
   },
-  episodesLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.muted,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
+  episodesLabel: typography.fieldLabel,
   episodesLink: {
     fontSize: 12,
     fontWeight: "600",
