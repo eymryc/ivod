@@ -114,6 +114,135 @@ export function EpisodeRepeaterForm({ contentId, season, onClose }: Props) {
   const isRowLocked = (r: EpisodeDraftRow) =>
     submitting || r.status === "creating" || r.status === "uploading" || r.status === "done";
 
+  const renderRowFields = (row: EpisodeDraftRow, layout: "table" | "card") => {
+    const numCell = (
+      <input
+        type="number"
+        min={1}
+        value={row.episodeNumber}
+        disabled={isRowLocked(row)}
+        onChange={(e) =>
+          patchRow(row.clientId, { episodeNumber: Math.max(1, +e.target.value || 1) })
+        }
+        className={`${studioInputCls} w-14 text-center tabular-nums py-2 text-[12px]`}
+        aria-label={`Numéro épisode ${row.episodeNumber}`}
+      />
+    );
+
+    const titleCell = (
+      <>
+        <input
+          value={row.title}
+          disabled={isRowLocked(row)}
+          onChange={(e) => patchRow(row.clientId, { title: e.target.value })}
+          className={`${studioInputCls} py-2 text-[12px] w-full`}
+          placeholder="Titre de l'épisode"
+        />
+        {row.status === "uploading" && (
+          <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-300"
+              style={{ width: `${row.progress}%` }}
+            />
+          </div>
+        )}
+        {row.status === "error" && row.errorMessage && (
+          <p className="mt-1.5 flex items-center gap-1 text-[10px] text-red-400/90">
+            <AlertCircle size={11} />
+            {row.errorMessage}
+          </p>
+        )}
+      </>
+    );
+
+    const videoCell = (
+      <EpisodeRowUploadZone
+        file={row.file}
+        disabled={isRowLocked(row)}
+        onFile={(file) =>
+          patchRow(row.clientId, {
+            file,
+            title:
+              row.title === `Épisode ${row.episodeNumber}` || !row.title.trim()
+                ? titleFromVideoFile(file, row.episodeNumber)
+                : row.title,
+          })
+        }
+        onClear={() => patchRow(row.clientId, { file: null, status: "draft", progress: 0 })}
+      />
+    );
+
+    const removeCell =
+      row.status === "done" ? (
+        <CheckCircle2 size={18} className="mx-auto text-emerald-400/90" aria-label="Terminé" />
+      ) : (
+        <button
+          type="button"
+          onClick={() => removeRow(row.clientId)}
+          disabled={isRowLocked(row) || rows.length <= 1}
+          className="rounded-none p-2 text-white/30 transition-colors hover:bg-red-500/10 hover:text-red-300 disabled:opacity-30 touch-manipulation"
+          aria-label="Supprimer la ligne"
+        >
+          <Trash2 size={15} />
+        </button>
+      );
+
+    if (layout === "card") {
+      return (
+        <div
+          key={row.clientId}
+          className={`rounded-none border border-white/[0.08] bg-white/[0.02] p-4 space-y-3 ${
+            row.status === "done"
+              ? "border-emerald-500/20 bg-emerald-500/[0.04]"
+              : row.status === "error"
+                ? "border-red-500/20 bg-red-500/[0.04]"
+                : ""
+          }`}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-white/40 shrink-0">
+                N°
+              </span>
+              {numCell}
+            </div>
+            {removeCell}
+          </div>
+          <div>
+            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-white/40">
+              Titre
+            </p>
+            {titleCell}
+          </div>
+          <div>
+            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-white/40">
+              Vidéo
+            </p>
+            {videoCell}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <tr
+        key={row.clientId}
+        className={`border-b border-white/[0.04] transition-colors ${
+          row.status === "done"
+            ? "bg-emerald-500/[0.04]"
+            : row.status === "error"
+              ? "bg-red-500/[0.04]"
+              : "hover:bg-white/[0.02]"
+        }`}
+      >
+        <td className="px-4 py-3 align-top sm:px-6">{numCell}</td>
+        <td className="px-4 py-3 align-top">{titleCell}</td>
+        <td className="px-4 py-3 align-top sm:px-6">{videoCell}</td>
+        <td className="px-2 py-3 align-top text-center">{removeCell}</td>
+      </tr>
+    );
+  };
+
   return (
     <section className="overflow-hidden rounded-none border border-primary/15 bg-gradient-to-b from-primary/[0.06] via-white/[0.02] to-transparent ring-1 ring-primary/10 shadow-[0_0_48px_rgba(249,115,22,0.08)]">
       <header className="flex flex-col gap-4 border-b border-white/[0.06] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -149,7 +278,13 @@ export function EpisodeRepeaterForm({ contentId, season, onClose }: Props) {
         </div>
       </header>
 
-      <div className="overflow-x-auto">
+      {/* Vue cartes — mobile */}
+      <div className="md:hidden space-y-3 px-4 py-4 sm:px-6">
+        {rows.map((row) => renderRowFields(row, "card"))}
+      </div>
+
+      {/* Vue tableau — tablette / desktop */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse text-left">
           <thead>
             <tr className="border-b border-white/[0.06] text-[10px] font-medium uppercase tracking-[0.14em] text-white/35">
@@ -159,88 +294,7 @@ export function EpisodeRepeaterForm({ contentId, season, onClose }: Props) {
               <th className="w-12 px-2 py-3" aria-hidden />
             </tr>
           </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={row.clientId}
-                className={`border-b border-white/[0.04] transition-colors ${
-                  row.status === "done"
-                    ? "bg-emerald-500/[0.04]"
-                    : row.status === "error"
-                      ? "bg-red-500/[0.04]"
-                      : "hover:bg-white/[0.02]"
-                }`}
-              >
-                <td className="px-4 py-3 align-top sm:px-6">
-                  <input
-                    type="number"
-                    min={1}
-                    value={row.episodeNumber}
-                    disabled={isRowLocked(row)}
-                    onChange={(e) =>
-                      patchRow(row.clientId, { episodeNumber: Math.max(1, +e.target.value || 1) })
-                    }
-                    className={`${studioInputCls} w-14 text-center tabular-nums py-2 text-[12px]`}
-                    aria-label={`Numéro épisode ${row.episodeNumber}`}
-                  />
-                </td>
-                <td className="px-4 py-3 align-top">
-                  <input
-                    value={row.title}
-                    disabled={isRowLocked(row)}
-                    onChange={(e) => patchRow(row.clientId, { title: e.target.value })}
-                    className={`${studioInputCls} py-2 text-[12px]`}
-                    placeholder="Titre de l'épisode"
-                  />
-                  {row.status === "uploading" && (
-                    <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all duration-300"
-                        style={{ width: `${row.progress}%` }}
-                      />
-                    </div>
-                  )}
-                  {row.status === "error" && row.errorMessage && (
-                    <p className="mt-1.5 flex items-center gap-1 text-[10px] text-red-400/90">
-                      <AlertCircle size={11} />
-                      {row.errorMessage}
-                    </p>
-                  )}
-                </td>
-                <td className="px-4 py-3 align-top sm:px-6">
-                  <EpisodeRowUploadZone
-                    file={row.file}
-                    disabled={isRowLocked(row)}
-                    onFile={(file) =>
-                      patchRow(row.clientId, {
-                        file,
-                        title:
-                          row.title === `Épisode ${row.episodeNumber}` || !row.title.trim()
-                            ? titleFromVideoFile(file, row.episodeNumber)
-                            : row.title,
-                      })
-                    }
-                    onClear={() => patchRow(row.clientId, { file: null, status: "draft", progress: 0 })}
-                  />
-                </td>
-                <td className="px-2 py-3 align-top text-center">
-                  {row.status === "done" ? (
-                    <CheckCircle2 size={18} className="mx-auto text-emerald-400/90" aria-label="Terminé" />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => removeRow(row.clientId)}
-                      disabled={isRowLocked(row) || rows.length <= 1}
-                      className="rounded-none p-2 text-white/30 transition-colors hover:bg-red-500/10 hover:text-red-300 disabled:opacity-30"
-                      aria-label="Supprimer la ligne"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
+          <tbody>{rows.map((row) => renderRowFields(row, "table"))}</tbody>
         </table>
       </div>
 

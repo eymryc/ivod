@@ -68,7 +68,7 @@ export function DashboardTopBar({ variant }: DashboardTopBarProps) {
   const homeHref = variant === "admin" ? "/admin" : "/studio";
 
   return (
-    <header className="dashboard-topbar sticky top-14 z-30 shrink-0 border-b border-white/[0.05] bg-[#06060a]/92 backdrop-blur-xl lg:top-0">
+    <header className="dashboard-topbar sticky top-14 z-30 shrink-0 border-b border-white/[0.05] bg-[#06060a]/92 backdrop-blur-xl md:top-0">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
         aria-hidden

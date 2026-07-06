@@ -35,16 +35,16 @@ export function CinemaPlayerToolbar({
   onTogglePip,
 }: CinemaPlayerToolbarProps) {
   return (
-    <div className="ivod-cinema-toolbar" role="toolbar" aria-label="Options de lecture">
+    <div className="ivod-cinema-toolbar flex items-center gap-1" role="toolbar" aria-label="Options de lecture">
       {pipSupported && (
         <button
           type="button"
           onClick={onTogglePip}
           aria-label={isPip ? "Quitter PiP" : "Picture-in-Picture"}
-          className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors sm:h-9 sm:w-9 sm:rounded-xl ${
+          className={`ivod-btn flex h-9 w-9 items-center justify-center border transition-colors ${
             isPip
-              ? "bg-primary/20 text-primary"
-              : "text-white/70 hover:bg-white/10 hover:text-white"
+              ? "border-brand-magenta/35 bg-brand-magenta/15 text-brand-magenta"
+              : "border-transparent text-white/70 hover:border-white/15 hover:bg-white/10 hover:text-white"
           }`}
         >
           <PictureInPicture2 size={17} />

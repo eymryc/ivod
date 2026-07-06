@@ -45,8 +45,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const hideMobileNav = pathname.startsWith("/settings");
+
   return (
-    <ViewerShell showFooter={false} serverHasSession>
+    <ViewerShell showFooter={false} showMobileNav={!hideMobileNav} serverHasSession>
       <PushNotificationsMount />
       {children}
     </ViewerShell>

@@ -1,6 +1,10 @@
 /* ─── iVOD Cinema Player — plein écran ───────────────────────────────────── */
 
-.watch-stage,
+/* NB: `.watch-stage` n'est volontairement PAS ciblé ici. Cette feuille est chargée dans
+   le chunk asynchrone du lecteur (`dynamic({ ssr:false })`) ; y mettre `position:absolute`
+   entrait en conflit (même spécificité) avec l'utilitaire Tailwind `relative` de <WatchStage>,
+   avec un vainqueur dépendant de l'ordre d'injection des feuilles. Le dimensionnement du
+   stage et de l'écran est désormais assuré par Tailwind (feuille racine toujours chargée). */
 .ivod-cinema-screen {
   position: absolute;
   inset: 0;
@@ -468,11 +472,11 @@
 }
 
 .ivod-cinema-buffering p {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* Toolbar qualité / sous-titres — icônes seules */

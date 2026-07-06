@@ -216,7 +216,7 @@ function SubscriptionPageContent() {
     return (
       <div className="payment-form-panel w-full max-w-md mx-auto py-10 px-6 text-center">
         <BrandLoaderMark size="md" showTagline={false} tagline="En attente" />
-        <p className="text-[11px] font-semibold tracking-[0.2em] uppercase ivod-gradient-text mb-2 mt-6">
+        <p className="text-caption font-semibold text-brand-magenta mb-2 mt-6">
           En attente
         </p>
         <h2 className="text-xl font-semibold text-white mb-3">Paiement en cours…</h2>
@@ -278,7 +278,7 @@ function SubscriptionPageContent() {
             <div className="flex-1 min-w-0">
               <p className="text-base font-semibold text-white">
                 Plan actuel :{" "}
-                <span className="ivod-gradient-text">
+                <span className="text-brand-magenta">
                   {currentSub.planDetails?.label ?? planLabel(currentSub.plan)}
                 </span>
               </p>

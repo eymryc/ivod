@@ -1,12 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { GripVertical, Image as ImageIcon, Loader2, Search, X } from "lucide-react";
 import { adminApi } from "@/lib/api/admin";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import { assetUrl } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 import type { SearchSuggestion } from "@/lib/types/search-suggestion";
 import { inputClsSm as inputCls } from "@/lib/ui/cinema-field";
 
@@ -41,7 +41,7 @@ function PosterThumb({ objectKey, title }: { objectKey?: string | null; title: s
   if (src) {
     return (
       <div className="relative w-9 h-12 shrink-0 bg-white/[0.04] border border-white/[0.06]">
-        <Image src={src} alt="" fill className="object-cover" sizes="36px" />
+        <MediaImage src={src} alt="" fill className="object-cover" sizes="36px" />
       </div>
     );
   }

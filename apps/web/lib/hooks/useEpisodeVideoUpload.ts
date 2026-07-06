@@ -80,7 +80,7 @@ export function useEpisodeVideoUpload(contentId: string, episodeId: string | nul
       setPipelineStatus("UPLOADING");
       setUploadProgress(0);
       try {
-        await uploadEpisodeVideoFile(episodeId, file, setUploadProgress);
+        await uploadEpisodeVideoFile(episodeId, file, { onProgress: setUploadProgress });
         setPipelineStatus("UPLOADED");
         startPolling();
       } catch (err: unknown) {

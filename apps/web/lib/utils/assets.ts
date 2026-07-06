@@ -21,12 +21,30 @@ function bucketForObjectKey(objectKey: string): string {
 /**
  * URL affiche / vignette — même origine que le front (rewrite Next → API).
  * Évite le blocage CORP (API :3000 vs web :3001) et MinIO privé.
+ *
+ * ⚠️ Affichage : utiliser {@link MediaImage}, pas `next/image`.
+ * Next.js 16 refuse l’optimisation des chemins locaux avec query string
+ * (`localPatterns`) — voir https://nextjs.org/docs/app/api-reference/components/image
  */
 export function assetUrl(objectKey?: string | null, bucket = ASSETS_BUCKET): string | null {
   if (!objectKey) return null;
   const key = objectKey.startsWith("/") ? objectKey.slice(1) : objectKey;
   const params = new URLSearchParams({ bucket, key });
   return `/media?${params.toString()}`;
+}
+
+/** Clé MinIO ou URL déjà résolue → src pour {@link MediaImage}. */
+export function resolveMediaSrc(src?: string | null, bucket = ASSETS_BUCKET): string | null {
+  if (!src) return null;
+  if (
+    src.startsWith("/media?") ||
+    src.startsWith("http://") ||
+    src.startsWith("https://") ||
+    src.startsWith("data:")
+  ) {
+    return src;
+  }
+  return assetUrl(src, bucket);
 }
 
 /** URL absolue (partage, e-mail) — nécessite CORP cross-origin côté API */

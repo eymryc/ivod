@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@/lib/zod-resolver";
@@ -12,6 +11,8 @@ import { showApiError } from "@/lib/api/feedback";
 import { useAuthStore } from "@/lib/stores/auth.store";
 import { ApiError } from "@/lib/api/client";
 import { usersApi } from "@/lib/api/users";
+import { resolveMediaSrc } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 import {
   SettingsPanel,
   SettingsSectionHeader,
@@ -70,6 +71,8 @@ export default function SettingsProfilePage() {
     onError: (err: ApiError) => showApiError(err),
   });
 
+  const avatarSrc = resolveMediaSrc(user?.avatarUrl);
+
   return (
     <SettingsPanel>
       <SettingsSectionHeader
@@ -80,8 +83,8 @@ export default function SettingsProfilePage() {
 
       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 mb-8 pb-8 border-b border-white/[0.06]">
         <div className="relative h-20 w-20 shrink-0 overflow-hidden border-2 border-brand-magenta/30 bg-brand-purple/15 shadow-[0_0_32px_rgba(230,0,126,0.15)]">
-          {user?.avatarUrl ? (
-            <Image src={user.avatarUrl} alt="" fill className="object-cover" sizes="80px" />
+          {avatarSrc ? (
+            <MediaImage src={avatarSrc} alt="" fill className="object-cover" sizes="80px" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-brand-magenta">
               <User size={32} strokeWidth={1.5} />
@@ -99,7 +102,7 @@ export default function SettingsProfilePage() {
       <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-6 max-w-lg">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40 mb-2">
+            <label className="block text-caption font-semibold text-secondary-token mb-2">
               Prénom
             </label>
             <input {...register("firstName")} className={SETTINGS_INPUT_CLASS} />
@@ -108,7 +111,7 @@ export default function SettingsProfilePage() {
             )}
           </div>
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40 mb-2">
+            <label className="block text-caption font-semibold text-secondary-token mb-2">
               Nom
             </label>
             <input {...register("lastName")} className={SETTINGS_INPUT_CLASS} />
@@ -119,7 +122,7 @@ export default function SettingsProfilePage() {
         </div>
 
         <div>
-          <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40 mb-2">
+          <label className="block text-caption font-semibold text-secondary-token mb-2">
             Email
           </label>
           <input

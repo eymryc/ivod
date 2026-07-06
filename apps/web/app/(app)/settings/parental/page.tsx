@@ -91,7 +91,7 @@ export default function ParentalPage() {
 
       {profiles.length > 1 && (
         <div className="mb-8 pb-8 border-b border-white/[0.06]">
-          <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40 mb-3">
+          <label className="block text-caption font-semibold text-secondary-token mb-3">
             Profil à configurer
           </label>
           <div className="flex flex-wrap gap-2">
@@ -120,7 +120,7 @@ export default function ParentalPage() {
       ) : (
         <form onSubmit={handleSubmit((d) => upsertMutation.mutate(d))} className="space-y-8 max-w-lg">
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40 mb-3">
+            <label className="block text-caption font-semibold text-secondary-token mb-3">
               <Shield size={12} className="inline mr-1.5 text-brand-magenta" />
               Niveau de maturité maximum
             </label>
@@ -146,7 +146,7 @@ export default function ParentalPage() {
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40 mb-2">
+            <label className="block text-caption font-semibold text-secondary-token mb-2">
               Plage horaire restreinte
             </label>
             <p className="text-xs text-white/40 mb-4">0 = désactivé.</p>

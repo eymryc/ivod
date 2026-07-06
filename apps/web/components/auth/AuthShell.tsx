@@ -79,10 +79,8 @@ export function AuthCard({
   return (
     <div className="rounded-none border border-white/[0.06] bg-white/[0.02] overflow-hidden shadow-[0_24px_80px_-24px_rgba(0,0,0,0.8)]">
       <div className="px-6 sm:px-8 pt-7 pb-2 border-b border-white/[0.05] bg-brand-purple/[0.06]">
-        <p className="text-[11px] font-medium tracking-[0.2em] uppercase ivod-gradient-text mb-2">
-          iVOD
-        </p>
-        <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">{title}</h1>
+        <p className="text-caption font-semibold text-brand-magenta mb-2">iVOD</p>
+        <h1 className="font-display text-xl sm:text-2xl font-semibold text-white tracking-tight">{title}</h1>
         <div className="mt-3 ivod-line-accent w-10" />
         <p className="mt-3 text-[13px] text-white/40 font-light leading-relaxed">{subtitle}</p>
       </div>
@@ -105,7 +103,7 @@ export function AuthField({
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <label className="text-[11px] font-medium uppercase tracking-[0.12em] text-white/40">
+        <label className="text-caption font-medium text-muted-token">
           {label}
         </label>
         {hint}
@@ -144,7 +142,7 @@ export function AuthDivider({ label = "ou" }: { label?: string }) {
         <div className="w-full border-t border-white/[0.06]" />
       </div>
       <div className="relative flex justify-center">
-        <span className="px-3 text-[11px] uppercase tracking-wider text-white/25 bg-[#0a0a0c]">
+        <span className="px-3 text-caption text-muted-token bg-background-deep">
           {label}
         </span>
       </div>

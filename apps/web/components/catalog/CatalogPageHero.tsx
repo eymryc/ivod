@@ -9,7 +9,7 @@ import {
   CATALOG_PAGE_HERO_SHOWCASE_CLASS,
   CATALOG_PAGE_HERO_WITH_TRAILER_CLASS,
 } from "@/lib/constants/catalog-hero-layout";
-import { PAGE_X } from "@/components/public/PublicShell";
+import { VIEWER_SHELL_WIDTH } from "@/components/public/PublicShell";
 import { CatalogHeroFeatured } from "@/components/catalog/CatalogHeroFeatured";
 import { CatalogHeroTrailerBackground } from "@/components/catalog/CatalogHeroTrailerBackground";
 import { promoApi } from "@/lib/api/promo";
@@ -48,7 +48,6 @@ export function CatalogPageHero({
   filterAction,
 }: Props) {
   const hasFeatured = Boolean(featured && !isLoading);
-  /** Pages films / séries / web-séries : hero showcase même sans « à la une » chargée */
   const useShowcaseHeight = section.catalogLayout === "genre-rows" || hasFeatured;
   const heroClass = useShowcaseHeight
     ? CATALOG_PAGE_HERO_SHOWCASE_CLASS
@@ -66,7 +65,6 @@ export function CatalogPageHero({
     comingSoon: promoBundle?.preferTeaser ?? false,
   });
   const hasTrailer = Boolean(heroTrailer);
-  /** Sans BA : poster en fond. Avec BA : vidéo (poster en fallback pendant le chargement). */
   const staticBackdrop = hasTrailer ? poster : banner ?? poster;
 
   return (
@@ -75,6 +73,9 @@ export function CatalogPageHero({
         className={`${heroClass}${hasTrailer ? ` ${CATALOG_PAGE_HERO_WITH_TRAILER_CLASS}` : ""}`}
       >
         <div className="absolute inset-0 bg-[#030508] overflow-hidden">
+          {/* Fond dégradé toujours visible — pas de brume si l’image échoue */}
+          <div className="catalog-hero-backdrop-fallback absolute inset-0" aria-hidden />
+
           {hasFeatured && hasTrailer && heroTrailer ? (
             <div className="catalog-hero-video-frame">
               <CatalogHeroTrailerBackground promoId={heroTrailer.id} posterSrc={poster} />
@@ -87,44 +88,23 @@ export function CatalogPageHero({
                   : `catalog-hero-backdrop-stage ${useShowcaseHeight ? "catalog-hero-backdrop-stage--showcase" : ""}`
               }
             >
-              {useShowcaseHeight && hasFeatured ? (
-                <MediaImage
-                  src={staticBackdrop}
-                  alt=""
-                  fill
-                  className="catalog-hero-backdrop catalog-hero-backdrop--main catalog-hero-trailer-media"
-                  priority
-                  sizes="100vw"
-                  fallbackClassName="absolute inset-0"
-                />
-              ) : (
-                <>
-                  <MediaImage
-                    src={staticBackdrop}
-                    alt=""
-                    fill
-                    className="catalog-hero-backdrop catalog-hero-backdrop--ambient object-cover"
-                    priority
-                    sizes="100vw"
-                    fallbackClassName="absolute inset-0"
-                  />
-                  <MediaImage
-                    src={staticBackdrop}
-                    alt=""
-                    fill
-                    className={`catalog-hero-backdrop catalog-hero-backdrop--main object-cover transition-opacity duration-700 ${
-                      hasFeatured ? "catalog-hero-backdrop--featured" : "opacity-60"
-                    }`}
-                    priority
-                    sizes="100vw"
-                    fallbackClassName="absolute inset-0"
-                  />
-                </>
-              )}
+              <MediaImage
+                src={staticBackdrop}
+                alt=""
+                fill
+                fallbackVariant="none"
+                className={`catalog-hero-backdrop catalog-hero-backdrop--main object-cover transition-opacity duration-700 ${
+                  useShowcaseHeight && hasFeatured
+                    ? "catalog-hero-trailer-media"
+                    : hasFeatured
+                      ? "catalog-hero-backdrop--featured"
+                      : "opacity-60"
+                }`}
+                priority
+                sizes="100vw"
+              />
             </div>
-          ) : (
-            <div className="catalog-hero-backdrop-fallback absolute inset-0" aria-hidden />
-          )}
+          ) : null}
         </div>
 
         <div className="catalog-hero-grade catalog-hero-grade--lateral pointer-events-none absolute inset-0" aria-hidden />
@@ -133,11 +113,11 @@ export function CatalogPageHero({
           <div className="catalog-hero-grade catalog-hero-grade--spotlight pointer-events-none absolute inset-0" aria-hidden />
         )}
         {filterAction && hasFeatured && (
-          <div className={`absolute top-24 md:top-28 right-0 z-20 ${PAGE_X}`}>{filterAction}</div>
+          <div className={`absolute top-24 md:top-28 right-0 z-20 ${VIEWER_SHELL_WIDTH}`}>{filterAction}</div>
         )}
 
         <div
-          className={`relative z-10 flex min-h-full flex-col justify-end ${PAGE_X} pb-5 md:pb-7 pt-24 md:pt-28`}
+          className={`relative z-10 flex min-h-full flex-col justify-end ${VIEWER_SHELL_WIDTH} pb-5 md:pb-7 pt-24 md:pt-28`}
         >
           {hasFeatured ? (
             <div className="mb-5 md:mb-6">
@@ -153,7 +133,7 @@ export function CatalogPageHero({
           ) : (
             <div className="flex flex-wrap items-end justify-between gap-4 mb-5 md:mb-6">
               <div className="min-w-0 max-w-3xl">
-                <p className="text-[11px] font-semibold tracking-[0.22em] uppercase ivod-gradient-text mb-2">
+                <p className="text-caption font-semibold text-brand-magenta mb-2">
                   {section.kicker}
                 </p>
                 <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight drop-shadow-lg">
@@ -184,7 +164,7 @@ export function CatalogPageHero({
 
           {categoryNav ? (
             <nav
-              className={`flex gap-2 overflow-x-auto pb-2 pt-3 -mx-4 px-4 md:-mx-6 md:px-6 scrollbar-none snap-x snap-mandatory ${
+              className={`rail-scroll flex gap-2 pb-2 pt-3 -mx-4 px-4 md:-mx-6 md:px-6 scrollbar-none snap-x snap-proximity ${
                 useShowcaseHeight ? "catalog-hero-nav rounded-t-xl md:rounded-t-2xl" : ""
               }`}
               aria-label="Catégories du catalogue"

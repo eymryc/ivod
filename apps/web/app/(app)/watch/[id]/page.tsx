@@ -35,6 +35,7 @@ import {
   Link,
 } from "@/components/player/WatchChrome";
 import { useAuthStore, isAdmin } from "@/lib/stores/auth.store";
+import { useAuthSession } from "@/lib/hooks/useAuthSession";
 
 const CinemaPlayer = dynamic(
   () => import("@/components/player/VideoPlayer").then((m) => m.CinemaPlayer),
@@ -67,6 +68,7 @@ export default function WatchPage() {
   const episodeId = searchParams.get("ep") ?? undefined;
   const returnTo = searchParams.get("return");
   const user = useAuthStore((s) => s.user);
+  const { isAuthenticated } = useAuthSession();
   const staffReview =
     searchParams.get("review") === "1" && isAdmin(user);
 
@@ -102,9 +104,10 @@ export default function WatchPage() {
     staleTime: 5 * 60_000,
   });
 
-  const { data: currentSub } = useQuery({
+  const { data: currentSub, isFetched: subFetched } = useQuery({
     queryKey: ["subscription-me"],
     queryFn: subscriptionsApi.getActive,
+    enabled: isAuthenticated,
     staleTime: 5 * 60_000,
   });
 
@@ -159,11 +162,11 @@ export default function WatchPage() {
   });
 
   // B1 — Pub AVOD : utiliser /ads/next (pas /ads/preroll qui n'existe pas)
-  const planCode = (currentSub as any)?.plan ?? "FREE";
+  const planCode = (currentSub as { plan?: string } | undefined)?.plan ?? "FREE";
   const { data: adConfig } = useQuery({
     queryKey: ["preroll-ad"],
     queryFn: adsApi.getNext,
-    enabled: planCode === "FREE",
+    enabled: isAuthenticated && subFetched && planCode === "FREE",
     staleTime: 10 * 60_000,
   });
 
@@ -274,8 +277,14 @@ export default function WatchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streamData?.url, parentalBlocked, staffReview]);
 
-  // B2 — Pub AVOD (pas en aperçu studio / brouillon / modération staff)
-  const showAd = !staffReview && planCode === "FREE" && !adDone && !isDraftPreview;
+  // B2 — Pub AVOD (compte gratuit uniquement)
+  const showAd =
+    !staffReview &&
+    isAuthenticated &&
+    subFetched &&
+    planCode === "FREE" &&
+    !adDone &&
+    !isDraftPreview;
 
   const handleAdComplete = useCallback(() => {
     setAdDone(true);
@@ -363,7 +372,7 @@ export default function WatchPage() {
     return () => document.removeEventListener("keydown", handler);
   }, [goBack]);
 
-  if (streamLoading) return <WatchLoading />;
+  if (streamLoading || (isAuthenticated && !subFetched)) return <WatchLoading />;
 
   if (streamError || !streamData?.url) {
     const errMsg = getApiErrorMessage(streamError) ?? "";
@@ -375,7 +384,7 @@ export default function WatchPage() {
       >
         <Link
           href={`/content/${id}`}
-          className="rounded-xl border border-white/[0.1] bg-white/[0.06] px-6 py-3 text-sm text-white transition-colors hover:bg-white/10"
+          className="ivod-btn border border-white/[0.1] bg-white/[0.06] px-6 py-3 text-sm text-white transition-colors hover:bg-white/10"
         >
           Retour à la fiche
         </Link>
@@ -416,13 +425,13 @@ export default function WatchPage() {
       >
         <Link
           href={`/content/${id}`}
-          className="rounded-xl border border-white/[0.1] bg-white/[0.06] px-6 py-3 text-sm text-white transition-colors hover:bg-white/10"
+          className="ivod-btn border border-white/[0.1] bg-white/[0.06] px-6 py-3 text-sm text-white transition-colors hover:bg-white/10"
         >
           Retour à la fiche
         </Link>
         <Link
           href="/settings/parental"
-          className="rounded-xl border border-primary/30 bg-primary/15 px-6 py-3 text-sm text-primary transition-colors hover:bg-primary/25"
+          className="ivod-btn border border-brand-magenta/30 bg-brand-magenta/15 px-6 py-3 text-sm text-brand-magenta transition-colors hover:bg-brand-magenta/25"
         >
           Paramètres parentaux
         </Link>
@@ -441,14 +450,14 @@ export default function WatchPage() {
           type="button"
           onClick={() => terminateAllMutation.mutate()}
           disabled={terminateAllMutation.isPending}
-          className="flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+          className="ivod-btn ivod-btn-primary flex items-center gap-2 px-6 py-3 text-sm font-medium disabled:opacity-50"
         >
           {terminateAllMutation.isPending && <Loader2 size={16} className="animate-spin" />}
           Déconnecter tous les appareils
         </button>
         <Link
           href="/settings/subscription"
-          className="rounded-xl border border-white/[0.1] bg-white/[0.06] px-6 py-3 text-sm text-white transition-colors hover:bg-white/10"
+          className="ivod-btn border border-white/[0.1] bg-white/[0.06] px-6 py-3 text-sm text-white transition-colors hover:bg-white/10"
         >
           Changer de plan
         </Link>
@@ -477,33 +486,37 @@ export default function WatchPage() {
 
         {showAd && <AdOverlay ad={effectiveAd} onComplete={handleAdComplete} />}
 
-        <div className="ivod-cinema-screen">
-          <CinemaPlayer
-            src={streamData.url}
-            format={streamData.format}
-            playbackToken={streamData.playbackToken}
-            durationSec={playbackDurationSec}
-            startPosition={startPosition}
-            subtitleTracks={
-              (streamData as { subtitleTracks?: Array<{ id: string; label: string; language: string; objectKey: string; src?: string }> })
-                ?.subtitleTracks ??
-              content?.subtitleTracks ??
-              []
-            }
-            storyboardSpriteUrl={(streamData as { storyboard?: { spriteUrl?: string } })?.storyboard?.spriteUrl}
-            storyboardVttUrl={(streamData as { storyboard?: { vttUrl?: string } })?.storyboard?.vttUrl}
-            onTimeUpdate={handleTimeUpdate}
-            onQoE={handleQoE}
-            onEnded={handleEnded}
-            onError={() => {}}
-            autoPlay={!showAd}
-            cinemaMode
-            sharpVideo
-            showBrandMark={false}
-            initialQuality={effectiveQuality}
-            onCinemaIdleChange={setCinemaIdle}
-          />
-        </div>
+        {!showAd && (
+          <div className="ivod-cinema-screen absolute inset-0 h-full w-full bg-black">
+            <CinemaPlayer
+              src={streamData.url}
+              format={streamData.format}
+              playbackToken={streamData.playbackToken}
+              durationSec={playbackDurationSec}
+              startPosition={startPosition}
+              subtitleTracks={
+                (streamData as { subtitleTracks?: Array<{ id: string; label: string; language: string; objectKey: string; src?: string }> })
+                  ?.subtitleTracks ??
+                content?.subtitleTracks ??
+                []
+              }
+              storyboardSpriteUrl={(streamData as { storyboard?: { spriteUrl?: string } })?.storyboard?.spriteUrl}
+              storyboardVttUrl={(streamData as { storyboard?: { vttUrl?: string } })?.storyboard?.vttUrl}
+              onTimeUpdate={handleTimeUpdate}
+              onQoE={handleQoE}
+              onEnded={handleEnded}
+              onError={() => {
+                toast.error("Impossible de lire cette vidéo. Vérifiez votre connexion ou réessayez.");
+              }}
+              autoPlay
+              cinemaMode
+              sharpVideo
+              showBrandMark={false}
+              initialQuality={effectiveQuality}
+              onCinemaIdleChange={setCinemaIdle}
+            />
+          </div>
+        )}
 
         {showNextEpisode && nextEpisode && (
           <NextEpisodeCountdown

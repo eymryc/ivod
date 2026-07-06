@@ -43,7 +43,7 @@ export function PricingFaq() {
               onClick={() => setOpen(isOpen ? null : i)}
               className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left text-sm font-medium text-white hover:bg-white/[0.03] transition-colors"
             >
-              <span className={isOpen ? "ivod-gradient-text" : undefined}>{item.q}</span>
+              <span className={isOpen ? "text-brand-magenta" : undefined}>{item.q}</span>
               <ChevronDown
                 size={18}
                 className={`shrink-0 transition-transform duration-200 ${

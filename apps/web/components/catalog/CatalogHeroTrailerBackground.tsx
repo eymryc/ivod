@@ -95,10 +95,10 @@ export function CatalogHeroTrailerBackground({ promoId, posterSrc }: Props) {
         src={posterSrc}
         alt=""
         fill
+        fallbackVariant="none"
         className="catalog-hero-backdrop catalog-hero-backdrop--main catalog-hero-trailer-media"
         priority
         sizes="100vw"
-        fallbackClassName="absolute inset-0"
       />
     ) : (
       <div className="absolute inset-0 catalog-hero-backdrop-fallback" aria-hidden />
@@ -112,12 +112,12 @@ export function CatalogHeroTrailerBackground({ promoId, posterSrc }: Props) {
           src={posterSrc}
           alt=""
           fill
+          fallbackVariant="none"
           className={`catalog-hero-backdrop catalog-hero-backdrop--main catalog-hero-trailer-media transition-opacity duration-700 ${
             videoReady ? "opacity-0" : "opacity-100"
           }`}
           priority
           sizes="100vw"
-          fallbackClassName="absolute inset-0"
         />
       )}
       <video

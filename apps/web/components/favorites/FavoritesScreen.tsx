@@ -68,7 +68,7 @@ function FilterPill({
       type="button"
       onClick={onClick}
       className={`
-        ivod-btn inline-flex items-center gap-2 px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.1em] transition-all
+        ivod-btn inline-flex items-center gap-2 px-4 py-2.5 text-[12px] font-semibold transition-all
         ${active
           ? "ivod-btn-primary border border-transparent shadow-[0_0_24px_rgba(123,0,153,0.25)]"
           : "border border-white/[0.1] bg-white/[0.03] text-white/55 hover:text-white hover:border-white/20 hover:bg-white/[0.06]"
@@ -148,7 +148,7 @@ export function FavoritesScreen() {
         <header className="mb-10 md:mb-12">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] ivod-gradient-text">
+              <p className="mb-3 text-caption font-semibold text-brand-magenta">
                 Collection personnelle
               </p>
               <div className="flex items-start gap-4 sm:gap-5">
@@ -221,7 +221,7 @@ export function FavoritesScreen() {
             </p>
             <Link
               href="/browse"
-              className="ivod-btn ivod-btn-primary mt-8 inline-flex items-center gap-2 px-6 py-3 text-[13px] font-semibold uppercase tracking-[0.08em]"
+              className="ivod-btn ivod-btn-primary mt-8 inline-flex items-center gap-2 px-6 py-3 text-[13px] font-semibold"
             >
               <Compass size={16} />
               Explorer le catalogue
@@ -290,7 +290,7 @@ export function FavoritesScreen() {
                   type="button"
                   onClick={() => fetchNextPage()}
                   disabled={isFetchingNextPage}
-                  className="ivod-btn inline-flex items-center gap-2 border border-white/[0.12] bg-white/[0.04] px-8 py-3.5 text-[13px] font-semibold uppercase tracking-[0.08em] text-white/80 transition-colors hover:border-white/25 hover:bg-white/[0.07] hover:text-white disabled:opacity-50"
+                  className="ivod-btn inline-flex items-center gap-2 border border-white/[0.12] bg-white/[0.04] px-8 py-3.5 text-[13px] font-semibold text-white/80 transition-colors hover:border-white/25 hover:bg-white/[0.07] hover:text-white disabled:opacity-50"
                 >
                   {isFetchingNextPage && <Loader2 size={16} className="animate-spin" />}
                   Charger plus

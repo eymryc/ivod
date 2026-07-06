@@ -1,7 +1,8 @@
-import Image from "next/image";
 import { Pencil, Shield } from "lucide-react";
 import type { Profile } from "@/lib/stores/profile.store";
 import { profileHasPin } from "@/lib/profile-utils";
+import { resolveMediaSrc } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 
 interface ProfileCardProps {
   profile: Profile;
@@ -29,6 +30,8 @@ export function ProfileCard({ profile, isActive, showEdit, onClick, onEdit, size
   const wrapperSize = { sm: "w-[4.75rem] sm:w-[5rem]", md: "w-[6.5rem] sm:w-28", lg: "w-[7rem] sm:w-[8.25rem]" }[size];
   const protectedProfile = profileHasPin(profile);
 
+  const avatarSrc = resolveMediaSrc(profile.avatarUrl);
+
   return (
     <div className={`flex flex-col items-center gap-3 ${wrapperSize}`}>
       <button
@@ -47,8 +50,8 @@ export function ProfileCard({ profile, isActive, showEdit, onClick, onEdit, size
             : `Sélectionner le profil ${profile.name}`
         }
       >
-        {profile.avatarUrl ? (
-          <Image src={profile.avatarUrl} alt={profile.name} fill className="object-cover" sizes="128px" />
+        {avatarSrc ? (
+          <MediaImage src={avatarSrc} alt={profile.name} fill className="object-cover" sizes="128px" />
         ) : (
           <div
             className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br ${getAvatarGradient(profile.name)} font-bold text-white`}
@@ -80,7 +83,7 @@ export function ProfileCard({ profile, isActive, showEdit, onClick, onEdit, size
         )}
         <span
           className={`text-sm font-semibold truncate text-center tracking-wide ${
-            isActive ? "ivod-gradient-text" : "text-white/85"
+            isActive ? "text-brand-magenta" : "text-white/85"
           }`}
         >
           {profile.name}
@@ -100,10 +103,10 @@ export function ProfileCard({ profile, isActive, showEdit, onClick, onEdit, size
         )}
       </div>
       {profile.isDefault && (
-        <span className="text-[10px] uppercase tracking-[0.14em] text-white/35 font-medium">Par défaut</span>
+        <span className="text-caption text-secondary-token font-medium">Par défaut</span>
       )}
       {protectedProfile && (
-        <span className="text-[10px] uppercase tracking-[0.12em] text-brand-gold/70 font-medium">Sécurisé</span>
+        <span className="text-caption text-brand-gold/70 font-medium">Sécurisé</span>
       )}
     </div>
   );

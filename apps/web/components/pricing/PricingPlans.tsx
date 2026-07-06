@@ -133,7 +133,7 @@ export function PricingPlans({
         <p className={`${sectionX} text-center`}>
           <Link
             href="/pricing"
-            className="text-sm ivod-gradient-text font-semibold hover:opacity-90 transition-opacity"
+            className="text-sm text-brand-magenta font-semibold hover:opacity-90 transition-opacity"
           >
             Comparer toutes les offres →
           </Link>
@@ -147,7 +147,7 @@ export function PricingPlans({
               <Tv size={24} className="text-brand-magenta" strokeWidth={1.5} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-brand-orange mb-2">
+              <p className="text-caption font-semibold text-brand-orange mb-2">
                 TVOD · À l&apos;unité
               </p>
               <h3 className="text-xl font-semibold text-white tracking-tight mb-2">
@@ -193,7 +193,7 @@ export function PricingPlans({
       {showFaq && isFull && (
         <section className={sectionX}>
           <div className="text-center mb-8">
-            <p className="text-[11px] font-semibold tracking-[0.2em] uppercase ivod-gradient-text mb-2">
+            <p className="text-caption font-semibold text-brand-magenta mb-2">
               FAQ
             </p>
             <h2 className="text-xl md:text-2xl font-semibold text-white tracking-tight">

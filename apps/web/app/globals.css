@@ -20,8 +20,13 @@
   --color-secondary: #ffb300;
   --color-accent: #7b0099;
   --color-muted: #8b9cb3;
-  --color-muted-foreground: #b4c0d0;
-  --font-sans: var(--font-rajdhani), system-ui, sans-serif;
+  --color-muted-foreground: #c4ceda;
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --text-muted: rgba(255, 255, 255, 0.58);
+  --font-display: var(--font-rajdhani), system-ui, sans-serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-mono: var(--font-rajdhani), ui-monospace, monospace;
   /* font-light → 400 ; font-medium → 600 (Rajdhani 500 retiré, voir layout.tsx) */
   --font-weight-light: 400;
@@ -35,7 +40,7 @@
 
 body {
   color: var(--color-foreground);
-  font-family: var(--font-rajdhani), system-ui, sans-serif;
+  font-family: var(--font-body);
   background-color: #00050d;
   background-image:
     radial-gradient(ellipse 130% 90% at 8% -12%, rgba(18, 32, 52, 0.45), transparent 58%),
@@ -43,6 +48,24 @@ body {
     radial-gradient(ellipse 100% 75% at 50% 110%, rgba(0, 2, 6, 0.95), transparent 48%),
     linear-gradient(168deg, #0d1520 0%, #00050d 50%, #000308 100%);
   background-attachment: fixed;
+}
+
+@media (max-width: 768px) {
+  body,
+  .page-canvas {
+    background-attachment: scroll;
+  }
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 /** Pages catalogue / home */
@@ -56,10 +79,43 @@ body {
   background-attachment: fixed;
 }
 
+/** Mode clair — auth & paramètres (lecture prolongée) */
+.theme-light {
+  --color-background: #f4f6f9;
+  --color-background-deep: #e8ecf2;
+  --color-background-elevated: #ffffff;
+  --color-foreground: #0f1419;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eef1f6;
+  --color-card: #ffffff;
+  --color-border: rgba(15, 20, 25, 0.1);
+  --color-muted-foreground: #5c6773;
+  --text-primary: rgba(15, 20, 25, 0.92);
+  --text-secondary: rgba(15, 20, 25, 0.68);
+  --text-muted: rgba(15, 20, 25, 0.52);
+  color: var(--color-foreground);
+  background-color: var(--color-background);
+  background-image: linear-gradient(168deg, #f8f9fc 0%, #f0f3f8 50%, #e8ecf2 100%);
+}
+
+.theme-light .settings-nav-item {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.theme-light .settings-nav-item--active {
+  background: rgba(230, 0, 126, 0.06);
+}
+
 /* Lisibilité sur fond noir — textes atténués plus clairs */
 @layer base {
   .text-muted-foreground {
     color: var(--color-muted-foreground);
+  }
+
+  h1, h2, h3, h4, h5, h6,
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 600;
   }
 
   p,
@@ -105,8 +161,93 @@ body {
     display: none;
   }
 
+  /** Rails horizontaux — scroll latéral uniquement, sans débordement vertical ni scroll de page */
+  .rail-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+  }
+
   .mobile-more-enter {
     animation: mobile-more-enter 0.22s ease-out both;
+  }
+
+  .font-body {
+    font-family: var(--font-body);
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .text-body-lg {
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .text-body {
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .text-caption {
+    font-size: 11px;
+    line-height: 1.45;
+    letter-spacing: 0.04em;
+  }
+
+  .text-primary-token {
+    color: var(--text-primary);
+  }
+
+  .text-secondary-token {
+    color: var(--text-secondary);
+  }
+
+  .text-muted-token {
+    color: var(--text-muted);
+  }
+
+  .prose-readable {
+    max-width: 65ch;
+    line-height: 1.65;
+    text-align: justify;
+    hyphens: auto;
+  }
+
+  .ivod-page-enter {
+    animation: ivod-page-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .content-detail-tab-panel {
+    animation: ivod-tab-panel 0.22s ease-out both;
+  }
+
+  .ivod-shimmer {
+    position: relative;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .ivod-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(230, 0, 126, 0.08) 35%,
+      rgba(255, 179, 0, 0.12) 50%,
+      rgba(230, 0, 126, 0.08) 65%,
+      transparent 100%
+    );
+    animation: ivod-shimmer-slide 1.8s ease-in-out infinite;
+  }
+
+  .ivod-nav-link--active {
+    background: rgba(255, 255, 255, 0.06);
   }
 }
 
@@ -118,6 +259,63 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/*
+ * Transform volontairement absent ici (contrairement à mobile-more-enter par ex.) :
+ * `.ivod-page-enter` enveloppe TOUTES les pages depuis app/layout.tsx (<PageTransition>),
+ * y compris /watch/[id] dont WatchBackdrop est `position: fixed; inset: 0`. Avec
+ * `animation-fill-mode: both`, l'état `to` reste appliqué indéfiniment après la fin de
+ * l'animation — et `transform: translateY(0)`, même visuellement neutre, n'est PAS le
+ * mot-clé `none` : il fait de cet ancêtre un containing block permanent pour tout
+ * descendant `position: fixed`/`absolute`. WatchBackdrop se retrouvait alors positionné
+ * par rapport à ce wrapper (hauteur 0, puisque son seul enfant est lui-même hors-flux)
+ * au lieu du viewport → lecteur invisible, alors que la vidéo continuait de jouer (le
+ * son n'a besoin d'aucune taille visible). Trouvé le 2026-07-05. Ne pas réintroduire de
+ * transform ici sans un mécanisme qui le remette explicitement à `none` après coup.
+ */
+@keyframes ivod-page-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ivod-tab-panel {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ivod-page-enter,
+  .content-detail-tab-panel {
+    animation: none;
+  }
+}
+
+@keyframes ivod-shimmer-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes auth-logo-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 12px rgba(230, 0, 126, 0.15));
+  }
+  50% {
+    filter: drop-shadow(0 0 28px rgba(230, 0, 126, 0.35));
   }
 }
 
@@ -143,11 +341,7 @@ body {
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* ContentCard — grain & animations premium */
-.content-card-grain {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
+/* ContentCard — animations premium */
 .content-card-progress-shine {
   background: linear-gradient(
     90deg,
@@ -223,6 +417,35 @@ body {
 
 .ivod-btn-primary:hover {
   filter: brightness(1.1);
+}
+
+.ivod-btn-secondary {
+  border-radius: 0 !important;
+  background: var(--color-brand-magenta);
+  color: #fff;
+  transition: filter 0.2s ease, background 0.2s ease;
+}
+
+.ivod-btn-secondary:hover {
+  filter: brightness(1.12);
+  background: var(--color-primary-hover);
+}
+
+.ivod-btn-ghost {
+  border-radius: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.88);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.ivod-btn-ghost:hover {
+  border-color: rgba(230, 0, 126, 0.45);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.auth-logo-pulse {
+  animation: auth-logo-pulse 3s ease-in-out infinite;
 }
 
 .ivod-line-accent {
@@ -402,7 +625,7 @@ select.ivod-native-select {
       0 0 0 1px rgba(230, 0, 126, 0.22),
       0 0 28px -8px rgba(123, 0, 153, 0.45),
       0 20px 40px -18px rgba(0, 0, 0, 0.75);
-    transform: translateZ(0) translateY(-3px);
+    transform: translateZ(0);
   }
 
   .group\/card:hover .content-card-shell::before {
@@ -421,9 +644,14 @@ select.ivod-native-select {
 }
 
 .content-card-media-zoom {
-  will-change: transform;
   backface-visibility: hidden;
   transition: transform 0.55s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+@media (hover: hover) {
+  .content-card-media-zoom {
+    will-change: transform;
+  }
 }
 
 .content-card-play-orb {
@@ -515,9 +743,9 @@ select.ivod-native-select {
 }
 
 .catalog-hero-backdrop--ambient {
-  filter: blur(52px) saturate(1.25) brightness(0.55);
-  transform: scale(1.35);
-  opacity: 0.7;
+  filter: saturate(1.15) brightness(0.65);
+  transform: scale(1.08);
+  opacity: 0.55;
   object-position: center 28%;
 }
 
@@ -594,17 +822,17 @@ select.ivod-native-select {
 
 .catalog-hero-poster-glow {
   position: absolute;
-  inset: -12% -8%;
+  inset: -8% -6%;
   z-index: 0;
   border-radius: 1rem;
   background: radial-gradient(
     ellipse 70% 80% at 50% 40%,
-    rgba(230, 0, 126, 0.35) 0%,
-    rgba(123, 0, 153, 0.2) 40%,
+    rgba(230, 0, 126, 0.22) 0%,
+    rgba(123, 0, 153, 0.12) 40%,
     transparent 72%
   );
-  filter: blur(20px);
-  opacity: 0.9;
+  filter: blur(12px);
+  opacity: 0.75;
 }
 
 .catalog-hero-poster {
@@ -666,16 +894,7 @@ select.ivod-native-select {
 }
 
 .catalog-hero-editorial-label {
-  letter-spacing: 0.28em;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 179, 0, 0.95) 0%,
-    rgba(230, 0, 126, 0.9) 55%,
-    rgba(255, 140, 0, 0.85) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  letter-spacing: 0.02em;
 }
 
 .catalog-hero-poster::after {
@@ -1712,14 +1931,9 @@ select.ivod-native-select {
 
 .ivod-brand-loader-screen {
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(123, 0, 153, 0.18), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(230, 0, 126, 0.08), transparent 50%),
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(123, 0, 153, 0.14), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(230, 0, 126, 0.06), transparent 50%),
     var(--color-background, #050508);
-}
-
-.ivod-brand-loader__grain {
-  opacity: 0.045;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 .ivod-brand-loader__blob {
@@ -1849,6 +2063,84 @@ select.ivod-native-select {
   .ivod-brand-loader__track-fill {
     animation: none;
   }
+}
+
+/* ── Perf viewer : animations légères, mobile allégé ── */
+.rail-card-enter {
+  animation: rail-card-enter 0.32s ease-out both;
+}
+
+@keyframes rail-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-card-enter,
+  .ivod-page-enter,
+  .content-detail-tab-panel {
+    animation: none !important;
+  }
+
+  .content-card-progress-shine {
+    animation: none !important;
+  }
+
+  .catalog-hero-backdrop-stage--showcase {
+    animation: none !important;
+  }
+
+  .home-content-ambient {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .nav-header-elevated,
+  .nav-bar-glass {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(0, 5, 13, 0.94);
+  }
+
+  .catalog-hero-backdrop-stage--showcase {
+    animation: none;
+  }
+
+  .home-content-ambient {
+    display: none;
+  }
+
+  .ivod-page-enter {
+    animation-duration: 0.15s;
+  }
+}
+
+/* Viewer VOD — coins rectangulaires (charte streaming) */
+.ivod-app :where(
+    .rounded-sm,
+    .rounded-md,
+    .rounded-lg,
+    .rounded-xl,
+    .rounded-2xl,
+    .rounded-3xl,
+    .rounded-full,
+    [class*="rounded-t-"],
+    [class*="rounded-b-"],
+    [class*="rounded-l-"],
+    [class*="rounded-r-"]
+  ) {
+  border-radius: 0 !important;
+}
+
+.ivod-app .rounded {
+  border-radius: 0 !important;
 }
 
 /* Admin & Studio — coins rectangulaires (charte iVOD) */

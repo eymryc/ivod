@@ -32,6 +32,16 @@ const PCT_ORDER: Record<string, number> = {
   ERROR: -1,
 };
 
+/** Formate une durée en secondes en texte court ("47 min", "1h20"). */
+function formatEta(etaSeconds: number): string {
+  const minutes = Math.round(etaSeconds / 60);
+  if (minutes < 1) return "moins d'une minute";
+  if (minutes < 60) return `~${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `~${h}h${m > 0 ? m.toString().padStart(2, "0") : ""}`;
+}
+
 interface UploadProgressProps {
   status: PipelineStatus;
   uploadProgress?: number;
@@ -44,6 +54,17 @@ interface UploadProgressProps {
   episodeLabel?: string;
   onRetry?: () => void;
   retryPending?: boolean;
+  /** Débit mesuré + temps restant estimé, une fois qu'un envoi lent est détecté. */
+  slowUploadInfo?: { throughputMbps: number; etaSeconds: number } | null;
+  /** Nombre de connexions parallèles actives / max, si réduit par la concurrence adaptative. */
+  concurrencyInfo?: { current: number; max: number } | null;
+  /**
+   * Une rendition (aperçu) est publiée et regardable — reste vrai même une
+   * fois la qualité complète repassée en cours d'encodage (le statut brut
+   * `status` redevient TRANSCODING à ce moment-là, ce qui masquait à tort
+   * cette info avant le 2026-07-03).
+   */
+  previewAvailable?: boolean;
 }
 
 export function UploadProgress({
@@ -56,12 +77,16 @@ export function UploadProgress({
   episodeLabel,
   onRetry,
   retryPending = false,
+  slowUploadInfo,
+  concurrencyInfo,
+  previewAvailable = false,
 }: UploadProgressProps) {
   const compact = variant === "compact";
   const isError = status === "ERROR";
   const isDone = status === "READY";
   const isPreview = status === "READY_PREVIEW";
   const isUploading = status === "UPLOADING";
+  const showPersistentPreviewNotice = previewAvailable && !isDone && !isError && !isUploading && !isPreview;
   const currentPct = isUploading
     ? Math.round(uploadProgress * 0.3)
     : (PCT_ORDER[status] ?? 0);
@@ -138,6 +163,18 @@ export function UploadProgress({
               Transfert {uploadProgress}%
             </p>
           )}
+          {isUploading && slowUploadInfo && (
+            <p className="text-[11.5px] text-amber-400/80 font-light mt-1.5 tabular-nums">
+              Débit mesuré : {slowUploadInfo.throughputMbps} Mbps — temps restant estimé :{" "}
+              {formatEta(slowUploadInfo.etaSeconds)}
+            </p>
+          )}
+          {isUploading && concurrencyInfo && concurrencyInfo.current < concurrencyInfo.max && (
+            <p className="text-[11px] text-readable-muted font-light mt-1 tabular-nums">
+              Connexions parallèles réduites automatiquement : {concurrencyInfo.current}/
+              {concurrencyInfo.max} (réseau chargé)
+            </p>
+          )}
           {isPreview && (
             <p className="text-[12px] text-readable-dim font-light mt-1">
               Lecture possible — les autres qualités sont encore en cours d&apos;encodage
@@ -146,6 +183,12 @@ export function UploadProgress({
           {!isUploading && !isDone && !isPreview && !isError && (
             <p className="text-[12px] text-readable-dim font-light mt-1">
               Encodage multi-qualités en cours sur nos serveurs
+            </p>
+          )}
+          {showPersistentPreviewNotice && (
+            <p className="text-[12px] text-emerald-400/90 font-light mt-1.5 flex items-center gap-1.5">
+              <Play size={11} className="shrink-0" />
+              Vous pouvez déjà regarder cette vidéo — la qualité complète finit en tâche de fond
             </p>
           )}
           {errorMessage && (

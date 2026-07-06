@@ -63,7 +63,7 @@ export function ProfilesShell({
         </Link>
 
         <header className="text-center mb-10 md:mb-14 max-w-lg">
-          <p className="text-[11px] font-semibold tracking-[0.22em] uppercase ivod-gradient-text mb-2">
+          <p className="text-caption font-semibold text-brand-magenta mb-2">
             Profils iVOD
           </p>
           <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">{title}</h1>

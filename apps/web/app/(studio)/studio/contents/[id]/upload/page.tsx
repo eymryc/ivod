@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { showApiError } from "@/lib/api/feedback";
-import axios from "axios";
+import { uploadFileMultipart, type SlowUploadInfo } from "@/lib/studio/multipart-upload";
+import { peekResumableSession } from "@/lib/studio/upload-resume";
+import { toast } from "@/lib/toast";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -61,7 +63,20 @@ export default function UploadPage() {
   const [assetId, setAssetId] = useState<string | null>(null);
   const [retryPending, setRetryPending] = useState(false);
   const [backendFailed, setBackendFailed] = useState(false);
+  const [resumableHint, setResumableHint] = useState<{ fileName: string; percent: number } | null>(
+    null,
+  );
+  const [slowUploadInfo, setSlowUploadInfo] = useState<SlowUploadInfo | null>(null);
+  const [concurrencyInfo, setConcurrencyInfo] = useState<{ current: number; max: number } | null>(
+    null,
+  );
+  const [previewAvailable, setPreviewAvailable] = useState(false);
+  const retryNoticeShown = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    setResumableHint(peekResumableSession(`content:${id}`));
+  }, [id]);
 
   const applyPipelineStatus = (s: Awaited<ReturnType<typeof videosApi.getStatus>>) => {
     const mapped = API_TO_PIPELINE[s.status] ?? "IDLE";
@@ -70,6 +85,7 @@ export default function UploadPage() {
     setCompletedProfiles(s.pipeline?.completedProfiles ?? []);
     setRemainingProfiles(s.pipeline?.remainingProfiles ?? []);
     setPipelineError(s.errorMessage ?? null);
+    setPreviewAvailable(Boolean(s.previewAvailable));
     if (s.assetId) setAssetId(s.assetId);
     return mapped;
   };
@@ -152,17 +168,48 @@ export default function UploadPage() {
     setPipelineStatus("UPLOADING");
     setUploadProgress(0);
     setBackendFailed(false);
+    setSlowUploadInfo(null);
+    setConcurrencyInfo(null);
+    setPreviewAvailable(false);
+    retryNoticeShown.current = false;
 
     try {
-      const { uploadUrl, assetId: newAssetId } = await videosApi.getUploadUrl(id, file.type);
-      setAssetId(newAssetId);
-      await axios.put(uploadUrl, file, {
-        headers: { "Content-Type": file.type },
-        onUploadProgress: (e) => {
-          if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+      const newAssetId = await uploadFileMultipart(
+        file,
+        `content:${id}`,
+        {
+          initMultipart: async (mimeType, fileSizeBytes) => {
+            const res = await videosApi.initMultipart(id, mimeType, fileSizeBytes);
+            setAssetId(res.assetId);
+            return res;
+          },
+          getPartUrl: (assetId, uploadId, partNumber) =>
+            videosApi.getMultipartPartUrl(assetId, uploadId, partNumber),
+          completeMultipart: (assetId, uploadId, parts) =>
+            videosApi.completeMultipart(assetId, uploadId, parts).then(() => undefined),
         },
-      });
-      await videosApi.markComplete(newAssetId);
+        {
+          onProgress: setUploadProgress,
+          onSlowUploadDetected: (info) => {
+            setSlowUploadInfo(info);
+            toast.warning(
+              `Débit mesuré : ${info.throughputMbps} Mbps. Temps restant estimé à ce rythme.`,
+              { title: "Envoi lent détecté" },
+            );
+          },
+          onUploadStatsUpdate: setSlowUploadInfo,
+          onConcurrencyChange: (current, max) => setConcurrencyInfo({ current, max }),
+          onPartRetry: () => {
+            if (retryNoticeShown.current) return;
+            retryNoticeShown.current = true;
+            toast.info(
+              "Une coupure a été détectée sur une partie de l'envoi — nouvelle tentative automatique, l'upload continue.",
+              { title: "Reprise automatique" },
+            );
+          },
+        },
+      );
+      setAssetId(newAssetId);
       setPipelineStatus("UPLOADED");
       startPolling();
     } catch (err: unknown) {
@@ -246,6 +293,15 @@ export default function UploadPage() {
         )}
       </div>
 
+      {isIdle && resumableHint && (
+        <div className="mb-4 px-4 py-3 rounded-none border border-primary/25 bg-primary/[0.06] text-[12.5px] text-white/70 leading-relaxed">
+          Un envoi interrompu a été détecté pour ce contenu —{" "}
+          <strong className="text-white">{resumableHint.fileName}</strong> ({resumableHint.percent}%
+          déjà envoyé). Sélectionnez à nouveau le même fichier pour reprendre là où ça s&apos;est
+          arrêté, sans tout retransmettre.
+        </div>
+      )}
+
       {isIdle && (
         <StudioPanel title="Fichier vidéo">
           <UploadZone onFile={handleFile} disabled={uploading} />
@@ -259,6 +315,9 @@ export default function UploadPage() {
             uploadProgress={uploadProgress}
             completedProfiles={completedProfiles}
             remainingProfiles={remainingProfiles}
+            slowUploadInfo={slowUploadInfo}
+            concurrencyInfo={concurrencyInfo}
+            previewAvailable={previewAvailable}
           />
           <div className="flex flex-wrap gap-2 justify-center text-[12px]">
             <Link
@@ -345,8 +404,9 @@ export default function UploadPage() {
 
       {isIdle && (
         <p className="mt-6 text-[11px] text-white/25 font-light text-center leading-relaxed">
-          L&apos;upload est direct vers le stockage. Ne fermez pas l&apos;onglet pendant
-          l&apos;envoi.
+          L&apos;upload est direct vers le stockage. En cas de coupure ou de fermeture accidentelle
+          de l&apos;onglet, reproposez le même fichier : l&apos;envoi reprend là où il s&apos;est
+          arrêté.
         </p>
       )}
     </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -27,6 +26,7 @@ import {
 } from "@/components/studio/StudioShell";
 import { formatCount } from "@/lib/utils/format";
 import { assetUrl } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 import {
   type CreatorAnalytics,
   formatChartDate,
@@ -62,7 +62,7 @@ function TopContentRow({
         </span>
         <div className="relative w-10 h-[60px] shrink-0 rounded-none overflow-hidden ring-1 ring-white/[0.08] bg-white/[0.02]">
           {poster ? (
-            <Image src={poster} alt="" fill className="object-cover" sizes="40px" />
+            <MediaImage src={poster} alt="" fill className="object-cover" sizes="40px" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-white/15">
               <Clapperboard size={14} strokeWidth={1.25} />

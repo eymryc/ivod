@@ -233,7 +233,7 @@ export function DownloadsScreen() {
 
       <div className={`relative ${PAGE_X} py-10 md:py-14 pb-20`}>
         <header className="mb-8 md:mb-10">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] ivod-gradient-text">
+          <p className="mb-3 text-caption font-semibold text-brand-magenta">
             Lecture hors ligne
           </p>
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -259,7 +259,7 @@ export function DownloadsScreen() {
           <div className="mt-6 ivod-line-accent w-16" />
 
           <div className="mt-6 max-w-xl">
-            <div className="mb-2 flex justify-between text-[11px] uppercase tracking-wider text-white/40">
+            <div className="mb-2 flex justify-between text-caption text-secondary-token">
               <span>Espace utilisé</span>
               <span className={quotaPct >= 100 ? "text-red-400" : "text-white/55"}>
                 {active.length} / {maxDownloads}
@@ -285,7 +285,7 @@ export function DownloadsScreen() {
             </p>
             <Link
               href="/films"
-              className="ivod-btn ivod-btn-primary mt-8 inline-flex items-center gap-2 px-6 py-3 text-[13px] font-semibold uppercase tracking-[0.08em]"
+              className="ivod-btn ivod-btn-primary mt-8 inline-flex items-center gap-2 px-6 py-3 text-[13px] font-semibold"
             >
               Explorer le catalogue
             </Link>
@@ -294,7 +294,7 @@ export function DownloadsScreen() {
           <>
             {active.length > 0 && (
               <section>
-                <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                <h2 className="mb-4 text-caption font-semibold text-secondary-token">
                   Disponibles ({active.length})
                 </h2>
                 <DownloadListSection
@@ -309,7 +309,7 @@ export function DownloadsScreen() {
 
             {expired.length > 0 && (
               <section className="mt-10">
-                <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                <h2 className="mb-4 text-caption font-semibold text-secondary-token">
                   Expirés ({expired.length})
                 </h2>
                 <DownloadListSection

@@ -13,6 +13,7 @@ import { episodeThumbnailUrl } from "@/lib/utils/assets";
 import { formatDuration } from "@/lib/utils/format";
 import { MediaImage } from "@/components/ui/MediaImage";
 import { ScrollRow, ScrollRowArrows, useHorizontalScroll } from "@/components/home/ScrollRow";
+import { RAIL_SCROLL_CLASS } from "@/components/public/PublicShell";
 import { IvodSelect } from "@/components/ui/IvodField";
 import { formatEpisodeDisplayTitle } from "@/lib/utils/episode-display";
 
@@ -51,8 +52,7 @@ interface SeasonEpisodeListProps {
 const EPISODE_CARD_WIDTH =
   "w-[16.5rem] sm:w-[18rem] md:w-[19.5rem] shrink-0 snap-start";
 
-const EPISODE_ROW_SCROLL =
-  "flex gap-4 md:gap-5 overflow-x-auto overflow-y-visible py-2 pb-3 scrollbar-none snap-x snap-mandatory";
+const EPISODE_ROW_SCROLL = RAIL_SCROLL_CLASS;
 
 const EPISODE_CARD_BASE = [
   "episode-card-rect group/ep relative flex flex-col overflow-hidden",
@@ -130,10 +130,6 @@ function EpisodeCard({
           </div>
         )}
 
-        <div
-          className="content-card-grain pointer-events-none absolute inset-0 z-[1] opacity-[0.05]"
-          aria-hidden
-        />
         <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-t from-[#00050d] via-[#00050d]/25 to-transparent" />
         <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-r from-[#00050d]/50 via-transparent to-transparent" />
 

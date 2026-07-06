@@ -74,7 +74,7 @@ export default function RefundsPage() {
 
         {paymentList.length > 0 && (
           <>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/35 mb-3">
+            <p className="text-caption font-semibold text-secondary-token mb-3">
               Paiements éligibles
             </p>
             <SettingsList>

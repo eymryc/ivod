@@ -6,7 +6,9 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/lib/toast";
 import { showApiError, showApiSuccess } from "@/lib/api/feedback";
-import axios from "axios";
+import { uploadEpisodeVideoFile } from "@/lib/studio/episode-video";
+import type { SlowUploadInfo } from "@/lib/studio/multipart-upload";
+import { peekResumableSession } from "@/lib/studio/upload-resume";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -52,7 +54,20 @@ export default function EpisodeUploadPage() {
   const [completedProfiles, setCompletedProfiles] = useState<string[]>([]);
   const [remainingProfiles, setRemainingProfiles] = useState<string[]>([]);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const [resumableHint, setResumableHint] = useState<{ fileName: string; percent: number } | null>(
+    null,
+  );
+  const [slowUploadInfo, setSlowUploadInfo] = useState<SlowUploadInfo | null>(null);
+  const [concurrencyInfo, setConcurrencyInfo] = useState<{ current: number; max: number } | null>(
+    null,
+  );
+  const [previewAvailable, setPreviewAvailable] = useState(false);
+  const retryNoticeShown = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    setResumableHint(peekResumableSession(`episode:${epId}`));
+  }, [epId]);
 
   const applyPipelineStatus = (s: Awaited<ReturnType<typeof videosApi.getEpisodeStatus>>) => {
     const mapped = API_TO_PIPELINE[s.status] ?? "IDLE";
@@ -60,6 +75,7 @@ export default function EpisodeUploadPage() {
     setCompletedProfiles(s.pipeline?.completedProfiles ?? []);
     setRemainingProfiles(s.pipeline?.remainingProfiles ?? []);
     setPipelineError(s.errorMessage ?? null);
+    setPreviewAvailable(Boolean(s.previewAvailable));
     return mapped;
   };
 
@@ -126,20 +142,35 @@ export default function EpisodeUploadPage() {
     setUploading(true);
     setPipelineStatus("UPLOADING");
     setUploadProgress(0);
+    setSlowUploadInfo(null);
+    setConcurrencyInfo(null);
+    setPreviewAvailable(false);
+    retryNoticeShown.current = false;
     try {
-      const { uploadUrl, assetId } = await videosApi.getEpisodeUploadUrl(epId);
-      await axios.put(uploadUrl, file, {
-        headers: { "Content-Type": file.type },
-        onUploadProgress: (e) => {
-          if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+      await uploadEpisodeVideoFile(epId, file, {
+        onProgress: setUploadProgress,
+        onSlowUploadDetected: (info) => {
+          setSlowUploadInfo(info);
+          toast.warning(
+            `Débit mesuré : ${info.throughputMbps} Mbps. Temps restant estimé à ce rythme.`,
+            { title: "Envoi lent détecté" },
+          );
+        },
+        onUploadStatsUpdate: setSlowUploadInfo,
+        onConcurrencyChange: (current, max) => setConcurrencyInfo({ current, max }),
+        onPartRetry: () => {
+          if (retryNoticeShown.current) return;
+          retryNoticeShown.current = true;
+          toast.info(
+            "Une coupure a été détectée sur une partie de l'envoi — nouvelle tentative automatique, l'upload continue.",
+            { title: "Reprise automatique" },
+          );
         },
       });
-      await videosApi.markComplete(assetId);
       setPipelineStatus("UPLOADED");
       startPolling();
     } catch (err: unknown) {
       setPipelineStatus("ERROR");
-      const message = err instanceof Error ? err.message : "Erreur lors de l'upload";
       showApiError(err);
     } finally {
       setUploading(false);
@@ -196,6 +227,15 @@ export default function EpisodeUploadPage() {
         ))}
       </div>
 
+      {isIdle && resumableHint && (
+        <div className="mb-4 px-4 py-3 rounded-none border border-primary/25 bg-primary/[0.06] text-[12.5px] text-white/70 leading-relaxed">
+          Un envoi interrompu a été détecté pour cet épisode —{" "}
+          <strong className="text-white">{resumableHint.fileName}</strong> ({resumableHint.percent}%
+          déjà envoyé). Sélectionnez à nouveau le même fichier pour reprendre là où ça s&apos;est
+          arrêté, sans tout retransmettre.
+        </div>
+      )}
+
       {isIdle && (
         <StudioPanel title="Vidéo de l'épisode">
           <UploadZone onFile={handleFile} disabled={uploading} />
@@ -208,6 +248,9 @@ export default function EpisodeUploadPage() {
           uploadProgress={uploadProgress}
           completedProfiles={completedProfiles}
           remainingProfiles={remainingProfiles}
+          slowUploadInfo={slowUploadInfo}
+          concurrencyInfo={concurrencyInfo}
+          previewAvailable={previewAvailable}
         />
       )}
 

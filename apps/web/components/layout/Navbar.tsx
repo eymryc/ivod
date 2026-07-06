@@ -13,7 +13,6 @@ import {
   Sparkles,
   Crown,
   X,
-  Menu,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth.store";
@@ -69,14 +68,12 @@ function NavLinkItem({
     <Link
       href={href}
       className={`
-        group relative px-4 py-2.5 transition-colors duration-200
+        group relative px-4 py-2.5 rounded-none transition-colors duration-200
         ${compact ? "text-xs" : "text-[13px]"}
-        ${active ? "text-white font-semibold" : "text-white/60 font-medium hover:text-white/90"}
+        ${active ? "ivod-nav-link--active text-white font-semibold" : "text-white/60 font-medium hover:text-white/90"}
       `}
     >
-      <span className="flex items-center gap-2 uppercase tracking-[0.12em]">
-        {label}
-      </span>
+      <span className="flex items-center gap-2 tracking-normal">{label}</span>
       <span
         className={`
           absolute bottom-0 left-4 right-4 h-[2px] ivod-gradient origin-center transition-transform duration-300
@@ -111,7 +108,6 @@ export function Navbar({ serverHasSession = false }: NavbarProps) {
     [isAuthenticated, storeUser, authHydrated, serverHasSession],
   );
   const [menuOpen, setMenuOpen] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -147,11 +143,11 @@ export function Navbar({ serverHasSession = false }: NavbarProps) {
   }, []);
 
   useEffect(() => {
-    document.body.style.overflow = searchOpen || mobileNavOpen ? "hidden" : "";
+    document.body.style.overflow = searchOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [searchOpen, mobileNavOpen]);
+  }, [searchOpen]);
 
   const navElevated = !isHome || scrolled || searchOpen;
 
@@ -223,20 +219,6 @@ export function Navbar({ serverHasSession = false }: NavbarProps) {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 ml-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setMobileNavOpen((v) => !v);
-                setSearchOpen(false);
-              }}
-              className={`ivod-btn lg:hidden flex h-10 w-10 shrink-0 items-center justify-center border border-white/[0.12] bg-white/[0.04] text-white/70 hover:text-white hover:bg-white/[0.08] transition-colors ${
-                mobileNavOpen ? "bg-white/10 text-white border-white/20" : ""
-              }`}
-              aria-label={mobileNavOpen ? "Fermer le menu" : "Ouvrir le menu"}
-              aria-expanded={mobileNavOpen}
-            >
-              {mobileNavOpen ? <X size={20} /> : <Menu size={20} strokeWidth={1.75} />}
-            </button>
             {isAuthenticated ? (
               <div
                 className={`
@@ -396,13 +378,13 @@ export function Navbar({ serverHasSession = false }: NavbarProps) {
               <div className="flex items-center gap-2 sm:gap-3">
                 <Link
                   href="/auth/login"
-                  className="ivod-btn hidden sm:inline-flex items-center px-5 py-2.5 text-[13px] font-semibold uppercase tracking-[0.08em] border border-white/[0.18] bg-white/[0.06] text-white hover:border-brand-magenta/45 hover:bg-white/[0.1] transition-colors"
+                  className="ivod-btn inline-flex items-center px-3 py-2 text-xs font-semibold sm:px-5 sm:py-2.5 sm:text-[13px] border border-white/[0.18] bg-white/[0.06] text-white hover:border-brand-magenta/45 hover:bg-white/[0.1] transition-colors"
                 >
                   Connexion
                 </Link>
                 <Link
                   href="/auth/register"
-                  className="ivod-btn ivod-btn-primary inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold uppercase tracking-[0.08em]"
+                  className="ivod-btn ivod-btn-primary inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold sm:px-5 sm:py-2.5 sm:text-[13px]"
                 >
                   S&apos;inscrire
                 </Link>
@@ -412,39 +394,6 @@ export function Navbar({ serverHasSession = false }: NavbarProps) {
           </div>
         </div>
       </nav>
-
-      {/* Menu catalogue — tablette / mobile */}
-      {mobileNavOpen && (
-        <div className="lg:hidden nav-bar-glass border-b border-white/[0.06]">
-          <nav className={`flex flex-col gap-1 ${NAV_BAR_WIDTH} py-4`} aria-label="Catalogue">
-            {viewerNavLinks.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileNavOpen(false)}
-                className={`ivod-btn px-4 py-3 text-sm font-semibold uppercase tracking-[0.1em] transition-colors ${
-                  activeNav === item.matchType
-                    ? "text-white bg-white/[0.08] border border-brand-magenta/30"
-                    : "text-white/65 hover:text-white hover:bg-white/[0.05] border border-transparent"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-            <Link
-              href="/animation"
-              onClick={() => setMobileNavOpen(false)}
-              className={`ivod-btn px-4 py-3 text-sm font-medium uppercase tracking-[0.1em] transition-colors ${
-                activeNav === "ANIMATION"
-                  ? "text-white bg-white/[0.08] border border-brand-magenta/30"
-                  : "text-white/55 hover:text-white hover:bg-white/[0.05] border border-transparent"
-              }`}
-            >
-              Animation
-            </Link>
-          </nav>
-        </div>
-      )}
 
       {/* Recherche plein bandeau */}
       {searchOpen && (

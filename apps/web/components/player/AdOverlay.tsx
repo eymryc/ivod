@@ -204,7 +204,7 @@ function BrandedAd({
             />
           </div>
 
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-magenta mb-2">
+          <p className="text-caption font-semibold text-brand-magenta mb-2">
             Avant la lecture
           </p>
           <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl mb-3">
@@ -212,7 +212,7 @@ function BrandedAd({
           </h2>
           <p className="max-w-sm text-sm leading-relaxed text-white/72">
             {message ??
-              "Ce programme est proposé gratuitement grâce à la publicité. Passez à un abonnement pour regarder sans interruption."}
+              "La vidéo démarrera juste après ce message. Ce programme est gratuit grâce à la publicité."}
           </p>
 
           {skipAfter > 0 && (

@@ -11,6 +11,8 @@ export interface VideoUploadStatusResponse {
   assetId?: string | null;
   assetStatus?: string;
   playable?: boolean;
+  /** Une rendition (aperçu 720p) est déjà publiée, même si le statut est repassé à TRANSCODING pour la qualité complète. */
+  previewAvailable?: boolean;
   progress?: VideoPipelineStatus;
   durationSec?: number | null;
   posterObjectKey?: string | null;
@@ -22,12 +24,51 @@ export interface VideoUploadStatusResponse {
   };
 }
 
+export interface MultipartInitResponse {
+  assetId: string;
+  uploadId: string;
+  objectKey: string;
+  bucket: string;
+  contentId: string;
+  partSizeBytes: number;
+  expiresAt: string;
+}
+
+export interface MultipartPartUrlResponse {
+  uploadUrl: string;
+  partNumber: number;
+  uploadId: string;
+  expiresAt: string;
+}
+
 export const videosApi = {
   getUploadUrl: (contentId: string, mimeType?: string) =>
     post<{ uploadUrl: string; assetId: string; objectKey: string; bucket: string }>(
       "/videos/upload-url",
       { contentId, mimeType },
     ),
+  initMultipart: (contentId: string, mimeType?: string, fileSizeBytes?: number) =>
+    post<MultipartInitResponse>("/videos/multipart/init", { contentId, mimeType, fileSizeBytes }),
+  getMultipartPartUrl: (assetId: string, uploadId: string, partNumber: number) =>
+    post<MultipartPartUrlResponse>(`/videos/assets/${assetId}/multipart/part-url`, {
+      uploadId,
+      partNumber,
+    }),
+  completeMultipart: (
+    assetId: string,
+    uploadId: string,
+    parts: Array<{ partNumber: number; etag: string }>,
+  ) =>
+    patch<{ assetId: string }>(`/videos/assets/${assetId}/multipart/complete`, {
+      uploadId,
+      parts,
+    }),
+  initEpisodeMultipart: (episodeId: string, mimeType?: string, fileSizeBytes?: number) =>
+    post<MultipartInitResponse>("/videos/episodes/multipart/init", {
+      episodeId,
+      mimeType,
+      fileSizeBytes,
+    }),
   getEpisodeUploadUrl: (episodeId: string, mimeType?: string) =>
     post<{ uploadUrl: string; assetId: string; objectKey: string }>(
       "/videos/episodes/upload-url",

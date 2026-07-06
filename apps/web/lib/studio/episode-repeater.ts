@@ -73,7 +73,7 @@ export async function submitEpisodeDraftRow(
     title: row.title.trim(),
   });
   const episodeId = (created as { id: string }).id;
-  await uploadEpisodeVideoFile(episodeId, row.file, onProgress);
+  await uploadEpisodeVideoFile(episodeId, row.file, { onProgress });
 }
 
 export async function submitEpisodeDraftRows(

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Crown } from "lucide-react";
+import { Check, Crown, X } from "lucide-react";
 import { PricingPlans } from "@/components/pricing/PricingPlans";
+import { TrustPaymentBar } from "@/components/design/TrustPaymentBar";
 import { PublicPageHeader, PAGE_MAX } from "@/components/public/PublicShell";
 import { subscriptionsApi } from "@/lib/api/subscriptions";
 import { useAuthStore } from "@/lib/stores/auth.store";
@@ -46,7 +47,7 @@ export function PricingPageClient() {
           title={
             <>
               Choisissez votre{" "}
-              <span className="ivod-gradient-text">expérience</span>
+              <span className="text-brand-magenta">expérience</span>
             </>
           }
           subtitle={
@@ -98,10 +99,10 @@ export function PricingPageClient() {
                   : "border-white/[0.08] bg-white/[0.03]"
               }`}
             >
-              <p className="text-[10px] uppercase tracking-wider text-white/45 mb-0.5">{chip.label}</p>
+              <p className="text-caption text-secondary-token mb-0.5">{chip.label}</p>
               <p
                 className={`text-sm font-semibold ${
-                  chip.highlight ? "ivod-gradient-text" : "text-white"
+                  chip.highlight ? "text-brand-magenta" : "text-white"
                 }`}
               >
                 {chip.value}
@@ -109,6 +110,8 @@ export function PricingPageClient() {
             </div>
           ))}
         </div>
+
+        <TrustPaymentBar className="mb-10 md:mb-12" />
 
         <div className="mt-2 md:mt-4">
           <PricingPlans
@@ -125,7 +128,7 @@ export function PricingPageClient() {
 
         <section className="mt-16 md:mt-24">
           <div className="text-center mb-8">
-            <p className="text-[11px] font-semibold tracking-[0.2em] uppercase ivod-gradient-text mb-2">
+            <p className="text-caption font-semibold text-brand-magenta mb-2">
               Comparatif
             </p>
             <h2 className="text-xl md:text-2xl font-semibold text-white tracking-tight">
@@ -140,15 +143,25 @@ export function PricingPageClient() {
                   <th className="text-left py-4 px-5 text-white/45 font-medium"> </th>
                   <th className="py-4 px-5 text-white/60 font-medium text-center">Gratuit</th>
                   <th className="py-4 px-5 text-center">
-                    <span className="ivod-gradient-text font-semibold">Passes & Premium</span>
+                    <span className="text-brand-magenta font-semibold">Passes & Premium</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {COMPARE_ROWS.map((row) => (
-                  <tr key={row.label} className="border-b border-white/[0.06] last:border-0">
-                    <td className="py-3.5 px-5 text-white/50">{row.label}</td>
-                    <td className="py-3.5 px-5 text-white/65 text-center">{row.free}</td>
+                {COMPARE_ROWS.map((row, index) => (
+                  <tr
+                    key={row.label}
+                    className={`border-b border-white/[0.06] last:border-0 ${
+                      index % 2 === 1 ? "bg-white/[0.02]" : ""
+                    }`}
+                  >
+                    <td className="py-3.5 px-5 text-white/70 font-medium">{row.label}</td>
+                    <td className="py-3.5 px-5 text-center">
+                      <span className="inline-flex items-center justify-center gap-1.5 text-white/55">
+                        <X size={14} className="text-white/35 shrink-0" />
+                        {row.free}
+                      </span>
+                    </td>
                     <td className="py-3.5 px-5 text-center">
                       <span className="inline-flex items-center justify-center gap-1.5 text-white">
                         <Check size={14} className="text-brand-gold shrink-0" />
@@ -165,7 +178,7 @@ export function PricingPageClient() {
         <section className="mt-16 md:mt-20 text-center">
           <div className="border border-white/[0.08] bg-white/[0.02] px-8 py-10 md:py-12">
             <Crown size={28} className="mx-auto text-brand-gold mb-4" strokeWidth={1.25} />
-            <p className="text-[11px] font-semibold tracking-[0.2em] uppercase ivod-gradient-text mb-2">
+            <p className="text-caption font-semibold text-brand-magenta mb-2">
               Prêt à regarder ?
             </p>
             <h3 className="text-xl font-semibold text-white mb-6">

@@ -69,7 +69,7 @@ export default function PrivacyPage() {
         />
 
         <div className="space-y-3 mb-6">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/35 flex items-center gap-2">
+          <h3 className="text-caption font-semibold text-secondary-token flex items-center gap-2">
             <Mail size={14} /> Communications email
           </h3>
           <SettingsToggleRow

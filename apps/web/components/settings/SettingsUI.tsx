@@ -38,34 +38,34 @@ export function SettingsShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen page-canvas">
+    <div className="min-h-screen page-canvas pb-safe">
       <div className="max-w-6xl mx-auto px-5 sm:px-6 md:px-10 lg:px-12 py-8 md:py-12">
         <button
           type="button"
           onClick={handleBack}
-          className="ivod-btn inline-flex items-center gap-2 mb-6 md:mb-8 px-3 py-2 text-sm font-medium text-white/55 hover:text-white border border-transparent hover:border-white/10 hover:bg-white/[0.04] transition-colors group"
+          className="ivod-btn inline-flex items-center gap-2 mb-6 md:mb-8 px-3 py-2 text-sm font-medium text-secondary-token hover:text-primary-token border border-transparent hover:border-white/10 hover:bg-white/[0.04] transition-colors group"
         >
           <ArrowLeft
             size={18}
-            className="shrink-0 text-white/40 group-hover:text-brand-magenta transition-colors"
+            className="shrink-0 text-muted-token group-hover:text-brand-magenta transition-colors"
           />
           {isSettingsRoot ? "Retour à l'accueil" : "Retour"}
         </button>
 
         <header className="mb-8 md:mb-10">
-          <p className="text-[11px] font-semibold tracking-[0.22em] uppercase ivod-gradient-text mb-2">
-            Mon compte
-          </p>
-          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Paramètres</h1>
+          <p className="text-caption font-semibold text-brand-magenta mb-2">Mon compte</p>
+          <h1 className="font-display text-2xl md:text-3xl font-bold text-primary-token tracking-tight">
+            Paramètres
+          </h1>
           <div className="mt-4 ivod-line-accent w-14" />
-          <p className="mt-4 text-sm md:text-[15px] text-white/50 font-light max-w-xl leading-relaxed">
+          <p className="mt-4 text-body text-secondary-token max-w-xl leading-relaxed">
             Gérez votre profil, votre abonnement, la sécurité et la confidentialité de votre expérience iVOD.
           </p>
         </header>
 
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-10">
           <aside className="lg:w-[260px] shrink-0">
-            <nav className="settings-nav flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 -mx-1 px-1 lg:mx-0 lg:px-0">
+            <nav className="settings-nav flex flex-col gap-2 lg:overflow-visible">
               {SETTINGS_NAV.map(({ href, label, description, icon: Icon }) => {
                 const active =
                   href === "/settings" ? pathname === href : pathname.startsWith(href);
@@ -73,7 +73,7 @@ export function SettingsShell({ children }: { children: ReactNode }) {
                   <Link
                     key={href}
                     href={href}
-                    className={`settings-nav-item group flex items-center gap-2.5 sm:gap-3 min-w-[9.5rem] sm:min-w-[11.5rem] lg:min-w-0 shrink-0 lg:shrink px-3 py-2.5 sm:px-3.5 sm:py-3 border transition-all duration-200 ${
+                    className={`settings-nav-item group flex items-center gap-2.5 sm:gap-3 w-full px-3 py-2.5 sm:px-3.5 sm:py-3 border transition-all duration-200 ${
                       active
                         ? "settings-nav-item--active border-brand-magenta/35 bg-brand-magenta/[0.08]"
                         : "border-white/[0.06] bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]"
@@ -83,20 +83,20 @@ export function SettingsShell({ children }: { children: ReactNode }) {
                       className={`flex h-10 w-10 shrink-0 items-center justify-center border transition-colors ${
                         active
                           ? "border-brand-magenta/40 bg-brand-purple/20 text-brand-magenta"
-                          : "border-white/10 bg-black/20 text-white/45 group-hover:text-white/70"
+                          : "border-white/10 bg-black/20 text-muted-token group-hover:text-secondary-token"
                       }`}
                     >
                       <Icon size={18} strokeWidth={1.75} />
                     </span>
                     <span className="min-w-0 flex-1 block">
                       <span
-                        className={`block text-[13px] font-semibold tracking-wide ${
-                          active ? "text-white" : "text-white/75 group-hover:text-white"
+                        className={`block text-[13px] font-semibold ${
+                          active ? "text-primary-token" : "text-secondary-token group-hover:text-primary-token"
                         }`}
                       >
                         {label}
                       </span>
-                      <span className="block text-[11px] text-white/40 mt-0.5 truncate">{description}</span>
+                      <span className="block text-[11px] text-muted-token mt-0.5 truncate">{description}</span>
                     </span>
                     <ChevronRight
                       size={16}
@@ -151,10 +151,12 @@ export function SettingsSectionHeader({
               <Icon size={17} strokeWidth={1.75} />
             </span>
           )}
-          <h2 className="text-lg md:text-xl font-semibold text-white tracking-tight">{title}</h2>
+          <h2 className="font-display text-lg md:text-xl font-semibold text-primary-token tracking-tight">
+            {title}
+          </h2>
         </div>
         {description && (
-          <p className="text-sm text-white/50 font-light max-w-lg leading-relaxed">{description}</p>
+          <p className="text-body text-secondary-token max-w-lg leading-relaxed">{description}</p>
         )}
       </div>
       {action}
@@ -204,7 +206,7 @@ export function SettingsGhostButton({
       className={`ivod-btn inline-flex items-center justify-center gap-2 h-11 px-5 text-sm font-medium border transition-colors disabled:opacity-45 ${
         danger
           ? "border-red-500/35 text-red-400 hover:bg-red-500/10"
-          : "border-white/15 text-white/75 hover:border-white/25 hover:bg-white/[0.04]"
+          : "border-white/15 text-secondary-token hover:border-white/25 hover:bg-white/[0.04]"
       }`}
     >
       {children}
@@ -234,8 +236,8 @@ export function SettingsToggleRow({
         className="mt-1 w-4 h-4 accent-[var(--color-brand-magenta)] shrink-0"
       />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-white">{title}</p>
-        {description && <p className="text-xs text-white/45 mt-1 leading-relaxed">{description}</p>}
+        <p className="text-sm font-semibold text-primary-token">{title}</p>
+        {description && <p className="text-xs text-muted-token mt-1 leading-relaxed">{description}</p>}
         {children}
       </div>
     </label>
@@ -265,11 +267,11 @@ export function SettingsEmpty({
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 md:py-20 text-center gap-3">
-      <span className="flex h-14 w-14 items-center justify-center border border-white/10 bg-white/[0.03] text-white/25">
+      <span className="flex h-14 w-14 items-center justify-center border border-white/10 bg-white/[0.03] text-muted-token">
         <Icon size={26} strokeWidth={1.25} />
       </span>
-      <p className="text-base font-medium text-white/80">{title}</p>
-      {description && <p className="text-sm text-white/40 max-w-sm">{description}</p>}
+      <p className="text-base font-medium text-primary-token">{title}</p>
+      {description && <p className="text-sm text-muted-token max-w-sm">{description}</p>}
     </div>
   );
 }
@@ -282,13 +284,13 @@ export function SettingsBadge({
   variant?: "default" | "success" | "warning" | "danger";
 }) {
   const cls = {
-    default: "bg-white/[0.06] text-white/55 border-white/10",
+    default: "bg-white/[0.06] text-secondary-token border-white/10",
     success: "bg-emerald-500/12 text-emerald-300 border-emerald-500/25",
     warning: "bg-amber-500/12 text-amber-200 border-amber-500/25",
     danger: "bg-red-500/12 text-red-300 border-red-500/25",
   }[variant];
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide border ${cls}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 text-[11px] font-semibold border ${cls}`}>
       {children}
     </span>
   );

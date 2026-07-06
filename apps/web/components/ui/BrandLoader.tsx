@@ -62,13 +62,10 @@ export function BrandLoaderMark({
             <span className="ivod-brand-loader__shimmer-bar" />
           </span>
         </div>
-        <span className="ivod-brand-loader__spark ivod-brand-loader__spark--1" aria-hidden />
-        <span className="ivod-brand-loader__spark ivod-brand-loader__spark--2" aria-hidden />
-        <span className="ivod-brand-loader__spark ivod-brand-loader__spark--3" aria-hidden />
       </div>
 
       {showTagline && (
-        <p className="ivod-brand-loader__tagline mt-6 text-[10px] font-semibold uppercase tracking-[0.28em] ivod-gradient-text">
+        <p className="ivod-brand-loader__tagline mt-6 text-caption font-semibold text-brand-magenta">
           {tagline}
         </p>
       )}
@@ -83,12 +80,9 @@ export function BrandLoaderMark({
 }
 
 export type BrandLoaderProps = {
-  /** Plein écran (splash / chargement de route) */
   fullScreen?: boolean;
   size?: keyof typeof SIZES;
-  /** Barre de progression style streaming */
   showBar?: boolean;
-  /** Sous-titre animé sous le logo */
   showTagline?: boolean;
   tagline?: string;
   className?: string;
@@ -124,20 +118,10 @@ export function BrandLoader({
     <div
       className={`ivod-brand-loader-screen page-canvas relative flex min-h-screen flex-col items-center justify-center overflow-hidden ${className}`.trim()}
     >
-      <div className="ivod-brand-loader__grain pointer-events-none absolute inset-0" aria-hidden />
       <div
-        className="pointer-events-none absolute top-1/2 left-1/2 h-[min(480px,75vw)] w-[min(480px,75vw)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-magenta/12 blur-[120px]"
+        className="pointer-events-none absolute top-1/2 left-1/2 h-[min(420px,70vw)] w-[min(420px,70vw)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-magenta/10 blur-[100px]"
         aria-hidden
       />
-      <div
-        className="pointer-events-none absolute top-[28%] left-[18%] h-52 w-52 rounded-full bg-brand-purple/18 blur-[90px] ivod-brand-loader__blob"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute bottom-[22%] right-[16%] h-44 w-44 rounded-full bg-brand-gold/12 blur-[80px] ivod-brand-loader__blob ivod-brand-loader__blob--delay"
-        aria-hidden
-      />
-      <div className="ivod-brand-loader__scanline pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-magenta/30 to-transparent" aria-hidden />
       <div className="relative z-10">{mark}</div>
     </div>
   );

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import { Play, Plus, Info, Star, Sparkles } from "lucide-react";
 import { MediaImage } from "@/components/ui/MediaImage";
 import {
@@ -10,7 +9,7 @@ import {
   type ContentImageFields,
 } from "@/lib/utils/assets";
 import { formatDuration } from "@/lib/utils/format";
-import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
+import { useViewport } from "@/lib/providers/ViewportProvider";
 import { contentDetailHref, isSeriesContentType } from "@/lib/utils/content-type";
 import {
   formatSeriesPlayLabel,
@@ -58,6 +57,8 @@ interface ContentCardProps {
   playTarget?: SeriesPlayTarget | null;
   size?: "sm" | "md" | "lg" | "xl";
   onBeforeNavigate?: () => void;
+  /** Ligne meta additionnelle (ex. S1E3 sur « Continuer ») */
+  extraMeta?: string;
 }
 
 const DIMS = {
@@ -69,8 +70,6 @@ const DIMS = {
 
 export const CONTENT_GRID_CLASS =
   "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 md:gap-6 lg:gap-8";
-
-const SPRING_SOFT = { type: "spring" as const, stiffness: 280, damping: 30, mass: 0.8 };
 
 function normalizeGenres(content: ContentCardContent) {
   if (content.genres?.length) return content.genres;
@@ -145,12 +144,11 @@ export function ContentCard({
   playTarget: playTargetProp,
   size: sizeProp,
   onBeforeNavigate,
+  extraMeta,
 }: ContentCardProps) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
-  const canHover = useMediaQuery("(hover: hover)");
-  const isNarrowViewport = useMediaQuery("(max-width: 767px)");
+  const { reducedMotion, canHover, isNarrowViewport } = useViewport();
   const [touchActive, setTouchActive] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
 
@@ -195,12 +193,40 @@ export function ContentCard({
   const detailUrl = contentDetailHref(content.id, typeCode);
 
   const metaParts = [
+    extraMeta,
     content.releaseYear,
     content.duration ? formatDuration(content.duration) : null,
     genres[0]?.label,
   ].filter(Boolean);
 
   const offerLabel = viewerOfferLabel(content.visibility, content.ppvPrice);
+
+  const primaryBadge = (() => {
+    if (
+      shouldShowOfferBadgeOnCard(isAuthenticated, content.visibility, offerLabel)
+    ) {
+      return {
+        label: offerLabel,
+        className: viewerOfferBadgeClass(content.visibility),
+        icon: null as typeof Sparkles | null,
+      };
+    }
+    if (content.isExclusive) {
+      return {
+        label: "Exclusif",
+        className: `${CARD_OVERLAY_BADGE} gap-1 ivod-gradient text-white border border-white/20`,
+        icon: Sparkles,
+      };
+    }
+    if (typeCode) {
+      return {
+        label: typeLabel ?? typeCode,
+        className: `${CARD_OVERLAY_BADGE} ${CARD_TYPE_BADGE_CLASS[typeCode] ?? "bg-[#00050d]/90 text-white border border-white/25"}`,
+        icon: null,
+      };
+    }
+    return null;
+  })();
 
   const goDetail = useCallback(() => {
     onBeforeNavigate?.();
@@ -244,7 +270,7 @@ export function ContentCard({
 
   return (
     <article
-      className={`group/card relative flex-shrink-0 snap-start ${isRail ? "" : "w-full"}`}
+      className={`group/card relative flex-shrink-0 snap-start overflow-hidden ${isRail ? "" : "w-full"}`}
       style={isRail ? { width: dims.w, height: dims.h } : undefined}
     >
       <div
@@ -264,34 +290,17 @@ export function ContentCard({
         }}
         onBlurCapture={handleShellBlur}
       >
-        <div className="content-card-grain pointer-events-none absolute inset-0 z-[6] opacity-[0.05]" aria-hidden />
-
         <div className="absolute inset-0 bg-background-elevated overflow-hidden">
-          {posterUrl ? (
-            <>
-              <MediaImage
-                src={posterUrl}
-                alt=""
-                fill
-                className="content-card-media-backdrop object-cover scale-110 blur-2xl brightness-[0.45] saturate-125 opacity-90"
-                sizes="(max-width: 768px) 50vw, 320px"
-              />
-              <MediaImage
-                src={posterUrl}
-                alt=""
-                fill
-                className="relative z-[1] object-contain content-card-media-zoom"
-                sizes="(max-width: 768px) 50vw, 320px"
-              />
-            </>
-          ) : (
-            <MediaImage
-              src={null}
-              alt=""
-              fill
-              fallbackClassName="absolute inset-0"
-            />
-          )}
+          <MediaImage
+            src={posterUrl}
+            alt=""
+            fill
+            fallbackVariant="poster"
+            fallbackTitle={content.title}
+            fallbackGenreCode={genres[0]?.code}
+            className="relative z-[1] object-cover content-card-media-zoom"
+            sizes="(max-width: 768px) 50vw, 320px"
+          />
         </div>
 
         {/* Dégradés — toujours présents pour ancrer le contenu */}
@@ -304,38 +313,20 @@ export function ContentCard({
           aria-hidden
         />
 
-        {/* Badges */}
-        <div className="absolute top-2 left-2 right-10 flex flex-wrap gap-1 z-[3]">
-          {content.isExclusive && (
-            <span
-              className={`${CARD_OVERLAY_BADGE} gap-1 ivod-gradient text-white border border-white/20`}
-            >
-              <Sparkles size={10} className="shrink-0" />
-              Exclusif
-            </span>
-          )}
-          {typeCode && (
-            <span
-              className={`${CARD_OVERLAY_BADGE} ${CARD_TYPE_BADGE_CLASS[typeCode] ?? "bg-[#00050d]/90 text-white border border-white/25"}`}
-            >
-              {typeLabel}
-            </span>
-          )}
-          {shouldShowOfferBadgeOnCard(
-            isAuthenticated,
-            content.visibility,
-            offerLabel,
-          ) && (
-            <span
-              className={`${CARD_OVERLAY_BADGE} ${viewerOfferBadgeClass(content.visibility)}`}
-            >
-              {offerLabel}
-            </span>
-          )}
-        </div>
+        {primaryBadge && (() => {
+          const BadgeIcon = primaryBadge.icon;
+          return (
+            <div className="absolute top-2 left-2 right-10 z-[3]">
+              <span className={primaryBadge.className}>
+                {BadgeIcon && <BadgeIcon size={10} className="shrink-0" />}
+                {primaryBadge.label}
+              </span>
+            </div>
+          );
+        })()}
 
         {content.averageRating != null && content.averageRating > 0 && (
-          <div className="absolute top-2.5 right-2.5 z-[3] flex items-center gap-1 rounded-sm bg-black/70 backdrop-blur-md px-2 py-1 border border-white/10">
+          <div className="absolute top-2.5 right-2.5 z-[3] flex items-center gap-1 bg-black/70 px-2 py-1 border border-white/10">
             <Star size={12} className="text-secondary fill-secondary" />
             <span className="text-[12px] font-semibold text-white tabular-nums">
               {content.averageRating.toFixed(1)}
@@ -345,14 +336,14 @@ export function ContentCard({
 
         {showBar && (
           <div className="absolute bottom-0 left-0 right-0 z-[5] h-1 bg-white/10 overflow-hidden">
-            <motion.div
-              className="h-full content-card-progress-bar relative"
-              initial={false}
-              animate={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
-              transition={reducedMotion ? { duration: 0 } : SPRING_SOFT}
+            <div
+              className="h-full content-card-progress-bar relative transition-[width] duration-500 ease-out"
+              style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
             >
-              <span className="content-card-progress-shine absolute inset-0" aria-hidden />
-            </motion.div>
+              {!reducedMotion && (
+                <span className="content-card-progress-shine absolute inset-0" aria-hidden />
+              )}
+            </div>
           </div>
         )}
 
@@ -423,8 +414,9 @@ export function ContentCard({
         )}
       </div>
 
-      {/* Titre sous carte — grille & rail mobile */}
-      <div className={`mt-3 px-0.5 ${isRail ? "md:hidden" : ""}`}>
+      {/* Titre sous carte — grille uniquement (rail : titre dans l’overlay) */}
+      {!isRail && (
+      <div className="mt-3 px-0.5">
         <p className="text-base font-semibold text-white line-clamp-1 transition-colors duration-300 [@media(hover:hover)]:group-hover/card:text-brand-magenta">
           {content.title}
         </p>
@@ -432,6 +424,7 @@ export function ContentCard({
           <p className="text-sm text-white/50 mt-1 line-clamp-1">{metaParts.join(" · ")}</p>
         )}
       </div>
+      )}
     </article>
   );
 }

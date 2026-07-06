@@ -32,7 +32,7 @@ export function WatchHoverBack({
       <button
         type="button"
         onClick={onBack}
-        className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm transition-colors hover:bg-black/70 hover:text-white"
+        className="ivod-btn pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center border border-white/15 bg-black/55 text-white/90 backdrop-blur-sm transition-colors hover:border-brand-magenta/40 hover:bg-black/70 hover:text-white"
         aria-label="Retour"
       >
         <ArrowLeft size={18} />
@@ -44,7 +44,7 @@ export function WatchHoverBack({
 
 export function WatchPreviewBadge() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-primary/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+    <span className="inline-flex items-center gap-1 border border-brand-magenta/30 bg-brand-magenta/15 px-2.5 py-0.5 text-[10px] font-semibold text-brand-magenta">
       <Sparkles size={10} />
       Aperçu studio
     </span>
@@ -53,7 +53,7 @@ export function WatchPreviewBadge() {
 
 export function WatchModerationBadge() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">
+    <span className="inline-flex items-center gap-1 border border-amber-500/30 bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-semibold text-amber-300">
       <Shield size={10} className="opacity-90" />
       Modération
     </span>

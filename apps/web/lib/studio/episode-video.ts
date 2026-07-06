@@ -1,5 +1,5 @@
-import axios from "axios";
 import { videosApi } from "@/lib/api/videos";
+import { uploadFileMultipart, type MultipartUploadCallbacks } from "@/lib/studio/multipart-upload";
 
 export function titleFromVideoFile(file: File, episodeNumber: number): string {
   const base = file.name
@@ -12,16 +12,19 @@ export function titleFromVideoFile(file: File, episodeNumber: number): string {
 export async function uploadEpisodeVideoFile(
   episodeId: string,
   file: File,
-  onProgress?: (percent: number) => void,
+  callbacks?: MultipartUploadCallbacks,
 ): Promise<void> {
-  const { uploadUrl, assetId } = await videosApi.getEpisodeUploadUrl(episodeId, file.type);
-  await axios.put(uploadUrl, file, {
-    headers: { "Content-Type": file.type || "video/mp4" },
-    onUploadProgress: (e) => {
-      if (e.total && onProgress) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
+  await uploadFileMultipart(
+    file,
+    `episode:${episodeId}`,
+    {
+      initMultipart: (mimeType, fileSizeBytes) =>
+        videosApi.initEpisodeMultipart(episodeId, mimeType, fileSizeBytes),
+      getPartUrl: (assetId, uploadId, partNumber) =>
+        videosApi.getMultipartPartUrl(assetId, uploadId, partNumber),
+      completeMultipart: (assetId, uploadId, parts) =>
+        videosApi.completeMultipart(assetId, uploadId, parts).then(() => undefined),
     },
-  });
-  await videosApi.markComplete(assetId);
+    callbacks,
+  );
 }

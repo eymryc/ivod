@@ -1,10 +1,10 @@
 "use client";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import Image from "next/image";
 import { Loader2, AlertCircle, Film } from "lucide-react";
 import { peopleApi } from "@/lib/api/people";
 import { assetUrl } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 import { ContentCard } from "@/components/content/ContentCard";
 import { PAGE_X, VIEWER_GRID_CLASS } from "@/components/public/PublicShell";
 import { BrandLoader } from "@/components/ui/BrandLoader";
@@ -54,15 +54,15 @@ export default function PersonPage() {
       <div className="flex flex-col sm:flex-row gap-6 mb-10">
         <div className="shrink-0">
           {photoUrl ? (
-            <Image
+            <MediaImage
               src={photoUrl}
               alt={person.fullName}
               width={160}
               height={160}
-              className="w-32 h-32 sm:w-40 sm:h-40 rounded-2xl object-cover border border-white/10"
+              className="w-32 h-32 sm:w-40 sm:h-40 object-cover border border-white/10"
             />
           ) : (
-            <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-2xl bg-surface border border-white/10 flex items-center justify-center text-4xl font-bold text-white/30">
+            <div className="w-32 h-32 sm:w-40 sm:h-40 bg-surface border border-white/10 flex items-center justify-center text-4xl font-bold text-white/30">
               {person.fullName?.[0]}
             </div>
           )}

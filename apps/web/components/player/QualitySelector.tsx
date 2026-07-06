@@ -27,12 +27,12 @@ export function QualitySelector({
   const isCinema = variant === "cinema";
 
   const btnClass = isCinema
-    ? "flex h-9 w-9 items-center justify-center rounded-xl text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+    ? "ivod-btn flex h-9 w-9 items-center justify-center border border-transparent text-white/75 transition-colors hover:border-white/15 hover:bg-white/10 hover:text-white"
     : "p-2 text-white/70 transition-colors hover:text-white";
 
   const panelClass = isCinema
-    ? "absolute bottom-full right-0 mb-2 min-w-48 overflow-hidden rounded-2xl border border-white/10 bg-[#0c0c14]/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
-    : "absolute bottom-full right-0 mb-2 min-w-44 overflow-hidden rounded-xl border border-white/15 bg-black/90 shadow-2xl";
+    ? "absolute bottom-full right-0 mb-2 min-w-48 overflow-hidden border border-white/10 bg-[#0c0c14]/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
+    : "absolute bottom-full right-0 mb-2 min-w-44 overflow-hidden border border-white/15 bg-black/90 shadow-2xl";
 
   return (
     <div className="relative">
@@ -55,7 +55,7 @@ export function QualitySelector({
             onClick={() => setOpen(false)}
           />
           <div className={`${panelClass} z-50`}>
-            <p className="border-b border-white/10 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+            <p className="border-b border-white/10 px-4 py-2.5 text-caption font-semibold text-muted-token">
               Qualité
             </p>
             {qualities.map((q) => (
@@ -68,10 +68,10 @@ export function QualitySelector({
                 }}
                 className="flex w-full items-center justify-between px-4 py-2.5 text-sm transition-colors hover:bg-white/[0.06]"
               >
-                <span className={q === current ? "font-medium text-primary" : "text-white/85"}>
+                <span className={q === current ? "font-medium text-brand-magenta" : "text-white/85"}>
                   {QUALITY_LABELS[q] ?? q}
                 </span>
-                {q === current && <Check size={14} className="text-primary" />}
+                {q === current && <Check size={14} className="text-brand-magenta" />}
               </button>
             ))}
           </div>

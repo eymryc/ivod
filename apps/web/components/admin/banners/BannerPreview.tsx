@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { assetUrl } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 import type { BannerFormValues } from "@/components/admin/banners/banner-form.types";
 
 const CTA_PREVIEW: Record<BannerFormValues["ctaStyle"], string> = {
@@ -30,7 +30,7 @@ export function BannerPreview({ values }: BannerPreviewProps) {
 
       <div className="relative aspect-[21/9] min-h-[140px] bg-[#050508]">
         {image ? (
-          <Image src={image} alt="" fill className="object-cover opacity-85" sizes="400px" />
+          <MediaImage src={image} alt="" fill className="object-cover opacity-85" sizes="400px" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-brand-purple/20 via-black to-brand-magenta/10" />
         )}

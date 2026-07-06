@@ -76,7 +76,7 @@ export default function SecurityPage() {
 
         <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-5 max-w-lg">
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40 mb-2">
+            <label className="block text-caption font-semibold text-secondary-token mb-2">
               Mot de passe actuel
             </label>
             <div className="relative">
@@ -99,7 +99,7 @@ export default function SecurityPage() {
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40 mb-2">
+            <label className="block text-caption font-semibold text-secondary-token mb-2">
               Nouveau mot de passe
             </label>
             <div className="relative">
@@ -122,7 +122,7 @@ export default function SecurityPage() {
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40 mb-2">
+            <label className="block text-caption font-semibold text-secondary-token mb-2">
               Confirmer le nouveau mot de passe
             </label>
             <input {...register("confirmPassword")} type="password" className={SETTINGS_INPUT_CLASS} />

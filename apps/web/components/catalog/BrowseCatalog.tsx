@@ -8,7 +8,7 @@ import { CatalogPageHero } from "@/components/catalog/CatalogPageHero";
 import { CatalogContentSection } from "@/components/catalog/CatalogContentSection";
 import { CatalogRails } from "@/components/catalog/CatalogRails";
 import { CatalogBrowseToolbar } from "@/components/catalog/CatalogBrowseToolbar";
-import { PAGE_X, pillActive, pillInactive } from "@/components/public/PublicShell";
+import { VIEWER_SHELL_WIDTH, pillActive, pillInactive } from "@/components/public/PublicShell";
 import { contentsApi } from "@/lib/api/contents";
 import { getPaginatedTotal } from "@/lib/utils/pagination";
 import { referencesApi } from "@/lib/api/references";
@@ -293,8 +293,10 @@ export function BrowseCatalog({ section }: Props) {
         categoryNav={categoryNav}
       />
 
-      <div className={`${PAGE_X} -mt-2 relative z-20`}>
-        <div className="sticky top-[3.75rem] z-30 -mx-4 px-4 md:-mx-0 md:px-0 py-3 md:py-0 mb-2 md:mb-0 bg-[#00050d]/92 md:bg-transparent backdrop-blur-md md:backdrop-blur-none">
+      <div className="-mt-2 relative z-20 w-full">
+        <div
+          className={`${VIEWER_SHELL_WIDTH} sticky top-[3.75rem] z-30 py-3 md:py-0 mb-2 md:mb-0 bg-[#00050d]/92 md:bg-transparent backdrop-blur-md md:backdrop-blur-none`}
+        >
           <CatalogBrowseToolbar
             section={section}
             genre={genre}
@@ -331,7 +333,8 @@ export function BrowseCatalog({ section }: Props) {
         {useGenreRowsLayout && isDedicatedCatalogSurface(section.id) ? (
           <CatalogRails surface={section.id} historyMap={historyMap} />
         ) : (
-          <CatalogContentSection
+          <div className={VIEWER_SHELL_WIDTH}>
+            <CatalogContentSection
             contents={contents}
             historyMap={historyMap}
             isLoading={isLoading}
@@ -347,6 +350,7 @@ export function BrowseCatalog({ section }: Props) {
                 : undefined
             }
           />
+          </div>
         )}
       </div>
     </div>

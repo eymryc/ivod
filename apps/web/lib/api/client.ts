@@ -173,15 +173,19 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
     body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
   });
 
-  // ── Refresh automatique sur 401 ──────────────────────────────────────────
+  // ── Refresh automatique sur 401 (requêtes authentifiées uniquement) ───────
   if (res.status === 401 && !_retry) {
-    const newToken = await refreshAccessToken();
-    if (newToken) {
-      return apiFetch<T>(path, { ...options, token: newToken, _retry: true });
+    if (token) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        return apiFetch<T>(path, { ...options, token: newToken, _retry: true });
+      }
     }
     const errBody = await res.json().catch(() => ({}));
     const parsed401 = parseApiErrorPayload((errBody ?? {}) as Record<string, unknown>, 401);
-    if (!options.skipAuthRedirect) {
+    // Pas de redirect sur les endpoints publics (login, register…) : le 401
+    // est une erreur métier (ex. mauvais mot de passe), pas une session expirée.
+    if (token && !options.skipAuthRedirect) {
       await forceLogout();
     }
     throw new ApiError(401, parsed401.message, parsed401.code);

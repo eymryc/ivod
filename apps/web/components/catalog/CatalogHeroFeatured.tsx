@@ -118,52 +118,52 @@ export function CatalogHeroFeatured({
       }`}
     >
       <div className={`min-w-0 ${showSidePoster ? "order-2 lg:order-1" : ""}`}>
-        <p className="text-[11px] font-medium tracking-[0.2em] uppercase text-white/40 mb-3">
+        <p className="text-caption text-muted-token mb-3">
           {section.title}
-          <span className="text-white/25 mx-2" aria-hidden>
+          <span className="text-white/20 mx-2" aria-hidden>
             ·
           </span>
-          <span className="tabular-nums text-white/50">{countLabel}</span>
+          <span className="tabular-nums text-secondary-token">{countLabel}</span>
         </p>
 
         <div className="flex items-center gap-3 mb-4">
           <span className="h-px w-8 bg-gradient-to-r from-brand-gold/80 to-brand-magenta/60 shrink-0" />
-          <span className="catalog-hero-editorial-label text-[10px] font-bold uppercase">
+          <span className="catalog-hero-editorial-label text-[11px] font-semibold text-brand-gold">
             À la une
           </span>
         </div>
 
-        <h2 className="text-[clamp(1.75rem,5vw,3.5rem)] font-bold text-white tracking-tight leading-[1.05] drop-shadow-[0_4px_24px_rgba(0,0,0,0.5)] max-w-4xl">
+        <h2 className="font-display text-[clamp(1.75rem,5vw,3.5rem)] font-bold text-white tracking-tight leading-[1.05] drop-shadow-[0_4px_24px_rgba(0,0,0,0.5)] max-w-4xl">
           {content.title}
         </h2>
 
-        {(genres.length > 0 || meta.length > 0 || showOfferBadge) && (
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            {showOfferBadge && offerLabel ? (
-              <span
-                className={`catalog-hero-meta-chip rounded-none px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${viewerOfferBadgeClass(content.visibility)}`}
-              >
-                {offerLabel}
-              </span>
-            ) : null}
-            {genres.slice(0, 2).map((g) => (
-              <span
-                key={g.code ?? g.label}
-                className="catalog-hero-meta-chip catalog-hero-meta-chip--genre rounded-none px-3 py-1 text-[11px] font-semibold uppercase tracking-wide"
-              >
-                {g.label}
-              </span>
-            ))}
-            {meta.map((item) => (
-              <span
-                key={item}
-                className="catalog-hero-meta-chip rounded-none px-3 py-1 text-[11px] font-medium tabular-nums"
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const chips: { label: string; className: string }[] = [];
+          if (showOfferBadge && offerLabel) {
+            chips.push({ label: offerLabel, className: viewerOfferBadgeClass(content.visibility) });
+          } else if (genres[0]) {
+            chips.push({ label: genres[0].label, className: "catalog-hero-meta-chip--genre" });
+          }
+          if (showOfferBadge && genres[0]) {
+            chips.push({ label: genres[0].label, className: "catalog-hero-meta-chip--genre" });
+          }
+          meta.forEach((m) => {
+            if (m) chips.push({ label: m, className: "" });
+          });
+          if (chips.length === 0) return null;
+          return (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {chips.slice(0, 3).map((chip) => (
+                <span
+                  key={chip.label}
+                  className={`catalog-hero-meta-chip rounded-none px-3 py-1 text-[11px] font-semibold tabular-nums ${chip.className}`}
+                >
+                  {chip.label}
+                </span>
+              ))}
+            </div>
+          );
+        })()}
 
         {heroDescription && (
           <p className="mt-4 text-[15px] md:text-base text-white/72 font-light leading-relaxed line-clamp-4 max-w-2xl">
@@ -180,7 +180,7 @@ export function CatalogHeroFeatured({
             aria-valuemax={100}
             aria-label="Progression de lecture"
           >
-            <div className="h-0.5 w-full rounded-full bg-white/15 overflow-hidden">
+            <div className="h-0.5 w-full bg-white/15 overflow-hidden">
               <div
                 className="h-full content-card-progress-bar transition-[width] duration-500"
                 style={{ width: `${pct}%` }}
@@ -216,7 +216,7 @@ export function CatalogHeroFeatured({
         </div>
       </div>
 
-      {showSidePoster && poster && (
+      {showSidePoster && (
         <div className="catalog-hero-poster-wrap relative order-1 lg:order-2 mx-auto w-[min(44vw,210px)] sm:w-[min(40vw,230px)] lg:w-full lg:max-w-[280px] lg:mx-0 lg:justify-self-end">
           <div className="catalog-hero-poster-glow" aria-hidden />
           <div className="catalog-hero-poster relative aspect-[2/3] w-full overflow-hidden">
@@ -224,6 +224,9 @@ export function CatalogHeroFeatured({
               src={poster}
               alt=""
               fill
+              fallbackVariant="poster"
+              fallbackTitle={content.title}
+              fallbackGenreCode={genres[0]?.code}
               className="object-cover object-[center_12%]"
               sizes="(max-width: 1024px) 230px, 280px"
               priority

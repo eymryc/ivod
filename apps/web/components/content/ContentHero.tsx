@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Play,
@@ -29,6 +29,7 @@ import {
   CONTENT_DETAIL_HERO_BANNER_CLASS,
   CONTENT_DETAIL_HERO_GRID_CLASS,
   CONTENT_DETAIL_PAGE_SHELL,
+  CONTENT_DETAIL_HERO_TITLE_OVERLAY,
 } from "@/lib/constants/hero-layout";
 import { HeroPreviewBackground } from "./HeroPreviewBackground";
 import { CatalogHeroTrailerBackground } from "@/components/catalog/CatalogHeroTrailerBackground";
@@ -183,7 +184,12 @@ export function ContentHero({
   variant = "detail",
 }: ContentHeroProps) {
   const [showTvodModal, setShowTvodModal] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const isDetail = variant === "detail";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const bgUrl =
     assetUrl(
@@ -223,10 +229,12 @@ export function ContentHero({
   /** Reprise film ou série sans vignette épisode. */
   const preferResumeHero =
     hasProgress && Boolean(previewEpisodeId || (!isSeries && playable));
-  /** BA (ou teaser) — uniquement sans reprise en cours. */
-  const showPromoTrailer = isDetail && Boolean(heroPromo) && !preferResumeHero;
+  /** BA (ou teaser) — uniquement sans reprise en cours (après mount pour éviter mismatch SSR). */
+  const showPromoTrailer =
+    mounted && isDetail && Boolean(heroPromo) && !preferResumeHero;
   /** Aperçu vidéo court — films uniquement (jamais sur épisode en reprise). */
   const showContentPreview =
+    mounted &&
     isDetail &&
     !showPromoTrailer &&
     !isEpisodeResumeHero &&
@@ -262,6 +270,7 @@ export function ContentHero({
     [];
   const heroDescription =
     content.description?.trim() || content.shortDescription?.trim() || null;
+  const floatPoster = posterUrl(content) ?? assetUrl(content.posterObjectKey) ?? null;
   const includedLabel = getIncludedLabel(entitlement, planCode);
 
   const metaParts = [
@@ -374,7 +383,7 @@ export function ContentHero({
                 src={heroPosterSrc}
                 alt=""
                 fill
-                className="object-cover object-[center_25%]"
+                className="object-cover object-[center_25%] brightness-[0.88] contrast-[1.02]"
                 priority
                 sizes="100vw"
                 fallbackClassName="absolute inset-0"
@@ -421,13 +430,13 @@ export function ContentHero({
             </div>
           )}
 
-          <div className="absolute top-8 left-6 md:left-12 lg:left-16 z-10 max-w-4xl">
-            <div className="w-14 md:w-20 ivod-line-accent mb-3 opacity-90" aria-hidden />
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white tracking-tight drop-shadow-lg">
+          <div className={`${CONTENT_DETAIL_HERO_TITLE_OVERLAY} hidden md:flex lg:hidden`}>
+            <div className="w-14 md:w-20 ivod-line-accent mb-3 opacity-90 pointer-events-none" aria-hidden />
+            <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight drop-shadow-lg line-clamp-3">
               {content.title}
             </h1>
             {heroDescription && (
-              <p className="mt-3 md:mt-4 max-w-3xl text-sm md:text-[15px] leading-relaxed text-white/88 text-justify drop-shadow-md">
+              <p className="mt-3 md:mt-4 max-w-[65ch] text-sm md:text-[15px] leading-relaxed text-white/88 drop-shadow-md line-clamp-4 prose-readable">
                 {heroDescription}
               </p>
             )}
@@ -453,6 +462,53 @@ export function ContentHero({
         {/* Barre d’infos type Prime Video */}
         <div className="relative z-10 -mt-2 hero-detail-bar backdrop-blur-sm">
           <div className={`${CONTENT_DETAIL_PAGE_SHELL} py-6 md:py-8`}>
+            {/* Mobile */}
+            <div className="md:hidden mb-5 min-w-0">
+              <div className="w-12 ivod-line-accent mb-2 opacity-90" aria-hidden />
+              <h1 className="text-2xl font-bold text-white tracking-tight leading-tight">
+                {content.title}
+              </h1>
+              {heroDescription && (
+                <p className="mt-2 text-sm leading-relaxed text-white/75 line-clamp-3 max-w-[65ch] prose-readable">
+                  {heroDescription}
+                </p>
+              )}
+            </div>
+
+            {/* Desktop lg+ — arbre DOM stable (poster optionnel, pas de branche ternaire) */}
+            <div className="hidden lg:grid lg:grid-cols-[148px_minmax(0,1fr)] lg:gap-x-8 lg:mb-6 lg:items-start">
+              <div
+                className={
+                  floatPoster
+                    ? "-mt-28 xl:-mt-32 relative z-20 aspect-[2/3] w-[148px] shrink-0 border border-white/15 shadow-[0_16px_48px_rgba(0,0,0,0.55)] overflow-hidden bg-[#00050d]"
+                    : "hidden"
+                }
+                aria-hidden={floatPoster ? undefined : true}
+              >
+                {floatPoster ? (
+                  <MediaImage
+                    src={floatPoster}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="148px"
+                    fallbackVariant="poster"
+                    fallbackTitle={content.title}
+                  />
+                ) : null}
+              </div>
+              <div className="min-w-0 space-y-3 pt-1">
+                <h1 className="text-3xl xl:text-4xl font-bold text-white tracking-tight leading-tight">
+                  {content.title}
+                </h1>
+                {heroDescription && (
+                  <p className="max-w-[70ch] text-[15px] leading-relaxed text-white/80 prose-readable">
+                    {heroDescription}
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div className={CONTENT_DETAIL_HERO_GRID_CLASS}>
               {/* Colonne actions — même largeur que le bouton Lecture */}
               <div className={CONTENT_DETAIL_ACTION_COL_CLASS}>
@@ -543,7 +599,7 @@ export function ContentHero({
                 )}
               </div>
 
-              <div className="hero-detail-meta-panel order-1 min-w-0 lg:order-2">
+              <div className="hero-detail-meta-panel order-2 min-w-0">
                 <HeroDetailMetaGrid content={content} entitlement={entitlement} />
               </div>
             </div>
@@ -607,7 +663,7 @@ function CompactHero({
         <div className="absolute bottom-0 left-0 right-0 z-10 p-6 md:p-10 max-w-2xl">
           <h1 className="text-2xl md:text-4xl font-bold text-white mb-3">{content.title}</h1>
           {heroDescription && (
-            <p className="mb-4 text-sm text-white/80 leading-relaxed text-justify line-clamp-4">
+            <p className="mb-4 text-sm text-white/80 leading-relaxed line-clamp-4 prose-readable">
               {heroDescription}
             </p>
           )}

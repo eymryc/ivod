@@ -28,18 +28,18 @@ export function SubtitleSelector({
   if (tracks.length === 0) return null;
 
   const btnClass = isCinema
-    ? `flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
+    ? `ivod-btn flex h-9 w-9 items-center justify-center border transition-colors ${
         currentTrackId
-          ? "bg-primary/20 text-primary"
-          : "text-white/75 hover:bg-white/10 hover:text-white"
+          ? "border-brand-magenta/35 bg-brand-magenta/15 text-brand-magenta"
+          : "border-transparent text-white/75 hover:border-white/15 hover:bg-white/10 hover:text-white"
       }`
     : `p-2 transition-colors ${
-        currentTrackId ? "text-primary" : "text-white/70 hover:text-white"
+        currentTrackId ? "text-brand-magenta" : "text-white/70 hover:text-white"
       }`;
 
   const panelClass = isCinema
-    ? "absolute bottom-full right-0 mb-2 min-w-48 overflow-hidden rounded-2xl border border-white/10 bg-[#0c0c14]/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
-    : "absolute bottom-full right-0 mb-2 min-w-44 overflow-hidden rounded-xl border border-white/15 bg-black/90 shadow-2xl";
+    ? "absolute bottom-full right-0 mb-2 min-w-48 overflow-hidden border border-white/10 bg-[#0c0c14]/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
+    : "absolute bottom-full right-0 mb-2 min-w-44 overflow-hidden border border-white/15 bg-black/90 shadow-2xl";
 
   return (
     <div className="relative">
@@ -62,7 +62,7 @@ export function SubtitleSelector({
             onClick={() => setOpen(false)}
           />
           <div className={`${panelClass} z-50`}>
-            <p className="border-b border-white/10 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+            <p className="border-b border-white/10 px-4 py-2.5 text-caption font-semibold text-muted-token">
               Sous-titres
             </p>
             <button
@@ -73,10 +73,10 @@ export function SubtitleSelector({
               }}
               className="flex w-full items-center justify-between px-4 py-2.5 text-sm transition-colors hover:bg-white/[0.06]"
             >
-              <span className={!currentTrackId ? "font-medium text-primary" : "text-white/85"}>
+              <span className={!currentTrackId ? "font-medium text-brand-magenta" : "text-white/85"}>
                 Désactivés
               </span>
-              {!currentTrackId && <Check size={14} className="text-primary" />}
+              {!currentTrackId && <Check size={14} className="text-brand-magenta" />}
             </button>
             {tracks.map((track) => (
               <button
@@ -90,12 +90,12 @@ export function SubtitleSelector({
               >
                 <span
                   className={
-                    track.id === currentTrackId ? "font-medium text-primary" : "text-white/85"
+                    track.id === currentTrackId ? "font-medium text-brand-magenta" : "text-white/85"
                   }
                 >
                   {track.label}
                 </span>
-                {track.id === currentTrackId && <Check size={14} className="text-primary" />}
+                {track.id === currentTrackId && <Check size={14} className="text-brand-magenta" />}
               </button>
             ))}
           </div>

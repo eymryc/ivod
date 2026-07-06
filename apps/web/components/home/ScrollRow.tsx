@@ -145,8 +145,7 @@ export function ScrollRow({
       <div
         ref={ref}
         className={
-          scrollClassName ??
-          "flex gap-3 overflow-x-auto overflow-y-visible py-3 scrollbar-none snap-x snap-mandatory -mx-1 px-1"
+          scrollClassName ?? RAIL_SCROLL_CLASS
         }
       >
         {children}
@@ -179,7 +178,7 @@ export function RailSection({
         <div className="min-w-0">
           <div className="ivod-line-accent w-10 mb-3" />
           <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="text-xl md:text-2xl font-semibold text-white tracking-tight">{title}</h2>
+            <h2 className="font-display text-xl md:text-2xl font-semibold text-white tracking-tight">{title}</h2>
             {badge}
           </div>
         </div>

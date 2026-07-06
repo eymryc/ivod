@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Image as ImageIcon, Search, X } from "lucide-react";
 import { adminApi } from "@/lib/api/admin";
 import { assetUrl } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import { inputCls, labelCls } from "@/lib/ui/cinema-field";
 
@@ -85,8 +85,8 @@ export function BannerContentSearch({ value, onChange }: BannerContentSearchProp
               >
                 {thumb ? (
                   <div className="relative h-10 w-7 shrink-0 overflow-hidden bg-white/[0.04]">
-                    <Image
-                      src={assetUrl(thumb) ?? ""}
+                    <MediaImage
+                      src={assetUrl(thumb)}
                       alt=""
                       fill
                       className="object-cover"

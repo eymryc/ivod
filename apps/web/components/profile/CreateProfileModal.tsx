@@ -106,7 +106,7 @@ export function CreateProfileModal({ open, onClose, selectOnCreate = false }: Cr
                 <UserPlus size={20} strokeWidth={1.75} />
               </span>
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold tracking-[0.2em] uppercase ivod-gradient-text mb-1">
+                <p className="text-caption font-semibold text-brand-magenta mb-1">
                   Nouveau profil
                 </p>
                 <h2 id="create-profile-title" className="text-xl font-bold text-white tracking-tight">
@@ -127,7 +127,7 @@ export function CreateProfileModal({ open, onClose, selectOnCreate = false }: Cr
 
           <form onSubmit={handleSubmit((d) => createMutation.mutate(d))} className="space-y-5">
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40 mb-2">
+              <label className="block text-caption font-semibold text-secondary-token mb-2">
                 Nom du profil
               </label>
               <input

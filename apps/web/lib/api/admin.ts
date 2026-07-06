@@ -1,5 +1,25 @@
 import { get, post, put, patch, del, buildQueryString } from "./client";
 
+export interface VideoPipelineSettings {
+  detectedCpuLimit: number;
+  maxQualityCode: string;
+  maxQualityCodeByPlan: Record<string, string> | null;
+  workerConcurrency: number;
+  workerConcurrencyIsOverride: boolean;
+  /** Toujours dérivé de detectedCpuLimit ÷ workerConcurrency — jamais réglable indépendamment. */
+  ffmpegThreads: number;
+  recommendedConcurrency: number;
+  recommendedThreads: number;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export interface UpdateVideoPipelineSettingsInput {
+  maxQualityCode?: string;
+  maxQualityCodeByPlan?: Record<string, string> | null;
+  workerConcurrencyOverride?: number | null;
+}
+
 export const adminApi = {
   // Dashboard
   getDashboard: () => get<any>("/admin/dashboard", true),
@@ -95,4 +115,10 @@ export const adminApi = {
   calculateRevenue: (year: number, month: number) =>
     post<any>(`/revenue/calculate/${year}/${month}`),
   payStatement: (id: string) => patch<any>(`/revenue/statements/${id}/pay`),
+
+  // Pipeline vidéo — ressources détectées + réglages, appliqué sans redéploiement
+  getVideoPipelineSettings: () =>
+    get<VideoPipelineSettings>("/admin/video-pipeline/settings", true),
+  updateVideoPipelineSettings: (data: UpdateVideoPipelineSettingsInput) =>
+    put<VideoPipelineSettings>("/admin/video-pipeline/settings", data),
 };

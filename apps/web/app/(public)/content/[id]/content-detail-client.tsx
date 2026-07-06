@@ -15,10 +15,11 @@ import { CrewSection } from "@/components/content/CrewSection";
 import { CommentSection } from "@/components/content/CommentSection";
 import { ReviewForm } from "@/components/content/ReviewForm";
 import { SeasonEpisodeList } from "@/components/content/SeasonEpisodeList";
+import { ContentDetailTabs } from "@/components/design/ContentDetailTabs";
 import { ReportModal } from "@/components/content/ReportModal";
 import { RailSection } from "@/components/home/ScrollRow";
 import { ContentCard } from "@/components/content/ContentCard";
-import { VIEWER_SHELL_WIDTH } from "@/components/public/PublicShell";
+import { VIEWER_SHELL_WIDTH, RAIL_SCROLL_CLASS } from "@/components/public/PublicShell";
 import {
   buildResumeWatchHref,
   canResumeSession,
@@ -280,6 +281,13 @@ export function ContentDetailClient({ id, initialContent }: Props) {
     typeof content.status === "object" ? content.status?.code : content.status;
   const comingSoon = statusCode !== "PUBLISHED";
 
+  const similarItems: any[] = (() => {
+    const raw = (similarContents as any)?.items ?? similarContents ?? [];
+    return raw.filter((c: any) => c.id !== id).slice(0, 12);
+  })();
+
+  const showEpisodes = isSerie && !!seasons && seasons.length > 0;
+
   return (
     <div className="min-h-screen page-canvas">
       {/* Hero plein écran — lecture via /watch (comme Netflix, pas de player sur la fiche) */}
@@ -334,112 +342,119 @@ export function ContentDetailClient({ id, initialContent }: Props) {
         }
       />
 
-      {isSerie && seasons && seasons.length > 0 && (
-        <div className={`${CONTENT_DETAIL_PAGE_SHELL} pt-6 md:pt-8`}>
-          <SeasonEpisodeList
-            contentId={content.id}
-            contentTitle={content.title}
-            seasons={seasons as any[]}
-            canWatch={canWatch(entitlement)}
-            canDownload={canDownload}
-            watchHistory={
-              (watchHistoryItems ?? [])
+      {showEpisodes && (
+        <section className="border-t border-white/[0.06] py-8 md:py-10">
+          <div className={CONTENT_DETAIL_PAGE_SHELL}>
+            <SeasonEpisodeList
+              contentId={content.id}
+              contentTitle={content.title}
+              seasons={seasons as any[]}
+              canWatch={canWatch(entitlement)}
+              canDownload={canDownload}
+              watchHistory={(watchHistoryItems ?? [])
                 .filter((h) => h.episodeId)
                 .map((h) => ({
                   episodeId: h.episodeId ?? undefined,
                   watchedSeconds: h.watchedSeconds ?? undefined,
                   percentage: h.percentage ?? undefined,
                   completed: h.completed ?? undefined,
-                }))
-            }
-          />
-        </div>
+                }))}
+            />
+          </div>
+        </section>
       )}
 
-      {(() => {
-        const items: any[] = (similarContents as any)?.items ?? similarContents ?? [];
-        const similar = items.filter((c: any) => c.id !== id).slice(0, 12);
-        if (!similar.length) return null;
-        return (
-          <section className="py-8 md:py-10 border-b border-white/[0.06]">
-            <RailSection
-              title="Vous pourriez aussi aimer"
-              headerClassName={VIEWER_SHELL_WIDTH}
-              contentClassName={VIEWER_SHELL_WIDTH}
-              scrollClassName="flex gap-5 md:gap-6 overflow-x-auto overflow-y-visible py-3 scrollbar-none snap-x snap-mandatory"
-            >
-              {similar.map((c: any) => (
-                <div key={c.id} className="shrink-0 snap-start">
-                  <ContentCard content={c} variant="rail" />
+      {similarItems.length > 0 && (
+        <section className="border-t border-white/[0.06] py-8 md:py-10">
+          <RailSection
+            title="Vous pourriez aussi aimer"
+            headerClassName={VIEWER_SHELL_WIDTH}
+            contentClassName={VIEWER_SHELL_WIDTH}
+            scrollClassName={RAIL_SCROLL_CLASS}
+          >
+            {similarItems.map((c: any) => (
+              <div key={c.id} className="shrink-0 snap-start">
+                <ContentCard content={c} variant="rail" />
+              </div>
+            ))}
+          </RailSection>
+        </section>
+      )}
+
+      <ContentDetailTabs
+        infos={
+          <div className="max-w-5xl mx-auto space-y-8">
+            <PromoExtrasSection contentTitle={content.title} promoVideos={content.promoVideos} />
+
+            {content.description &&
+              content.description !== content.shortDescription && (
+                <div>
+                  <p
+                    className={`text-sm text-white/75 leading-relaxed max-w-[65ch] prose-readable ${showFullDesc ? "" : "line-clamp-4"}`}
+                  >
+                    {content.description}
+                  </p>
+                  {content.description.length > 280 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFullDesc(!showFullDesc)}
+                      className="flex items-center gap-1 text-sm text-white/60 hover:text-white mt-2 transition-colors"
+                    >
+                      {showFullDesc ? (
+                        <>
+                          <ChevronUp size={14} /> Voir moins
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown size={14} /> Lire la suite
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
-              ))}
-            </RailSection>
-          </section>
-        );
-      })()}
+              )}
 
-      <div className="max-w-5xl mx-auto px-4 md:px-8 py-8 space-y-8">
-        <PromoExtrasSection contentTitle={content.title} promoVideos={content.promoVideos} />
+            <ContentBadges
+              isExclusive={content.isExclusive}
+              visibility={content.visibility}
+              ppvPrice={content.ppvPrice}
+              maturityCode={content.maturityRating?.code}
+              quality={videoQualityFromHeight(content.videoAsset?.height)}
+            />
 
-        {content.description &&
-          content.description !== content.shortDescription && (
-          <div>
-            <p className={`text-sm text-white/75 leading-relaxed max-w-3xl ${showFullDesc ? "" : "line-clamp-4"}`}>
-              {content.description}
-            </p>
-            {content.description.length > 280 && (
-              <button
-                type="button"
-                onClick={() => setShowFullDesc(!showFullDesc)}
-                className="flex items-center gap-1 text-sm text-white/60 hover:text-white mt-2 transition-colors"
-              >
-                {showFullDesc ? <><ChevronUp size={14} /> Voir moins</> : <><ChevronDown size={14} /> Lire la suite</>}
-              </button>
+            {crew.length > 0 && <CrewSection crew={crew} />}
+
+            {awards.length > 0 && (
+              <div className="pt-2 border-t border-white/10">
+                <AwardsSection awards={awards} />
+              </div>
+            )}
+
+            {isAuthenticated && (
+              <div className="flex justify-end pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(true)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-red-400 transition-colors"
+                >
+                  <Flag size={14} />
+                  Signaler
+                </button>
+              </div>
             )}
           </div>
-        )}
-
-        <ContentBadges
-          isExclusive={content.isExclusive}
-          visibility={content.visibility}
-          ppvPrice={content.ppvPrice}
-          maturityCode={content.maturityRating?.code}
-          quality={videoQualityFromHeight(content.videoAsset?.height)}
-        />
-
-        {crew.length > 0 && <CrewSection crew={crew} />}
-
-        {/* Palmarès */}
-        {awards.length > 0 && (
-          <div className="pt-2 border-t border-white/10">
-            <AwardsSection awards={awards} />
+        }
+        reviews={
+          <div className="max-w-5xl mx-auto space-y-8">
+            <div className="pt-2 border-t border-white/10">
+              <ReviewForm contentId={id} />
+            </div>
+            <div className="pt-4 border-t border-white/10">
+              <CommentSection contentId={id} />
+            </div>
           </div>
-        )}
-
-        {isAuthenticated && (
-          <div className="flex justify-end pt-4 border-t border-white/10">
-            <button
-              type="button"
-              onClick={() => setShowReportModal(true)}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-red-400 transition-colors"
-            >
-              <Flag size={14} />
-              Signaler
-            </button>
-          </div>
-        )}
-
-        {/* Avis */}
-        <div className="pt-4 border-t border-white/10">
-          <ReviewForm contentId={id} />
-        </div>
-
-        {/* Commentaires */}
-        <div className="pt-4 border-t border-white/10">
-          <CommentSection contentId={id} />
-        </div>
-
-      </div>
+        }
+      />
 
       {/* Modals */}
       {showReportModal && (

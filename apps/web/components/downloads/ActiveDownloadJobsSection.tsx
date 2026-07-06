@@ -118,7 +118,7 @@ export function ActiveDownloadJobsSection({ jobs }: Props) {
 
   return (
     <section className="mb-8 space-y-3">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-magenta">
+      <h2 className="text-caption font-semibold text-brand-magenta">
         En cours
       </h2>
       {grouped.map((entry) =>

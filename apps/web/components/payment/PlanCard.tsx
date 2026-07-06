@@ -180,7 +180,7 @@ export function PlanCard({
 
   return (
     <div
-      className={`relative flex flex-col rounded-2xl border p-6 transition-all ${
+      className={`relative flex flex-col rounded-none border p-6 transition-all ${
         recommended
           ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
           : isActive
@@ -190,7 +190,7 @@ export function PlanCard({
     >
       {recommended && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-          <span className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-xs font-bold rounded-full">
+          <span className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-xs font-bold rounded-none">
             <Star size={10} className="fill-white" /> Recommandé
           </span>
         </div>
@@ -198,7 +198,7 @@ export function PlanCard({
 
       {isActive && (
         <div className="absolute -top-3 right-4">
-          <span className="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded-full">Actif</span>
+          <span className="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded-none">Actif</span>
         </div>
       )}
 
@@ -235,7 +235,7 @@ export function PlanCard({
         type="button"
         onClick={onSelect}
         disabled={disabled || isActive}
-        className={`w-full py-3 rounded-xl font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation ${
+        className={`w-full py-3 rounded-none font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation ${
           isActive
             ? "bg-green-600/20 text-green-400 border border-green-500/30"
             : recommended

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
@@ -22,13 +21,13 @@ import {
 import { EpisodeRepeaterForm } from "@/components/studio/EpisodeRepeaterForm";
 import { EpisodeInlineEdit } from "@/components/studio/EpisodeInlineEdit";
 import { uploadEpisodeThumbnail, uploadSeasonPoster } from "@/lib/utils/series-images";
-import { posterUrl } from "@/lib/utils/assets";
+import { assetUrl, episodeThumbnailUrl, posterUrl, videoAssetUrl } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 import { showApiError, showApiSuccess } from "@/lib/api/feedback";
 import { episodesApi } from "@/lib/api/episodes";
 import { contentsApi } from "@/lib/api/contents";
 import { videosApi } from "@/lib/api/videos";
 import { ApiError } from "@/lib/api/client";
-import { assetUrl, episodeThumbnailUrl, videoAssetUrl } from "@/lib/utils/assets";
 import { formatDuration } from "@/lib/utils/format";
 import { isVideoPlayable } from "@/lib/utils/video";
 import { EpisodePipelineProgress } from "@/components/studio/EpisodePipelineProgress";
@@ -217,13 +216,12 @@ function EpisodeStudioRow({
       <div className="flex min-w-0 items-start gap-3 p-3 sm:gap-4 sm:p-4">
         <div className="relative h-[68px] w-[120px] shrink-0 overflow-hidden border border-white/[0.10] bg-black/40 sm:h-[72px] sm:w-[128px]">
           {thumb ? (
-            <Image
+            <MediaImage
               src={thumb}
               alt=""
               fill
               className="object-cover opacity-90 transition-transform duration-500 group-hover:scale-[1.03]"
               sizes="128px"
-              unoptimized
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -269,6 +267,7 @@ function EpisodeStudioRow({
             errorMessage={pipeline?.errorMessage ?? null}
             completedProfiles={pipeline?.pipeline?.completedProfiles ?? []}
             remainingProfiles={pipeline?.pipeline?.remainingProfiles ?? []}
+            previewAvailable={pipeline?.previewAvailable}
             reuploadHref={`/studio/contents/${contentId}/episodes/${episode.id}/upload`}
             onRetry={
               pipeline?.assetId && pipelineStatus === "ERROR"
@@ -575,13 +574,12 @@ export function SeriesEpisodesStudio({ contentId, embedded = false }: Props) {
                   <div className="flex items-start gap-3 sm:gap-4">
                     <label className="relative block h-[4.25rem] w-[3rem] shrink-0 cursor-pointer overflow-hidden border border-white/10 bg-black/40 hover:border-primary/30">
                       {(assetUrl(activeSeason.posterObjectKey) ?? seriesPosterSrc) ? (
-                        <Image
+                        <MediaImage
                           src={(assetUrl(activeSeason.posterObjectKey) ?? seriesPosterSrc)!}
                           alt=""
                           fill
                           className="object-cover"
                           sizes="48px"
-                          unoptimized
                         />
                       ) : (
                         <span className="absolute inset-0 flex items-center justify-center font-display text-lg font-bold text-primary">

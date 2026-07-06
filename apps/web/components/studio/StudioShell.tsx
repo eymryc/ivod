@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { BrandLoader } from "@/components/ui/BrandLoader";
+import { EmptyStateIllustration } from "@/components/design/EmptyStateIllustration";
 
 /** En-tête de page Studio (charte IVOD) */
 export function StudioPageHeader({
@@ -213,8 +214,8 @@ export function StudioEmpty({
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <Icon size={28} className="text-white/15 mb-4" strokeWidth={1.25} />
-      <p className="text-[13px] text-white/45 font-light">{title}</p>
+      <EmptyStateIllustration variant="default" className="h-20 w-20" />
+      <p className="text-[13px] text-white/45 font-light mt-1">{title}</p>
       {description && (
         <p className="text-[11px] text-white/25 font-light mt-1 max-w-xs">{description}</p>
       )}

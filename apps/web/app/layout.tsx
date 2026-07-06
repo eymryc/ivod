@@ -1,19 +1,28 @@
 import type { Metadata, Viewport } from "next";
-import { Rajdhani } from "next/font/google";
+import { Rajdhani, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/providers/AuthProvider";
 import { QueryProvider } from "@/lib/providers/QueryProvider";
 import { SocketProvider } from "@/lib/providers/SocketProvider";
 import { IvodToaster } from "@/components/ui/IvodToaster";
+import { PageTransition } from "@/components/layout/PageTransition";
+import { ViewportProvider } from "@/lib/providers/ViewportProvider";
 
 const rajdhani = Rajdhani({
   variable: "--font-rajdhani",
   subsets: ["latin"],
-  // Poids 300 retiré : glyf bbox incorrects dans Firefox + préchargements inutilisés.
-  // font-light est mappé sur 400 via --font-weight-light dans globals.css.
-  // Login n'utilise que 400/600 → évite le preload inutilisé des autres graisses.
   weight: ["400", "600", "700"],
   display: "optional",
+  adjustFontFallback: true,
+  preload: false,
+  fallback: ["system-ui", "Segoe UI", "sans-serif"],
+});
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
   adjustFontFallback: true,
   preload: false,
   fallback: ["system-ui", "Segoe UI", "sans-serif"],
@@ -43,15 +52,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" suppressHydrationWarning>
       <body
-        className={`ivod-app ${rajdhani.variable} font-sans antialiased min-h-screen bg-background text-foreground`}
+        className={`ivod-app ${rajdhani.variable} ${inter.variable} font-sans antialiased min-h-screen bg-background text-foreground`}
       >
         <QueryProvider>
-          <AuthProvider>
-            <SocketProvider>
-              {children}
-              <IvodToaster />
-            </SocketProvider>
-          </AuthProvider>
+          <ViewportProvider>
+            <AuthProvider>
+              <SocketProvider>
+                <PageTransition>{children}</PageTransition>
+                <IvodToaster />
+              </SocketProvider>
+            </AuthProvider>
+          </ViewportProvider>
         </QueryProvider>
       </body>
     </html>

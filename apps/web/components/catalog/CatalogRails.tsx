@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useQuery, useQueries } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { ContentCard } from "@/components/content/ContentCard";
 import { ContentCardSkeleton } from "@/components/content/ContentCardSkeleton";
 import { RailSection } from "@/components/home/ScrollRow";
-import { HOME_RAIL } from "@/components/public/PublicShell";
+import { HOME_RAIL, RAIL_SCROLL_CLASS, VIEWER_SHELL_WIDTH } from "@/components/public/PublicShell";
 import { HomeSectionReveal, RailCardMotion } from "@/components/home/HomeMotion";
 import { catalogApi, type CatalogRailSurface } from "@/lib/api/catalog";
 import { contentsApi } from "@/lib/api/contents";
@@ -18,13 +19,9 @@ import { useCatalogMaturityFilter } from "@/lib/hooks/useCatalogMaturityFilter";
 import { useAuthStore } from "@/lib/stores/auth.store";
 import { useProfileStore } from "@/lib/stores/profile.store";
 import { ContinueWatchingRail } from "@/components/catalog/ContinueWatchingRail";
+import { FeaturedGridRail } from "@/components/design/FeaturedGridRail";
 import type { ContentCardContent } from "@/components/content/ContentCard";
-
-const HOME_ROW_SCROLL =
-  "flex gap-4 md:gap-5 overflow-x-auto overflow-y-visible py-2 scrollbar-none snap-x snap-mandatory -mx-1 px-1";
-
-const CATALOG_ROW_SCROLL =
-  "flex gap-4 md:gap-5 overflow-x-auto overflow-y-visible py-2 scrollbar-none snap-x snap-mandatory -mx-1 px-1";
+import { SSR_HOME_RAIL_PREFETCH_LIMIT } from "@/lib/catalog/home-rails.constants";
 
 function extractItems(data: unknown): ContentCardContent[] {
   const items = (data as { items?: ContentCardContent[] })?.items;
@@ -32,12 +29,12 @@ function extractItems(data: unknown): ContentCardContent[] {
 }
 
 function QueryRailSkeleton({ title, variant }: { title: string; variant: "home" | "catalog" }) {
-  const headerClass = variant === "home" ? HOME_RAIL : "";
+  const headerClass = variant === "home" ? HOME_RAIL : VIEWER_SHELL_WIDTH;
   return (
-    <div className={variant === "home" ? undefined : "mb-10 md:mb-12"}>
+    <div className={variant === "home" ? undefined : "mb-14 md:mb-20"}>
       <div className={`${headerClass} mb-5`}>
         <div className="ivod-line-accent w-10 mb-3" />
-        <h2 className="text-xl md:text-2xl font-semibold text-white tracking-tight">{title}</h2>
+        <h2 className="font-display text-xl md:text-2xl font-semibold text-white tracking-tight">{title}</h2>
       </div>
       <div className="flex gap-4 overflow-hidden">
         {Array.from({ length: 6 }).map((_, i) => (
@@ -76,13 +73,15 @@ function QueryRailRow({
     </Link>
   ) : undefined;
 
+  const shellClass = variant === "home" ? HOME_RAIL : VIEWER_SHELL_WIDTH;
+
   const row = (
     <RailSection
       title={title}
       badge={badge}
-      headerClassName={variant === "home" ? HOME_RAIL : ""}
-      contentClassName={variant === "home" ? HOME_RAIL : ""}
-      scrollClassName={`${variant === "home" ? HOME_ROW_SCROLL : CATALOG_ROW_SCROLL} ${variant === "home" ? "pb-4 md:pb-10" : ""}`}
+      headerClassName={shellClass}
+      contentClassName={shellClass}
+      scrollClassName={RAIL_SCROLL_CLASS}
     >
       {items.map((content, index) => (
         <RailCardMotion key={content.id} index={index} className="shrink-0 snap-start">
@@ -101,7 +100,7 @@ function QueryRailRow({
     return <HomeSectionReveal>{row}</HomeSectionReveal>;
   }
 
-  return <div className="mb-10 md:mb-12">{row}</div>;
+  return <div className="mb-14 md:mb-20">{row}</div>;
 }
 
 type Props = {
@@ -115,6 +114,23 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
   const activeProfileId = useProfileStore((s) => s.activeProfileId);
   const catalogMaturity = useCatalogMaturityFilter();
   const variant = surface === "home" ? "home" : "catalog";
+  const [loadDeferredRails, setLoadDeferredRails] = useState(
+    surface !== "home",
+  );
+
+  useEffect(() => {
+    if (surface !== "home" || loadDeferredRails) return;
+    const schedule =
+      typeof requestIdleCallback !== "undefined"
+        ? requestIdleCallback
+        : (cb: () => void) => window.setTimeout(cb, 400);
+    const cancel =
+      typeof cancelIdleCallback !== "undefined"
+        ? cancelIdleCallback
+        : (id: number) => window.clearTimeout(id);
+    const id = schedule(() => setLoadDeferredRails(true));
+    return () => cancel(id as number);
+  }, [surface, loadDeferredRails]);
 
   const { data: rails, isLoading: railsLoading } = useQuery({
     queryKey: ["catalog-rails", surface],
@@ -141,14 +157,14 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
   const { data: favoritesRaw } = useQuery({
     queryKey: ["favorites-rails", surface],
     queryFn: () => favoritesApi.list(1, 16),
-    enabled: isAuthenticated && surface === "home",
+    enabled: isAuthenticated && surface === "home" && loadDeferredRails,
     staleTime: 2 * 60_000,
   });
 
   const { data: recommendationsRaw } = useQuery({
     queryKey: ["recommendations-rails", surface],
     queryFn: () => get<unknown[]>("/recommendations", true),
-    enabled: isAuthenticated && surface === "home",
+    enabled: isAuthenticated && surface === "home" && loadDeferredRails,
     staleTime: 5 * 60_000,
   });
 
@@ -161,7 +177,7 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
     : extractItems(recommendationsRaw);
 
   const contentQueries = useQueries({
-    queries: fetchableRails.map((rail) => ({
+    queries: fetchableRails.map((rail, railIndex) => ({
       queryKey: [
         "catalog-rail-content",
         surface,
@@ -187,7 +203,11 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
           ? items.filter((c) => c.id !== excludeContentId)
           : items;
       },
-      enabled: !railsLoading,
+      enabled:
+        !railsLoading &&
+        (surface !== "home" ||
+          loadDeferredRails ||
+          railIndex < SSR_HOME_RAIL_PREFETCH_LIMIT),
       staleTime: 3 * 60_000,
     })),
   });
@@ -201,6 +221,7 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
   }
 
   let queryIdx = 0;
+  let editorialRailIdx = 0;
 
   return (
     <div className={surface === "home" ? undefined : "space-y-10 md:space-y-12"}>
@@ -253,6 +274,24 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
         if (rail.type === "query" || rail.type === "editorial") {
           const q = contentQueries[queryIdx++];
           const items = (q.data as ContentCardContent[] | undefined) ?? [];
+          editorialRailIdx += 1;
+
+          if (
+            surface === "home" &&
+            editorialRailIdx % 3 === 0 &&
+            items.length >= 4
+          ) {
+            return (
+              <FeaturedGridRail
+                key={rail.id}
+                title={rail.title}
+                link={rail.link}
+                items={items}
+                historyMap={historyMap}
+                variant={variant}
+              />
+            );
+          }
 
           return (
             <QueryRailRow
@@ -261,7 +300,7 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
               link={rail.link}
               items={items}
               historyMap={historyMap}
-              isLoading={q.isLoading}
+              isLoading={q.isLoading || !q.isFetched}
               variant={variant}
             />
           );

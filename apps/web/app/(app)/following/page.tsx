@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, Loader2, UserMinus } from "lucide-react";
 import Link from "next/link";
@@ -7,6 +6,7 @@ import { toast } from "@/lib/toast";
 import { showApiError, showApiSuccess } from "@/lib/api/feedback";
 import { followsApi } from "@/lib/api/follows";
 import { assetUrl } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 import { formatCount } from "@/lib/utils/format";
 import { ApiError } from "@/lib/api/client";
 import { PAGE_X } from "@/components/public/PublicShell";
@@ -59,7 +59,7 @@ export default function FollowingPage() {
                 <Link href={`/creator/${creator.id}`} className="shrink-0">
                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-primary/10">
                     {avatarUrl
-                      ? <Image src={avatarUrl} alt={creator.stageName} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
+                      ? <MediaImage src={avatarUrl} alt={creator.stageName} fill className="object-cover" sizes="48px" />
                       : <div className="w-full h-full flex items-center justify-center text-primary font-bold text-lg">{creator.stageName?.[0]}</div>
                     }
                   </div>

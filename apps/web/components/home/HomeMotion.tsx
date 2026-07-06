@@ -6,7 +6,6 @@ import Link from "next/link";
 import {
   fadeUpChild,
   sectionReveal,
-  railCardReveal,
   staggerContainer,
   useReducedMotion,
   kenBurnsTransition,
@@ -95,28 +94,16 @@ export function HomeSectionReveal({
   );
 }
 
-/** Carte dans un rail — stagger index */
+/** Carte dans un rail — reveal CSS léger (sans framer-motion par carte). */
 export function RailCardMotion({
-  index,
   children,
   className,
 }: {
-  index: number;
+  index?: number;
   children: ReactNode;
   className?: string;
 }) {
-  const reduced = useReducedMotion();
-  return (
-    <motion.div
-      variants={railCardReveal(reduced, index)}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, margin: "-40px" }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className={`rail-card-enter ${className ?? ""}`.trim()}>{children}</div>;
 }
 
 /** Pill catégorie avec hover premium */

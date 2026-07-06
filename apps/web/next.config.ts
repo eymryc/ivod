@@ -83,6 +83,10 @@ const nextConfig: NextConfig = {
       `img-src 'self' data: blob: ${cspList([minioOrigin, ...devExtras.minio])}`,
       // Vidéo HLS : blob URLs générées par Video.js + MinIO
       `media-src 'self' blob: ${cspList([minioOrigin, ...devExtras.minio])}`,
+      // Worker Video.js/hls.js (transmuxing) : chargé depuis une blob: URL.
+      // Sans cette directive, le navigateur retombe sur script-src qui n'autorise
+      // pas blob: — bloquait le lecteur HLS en prod. Trouvé le 2026-07-05.
+      "worker-src 'self' blob:",
       // API (fetch) + WebSocket : origines exactes dérivées des env vars
       `connect-src 'self' ${cspList([apiOrigin, wsOrigin, wsWsOrigin, ...devExtras.api, ...devExtras.ws])}`,
       "font-src 'self' data:",
@@ -95,6 +99,21 @@ const nextConfig: NextConfig = {
     ].join("; ");
 
     return [
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        source: "/media",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
       {
         source: "/(.*)",
         headers: [

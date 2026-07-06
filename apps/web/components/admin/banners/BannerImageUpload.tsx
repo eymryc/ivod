@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useRef, useState } from "react";
 import { Loader2, Upload, X } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { adminApi } from "@/lib/api/admin";
 import { assetUrl } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 import { labelCls } from "@/lib/ui/cinema-field";
 
 interface BannerImageUploadProps {
@@ -79,7 +79,7 @@ export function BannerImageUpload({
       >
         {previewUrl ? (
           <>
-            <Image src={previewUrl} alt="" fill className="object-cover" sizes="400px" />
+            <MediaImage src={previewUrl} alt="" fill className="object-cover" sizes="400px" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
             <button
               type="button"

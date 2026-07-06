@@ -2,11 +2,10 @@
 
 import { ContentCard } from "@/components/content/ContentCard";
 import { RailSection } from "@/components/home/ScrollRow";
-import { HOME_RAIL } from "@/components/public/PublicShell";
+import { HOME_RAIL, RAIL_SCROLL_CLASS } from "@/components/public/PublicShell";
 import { HomeSectionReveal, RailCardMotion } from "@/components/home/HomeMotion";
 
-const ROW_SCROLL =
-  "flex gap-4 md:gap-5 overflow-x-auto overflow-y-visible py-2 scrollbar-none snap-x snap-mandatory -mx-1 px-1";
+const ROW_SCROLL = RAIL_SCROLL_CLASS;
 
 function dedupeWatchHistorySessions(sessions: any[]) {
   const byKey = new Map<string, any>();
@@ -63,9 +62,15 @@ export function ContinueWatchingRail({ title, sessions }: Props) {
         title={title}
         headerClassName={HOME_RAIL}
         contentClassName={HOME_RAIL}
-        scrollClassName={`${ROW_SCROLL} pb-4 md:pb-10`}
+        scrollClassName={ROW_SCROLL}
       >
-        {items.map((item: any, index: number) => (
+        {items.map((item: any, index: number) => {
+          const ep = item._session?.episode;
+          const epLabel =
+            item._session?.episodeId && ep
+              ? `S${ep.seasonNumber ?? "?"}E${ep.episodeNumber ?? "?"}`
+              : null;
+          return (
           <RailCardMotion key={item._session.id} index={index} className="shrink-0 snap-start">
             <ContentCard
               content={item}
@@ -73,15 +78,11 @@ export function ContinueWatchingRail({ title, sessions }: Props) {
               showProgress
               variant="rail"
               playHref={item._watchHref}
+              extraMeta={epLabel ?? undefined}
             />
-            {item._session?.episodeId && item._session?.episode && (
-              <p className="text-xs text-white/45 mt-1.5 px-0.5">
-                S{item._session.episode.seasonNumber ?? "?"}E
-                {item._session.episode.episodeNumber ?? "?"}
-              </p>
-            )}
           </RailCardMotion>
-        ))}
+          );
+        })}
       </RailSection>
     </HomeSectionReveal>
   );

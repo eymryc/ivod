@@ -18,6 +18,8 @@ import {
   MonitorPlay,
 } from "lucide-react";
 import { CatalogRails } from "@/components/catalog/CatalogRails";
+import { CreatorsSpotlightRail } from "@/components/design/CreatorsSpotlightRail";
+import { TrustPaymentBar } from "@/components/design/TrustPaymentBar";
 import { ScrollRow } from "@/components/home/ScrollRow";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useSwipe } from "@/lib/hooks/useSwipe";
@@ -71,13 +73,13 @@ function HeroVignette() {
       <div className="absolute inset-0 bg-gradient-to-r from-[#00050d]/72 via-[#00050d]/22 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-t from-[#00050d]/95 via-[#00050d]/35 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-br from-brand-purple/4 via-transparent to-brand-gold/[0.04]" />
-      <div className="pointer-events-none absolute top-0 right-0 w-1/2 h-1/2 bg-brand-magenta/4 blur-[90px]" />
+      <div className="pointer-events-none absolute top-0 right-0 w-1/2 h-1/2 bg-brand-magenta/4 blur-[90px] hidden md:block" />
     </>
   );
 }
 
 const HERO_IMAGE_CLASS =
-  "object-cover object-top brightness-[1.28] contrast-[1.03] saturate-[1.1]";
+  "object-cover object-top brightness-[1.12] contrast-[1.02] saturate-[1.06]";
 
 function HeroSkeleton() {
   return (
@@ -102,6 +104,42 @@ const CTA_BTN_CLASS: Record<string, string> = {
   GHOST:   BTN_GHOST,
   PREMIUM: BTN_WHITE,
 };
+
+/** CTA hero — colonne pleine largeur mobile, ligne à partir de sm */
+const HERO_CTA_ROW = "flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3 w-full max-w-xl";
+const HERO_CTA_LINK = "home-btn-lift w-full sm:w-auto justify-center";
+
+function HeroCarouselDots({
+  count,
+  activeIndex,
+  onSelect,
+  className = "",
+}: {
+  count: number;
+  activeIndex: number;
+  onSelect: (index: number) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`flex items-center justify-center gap-1.5 ${className}`}
+      role="tablist"
+      aria-label="Slides bannière"
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <button
+          key={i}
+          type="button"
+          role="tab"
+          onClick={() => onSelect(i)}
+          aria-label={`Bannière ${i + 1}`}
+          aria-selected={i === activeIndex}
+          className={`hero-carousel-controls__dot ${i === activeIndex ? "is-active" : ""}`}
+        />
+      ))}
+    </div>
+  );
+}
 
 function HeroCarousel({ banners }: { banners: any[] }) {
   const [idx, setIdx] = useState(0);
@@ -183,7 +221,7 @@ function HeroCarousel({ banners }: { banners: any[] }) {
         >
           <HeroKenBurnsLayer>
             {imgUrl && (
-              <Image
+              <MediaImage
                 src={imgUrl}
                 alt={banner.title}
                 fill
@@ -200,59 +238,73 @@ function HeroCarousel({ banners }: { banners: any[] }) {
       <AnimatePresence mode="wait">
         <motion.div
           key={`content-${idx}`}
-          className={`${HOME_HERO_CONTENT_POS} ${HOME_BLOCK}`}
+          className={`${HOME_HERO_CONTENT_POS} ${HOME_BLOCK} pointer-events-auto`}
           {...heroSlideText(reducedMotion)}
         >
           <HeroTextCascade replayKey={idx} className="max-w-3xl">
             <HeroCascadeItem>
               {banner.badgeText ? (
-                <span className="inline-block text-[10px] font-bold tracking-[0.18em] uppercase px-2.5 py-1 mb-3 bg-primary/90 text-white">
+                <span className="inline-block text-[10px] font-bold tracking-[0.18em] uppercase px-2.5 py-1 mb-2 sm:mb-3 bg-primary/90 text-white">
                   {banner.badgeText}
                 </span>
               ) : (
-                <p className="text-[11px] font-semibold tracking-[0.2em] uppercase ivod-gradient-text mb-3">
+                <p className="text-caption font-semibold text-brand-magenta mb-2 sm:mb-3">
                   À la une
                 </p>
               )}
             </HeroCascadeItem>
-            <HeroCascadeItem>
-              <div className="ivod-line-accent w-12 mb-4" />
+            <HeroCascadeItem className="hidden sm:block">
+              <div className="ivod-line-accent w-12 mb-3 sm:mb-4" />
             </HeroCascadeItem>
             <HeroCascadeItem>
               <HeroTitleGlow>
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-white tracking-tight leading-[1.1] mb-3">
+                <h1 className="text-2xl sm:text-3xl md:text-5xl font-semibold text-white tracking-tight leading-[1.12] mb-2 sm:mb-3 line-clamp-2">
                   {banner.title}
                 </h1>
               </HeroTitleGlow>
             </HeroCascadeItem>
             {banner.subtitle && (
               <HeroCascadeItem>
-                <p className="text-white/75 text-sm md:text-base font-light mb-6 line-clamp-2 max-w-xl">
+                <p className="text-white/75 text-sm md:text-base font-light mb-3 sm:mb-5 line-clamp-1 sm:line-clamp-2 max-w-xl">
                   {banner.subtitle}
                 </p>
               </HeroCascadeItem>
             )}
             <HeroCascadeItem>
-              <div className="flex flex-wrap gap-3">
+              <div className={HERO_CTA_ROW}>
                 {banner.contentId && (
                   <>
-                    <Link href={`/watch/${banner.contentId}`} onClick={trackClick} className={`${ctaBtn} home-btn-lift`}>
+                    <Link
+                      href={`/watch/${banner.contentId}`}
+                      onClick={trackClick}
+                      className={`${ctaBtn} ${HERO_CTA_LINK}`}
+                    >
                       <Play size={18} className="fill-current shrink-0" />
                       {banner.ctaLabel || "Regarder"}
                     </Link>
-                    <Link href={`/content/${banner.contentId}`} className={`${BTN_GHOST} home-btn-lift`}>
+                    <Link href={`/content/${banner.contentId}`} className={`${BTN_GHOST} ${HERO_CTA_LINK}`}>
                       <Info size={16} className="shrink-0" />
                       Plus d&apos;infos
                     </Link>
                   </>
                 )}
                 {!banner.contentId && banner.linkUrl && (
-                  <Link href={banner.linkUrl} onClick={trackClick} className={`${ctaBtn} home-btn-lift`}>
+                  <Link href={banner.linkUrl} onClick={trackClick} className={`${ctaBtn} ${HERO_CTA_LINK}`}>
                     {banner.ctaLabel || "Découvrir"}
                   </Link>
                 )}
               </div>
             </HeroCascadeItem>
+            {banners.length > 1 && (
+              <HeroCascadeItem>
+                <HeroCarouselDots
+                  count={banners.length}
+                  activeIndex={idx}
+                  onSelect={setIdx}
+                  className="pt-2 md:hidden"
+                />
+              </HeroCascadeItem>
+            )}
           </HeroTextCascade>
         </motion.div>
       </AnimatePresence>
@@ -277,7 +329,7 @@ function HeroCarousel({ banners }: { banners: any[] }) {
           </button>
 
           <div
-            className={`absolute bottom-4 right-4 z-30 md:bottom-6 md:right-8 ${HOME_BLOCK} flex justify-end pointer-events-none`}
+            className={`absolute bottom-4 right-4 z-30 md:bottom-6 md:right-8 ${HOME_BLOCK} hidden md:flex justify-end pointer-events-none`}
           >
             <div className="hero-carousel-controls pointer-events-auto">
               <p className="hero-carousel-controls__label" aria-hidden>
@@ -294,37 +346,7 @@ function HeroCarousel({ banners }: { banners: any[] }) {
                   />
                 </div>
               )}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={goPrev}
-                  aria-label="Bannière précédente"
-                  className="hero-carousel-controls__nav md:hidden"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <div className="flex items-center gap-1.5" role="tablist" aria-label="Slides bannière">
-                  {banners.map((_, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      role="tab"
-                      onClick={() => setIdx(i)}
-                      aria-label={`Bannière ${i + 1}`}
-                      aria-selected={i === idx}
-                      className={`hero-carousel-controls__dot ${i === idx ? "is-active" : ""}`}
-                    />
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={goNext}
-                  aria-label="Bannière suivante"
-                  className="hero-carousel-controls__nav md:hidden"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
+              <HeroCarouselDots count={banners.length} activeIndex={idx} onSelect={setIdx} />
             </div>
           </div>
         </>
@@ -342,7 +364,7 @@ function CategoryPills() {
       initial="hidden"
       animate="show"
     >
-      <ScrollRow scrollClassName="flex gap-2 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory">
+      <ScrollRow scrollClassName="rail-scroll flex gap-2 pb-1 scrollbar-none snap-x snap-proximity">
         {QUICK_LINKS.map(({ label, href, icon }) => (
           <CategoryPillLink key={href} href={href} label={label} icon={icon} />
         ))}
@@ -373,7 +395,7 @@ function DefaultHero({
       <div className={`${HOME_HERO_CONTENT_POS} ${HOME_BLOCK}`}>
       <HeroTextCascade className="max-w-3xl">
         <HeroCascadeItem>
-          <p className="text-[11px] font-semibold tracking-[0.2em] uppercase ivod-gradient-text mb-3">
+          <p className="text-caption font-semibold text-brand-magenta mb-3">
             {isAuthenticated ? greeting : "Cinéma & séries africains"}
           </p>
         </HeroCascadeItem>
@@ -382,7 +404,7 @@ function DefaultHero({
         </HeroCascadeItem>
         <HeroCascadeItem>
           <HeroTitleGlow>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-white tracking-tight leading-[1.1] mb-3">
+            <h1 className="text-2xl sm:text-3xl md:text-5xl font-semibold text-white tracking-tight leading-[1.12] mb-3">
               {isAuthenticated ? "Que voulez-vous regarder ?" : "Films & séries africains"}
             </h1>
           </HeroTitleGlow>
@@ -395,29 +417,29 @@ function DefaultHero({
           </p>
         </HeroCascadeItem>
         <HeroCascadeItem>
-          <div className="flex flex-wrap gap-3">
-            <Link href="/films" className={`${BTN_PRIMARY} home-btn-lift`}>
+          <div className={HERO_CTA_ROW}>
+            <Link href="/films" className={`${BTN_PRIMARY} ${HERO_CTA_LINK}`}>
               <Play size={18} className="fill-white shrink-0" />
               Explorer les films
             </Link>
             {isAuthenticated ? (
               <>
-                <Link href="/favorites" className={`${BTN_GHOST} home-btn-lift`}>
+                <Link href="/favorites" className={`${BTN_GHOST} ${HERO_CTA_LINK}`}>
                   <Heart size={18} className="shrink-0 text-brand-magenta" fill="currentColor" fillOpacity={0.35} />
                   Ma liste
                 </Link>
                 {planCode !== "PREMIUM" && (
-                  <Link href="/pricing" className={`${BTN_GHOST} home-btn-lift`}>
+                  <Link href="/pricing" className={`${BTN_GHOST} ${HERO_CTA_LINK}`}>
                     Voir les tarifs
                   </Link>
                 )}
               </>
             ) : (
               <>
-                <Link href="/pricing" className={`${BTN_GHOST} home-btn-lift`}>
+                <Link href="/pricing" className={`${BTN_GHOST} ${HERO_CTA_LINK}`}>
                   Voir les tarifs
                 </Link>
-                <Link href="/auth/register" className={`${BTN_GHOST} home-btn-lift`}>
+                <Link href="/auth/register" className={`${BTN_GHOST} ${HERO_CTA_LINK}`}>
                   S&apos;inscrire gratuitement
                 </Link>
               </>
@@ -440,7 +462,7 @@ function SubscribeCta() {
           <div className="inline-flex h-10 w-10 items-center justify-center rounded-none border border-brand-magenta/30 bg-brand-purple/15 mb-5">
             <Sparkles size={18} className="text-brand-magenta" strokeWidth={1.75} />
           </div>
-          <p className="text-[11px] font-semibold tracking-[0.2em] uppercase ivod-gradient-text mb-2">
+          <p className="text-caption font-semibold text-brand-magenta mb-2">
             iVOD Premium
           </p>
           <h2 className="text-2xl md:text-3xl font-semibold text-white tracking-tight mb-3">
@@ -457,6 +479,9 @@ function SubscribeCta() {
             <Link href="/pricing" className={`${BTN_GHOST} home-btn-lift`}>
               Voir tous les tarifs
             </Link>
+          </div>
+          <div className="mt-8 max-w-lg mx-auto">
+            <TrustPaymentBar compact />
           </div>
         </div>
       </div>
@@ -530,6 +555,8 @@ export function HomepageClient() {
         <CategoryPills />
 
         <CatalogRails surface="home" historyMap={historyMap} />
+
+        <CreatorsSpotlightRail />
 
         {!isAuthenticated && <SubscribeCta />}
       </div>

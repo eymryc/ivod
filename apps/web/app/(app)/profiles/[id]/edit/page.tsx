@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@/lib/zod-resolver";
@@ -14,6 +13,8 @@ import { showApiError, showApiSuccess } from "@/lib/api/feedback";
 import { useProfileStore } from "@/lib/stores/profile.store";
 import { profilesApi } from "@/lib/api/profiles";
 import { mediaAssetsApi } from "@/lib/api/media-assets";
+import { resolveMediaSrc } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 import { ApiError } from "@/lib/api/client";
 
 const schema = z.object({
@@ -73,6 +74,8 @@ export default function EditProfilePage() {
     onError: (err: ApiError) => showApiError(err),
   });
 
+  const avatarSrc = resolveMediaSrc(profile?.avatarUrl);
+
   if (!profile) {
     return (
       <ProfilesShell showBack title="Profil introuvable" subtitle="" compact>
@@ -97,8 +100,8 @@ export default function EditProfilePage() {
             className="relative group w-24 h-24 overflow-hidden bg-brand-purple/15 border-2 border-brand-magenta/35 focus:outline-none"
             aria-label="Changer l'avatar"
           >
-            {profile?.avatarUrl ? (
-              <Image src={profile.avatarUrl} alt={profile.name} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
+            {avatarSrc ? (
+              <MediaImage src={avatarSrc} alt={profile.name} fill className="object-cover" sizes="96px" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-primary text-3xl font-bold">
                 {profile?.name?.[0]?.toUpperCase()}

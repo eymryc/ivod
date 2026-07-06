@@ -114,6 +114,7 @@ export function CinemaPlayer({
   const [pipSupported, setPipSupported] = useState(false);
   const [isPip, setIsPip] = useState(false);
   const [isPaused, setIsPaused] = useState(!autoPlay);
+  const [needsUserPlay, setNeedsUserPlay] = useState(false);
   const [isIdle, setIsIdle] = useState(false);
   const [skipFlash, setSkipFlash] = useState<"left" | "right" | null>(null);
   const [scrub, setScrub] = useState<{ x: number; time: number; width: number } | null>(null);
@@ -163,6 +164,7 @@ export function CinemaPlayer({
     if (p.paused()) {
       ensureAudio(p);
       playAttemptedRef.current = true;
+      setNeedsUserPlay(false);
       void p.play();
       setIsPaused(false);
     } else {
@@ -320,6 +322,21 @@ export function CinemaPlayer({
 
     playerRef.current = player;
 
+    const tryAutoplay = () => {
+      ensureAudio(player);
+      if (!autoPlay) {
+        setIsPaused(true);
+        return;
+      }
+      const attempt = player.play();
+      if (attempt && typeof (attempt as Promise<void>).catch === "function") {
+        (attempt as Promise<void>).catch(() => {
+          setIsPaused(true);
+          setNeedsUserPlay(true);
+        });
+      }
+    };
+
     const applyKnownDuration = () => {
       if (!durationSec || durationSec < 1) return;
       const d = player.duration();
@@ -335,16 +352,19 @@ export function CinemaPlayer({
     };
 
     player.ready(() => {
-      ensureAudio(player);
       playAttemptedRef.current = autoPlay;
 
       if (startPosition > 0) {
         player.one("loadedmetadata", () => {
           player.currentTime(startPosition);
           applyKnownDuration();
+          tryAutoplay();
         });
       } else {
-        player.one("loadedmetadata", applyKnownDuration);
+        player.one("loadedmetadata", () => {
+          applyKnownDuration();
+          tryAutoplay();
+        });
       }
       player.on("durationchange", applyKnownDuration);
 
@@ -482,8 +502,13 @@ export function CinemaPlayer({
     };
   }, [storyboardReady, cinemaMode, storyboardSpriteUrl, durationSec]);
 
+  // Le dimensionnement (relative/h-full/w-full/bg-black) est appliqué via Tailwind — donc
+  // par la feuille de styles racine toujours chargée — et non par cinema-player.css qui,
+  // importé dans ce composant `dynamic({ ssr:false })`, arrive dans un chunk CSS asynchrone.
+  // Sans cela, si video.js mesure la mise en page avant que cinema-player.css soit appliqué,
+  // le conteneur s'effondre à 0px : le lecteur devient invisible alors que l'audio joue.
   const cinemaClass = cinemaMode
-    ? `ivod-cinema${sharpVideo ? " ivod-cinema--sharp" : ""}${edgeToEdge ? " ivod-cinema--edge" : ""}${isIdle ? " ivod-cinema--idle" : ""}${isPaused ? " ivod-cinema--paused" : ""}`
+    ? `ivod-cinema relative h-full w-full bg-black${sharpVideo ? " ivod-cinema--sharp" : ""}${edgeToEdge ? " ivod-cinema--edge" : ""}${isIdle ? " ivod-cinema--idle" : ""}${isPaused ? " ivod-cinema--paused" : ""}`
     : "relative w-full h-full bg-black group";
 
   return (
@@ -519,6 +544,11 @@ export function CinemaPlayer({
                 <Pause size={32} fill="currentColor" />
               )}
             </button>
+            {needsUserPlay && isPaused && (
+              <p className="pointer-events-none absolute bottom-[calc(50%-4.5rem)] left-1/2 w-[min(90vw,22rem)] -translate-x-1/2 text-center text-sm font-medium text-white/85 drop-shadow-md">
+                Appuyez sur lecture pour démarrer avec le son
+              </p>
+            )}
           </div>
 
           {skipFlash === "left" && (
@@ -572,13 +602,13 @@ export function CinemaPlayer({
           {cinemaMode ? (
             <>
               <div className="ivod-cinema-buffering-ring" />
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/50">
+              <p className="text-caption font-medium text-white/50">
                 Chargement…
               </p>
             </>
           ) : (
-            <div className="rounded-full bg-black/60 p-4 backdrop-blur-sm">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-primary" />
+            <div className="bg-black/60 p-4 backdrop-blur-sm">
+              <div className="h-8 w-8 animate-spin border-2 border-white/20 border-t-brand-magenta" />
             </div>
           )}
         </div>

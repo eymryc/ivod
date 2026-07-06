@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@/lib/zod-resolver";
 import { z } from "@/lib/zod";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { getApiErrorMessage } from "@/lib/api/feedback";
 import {
   AuthCard,
   AuthField,
@@ -87,6 +88,12 @@ export default function LoginPage() {
             </button>
           </div>
         </AuthField>
+
+        {loginMutation.isError && (
+          <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-300">
+            {getApiErrorMessage(loginMutation.error) ?? "Identifiants invalides"}
+          </p>
+        )}
 
         <AuthSubmitButton loading={loginMutation.isPending}>Se connecter</AuthSubmitButton>
       </form>

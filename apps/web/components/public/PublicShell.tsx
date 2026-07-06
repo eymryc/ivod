@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const PAGE_X = "px-4 md:px-8 lg:px-12 max-w-[1920px] mx-auto w-full";
 
-/** Navbar + fiche contenu viewer — même grille (container Tailwind). */
+/** Navbar + fiche contenu viewer + pages catalogue dédiées — même grille. */
 export const VIEWER_SHELL_WIDTH =
   "container mx-auto w-full px-4 md:px-8 lg:px-12 xl:px-16";
 
@@ -12,8 +12,8 @@ export const NAV_BAR_WIDTH = VIEWER_SHELL_WIDTH;
 /** Contenu centré (tarifs, fiches, settings…) */
 export const PAGE_MAX = "max-w-7xl mx-auto w-full px-4 md:px-8 lg:px-10";
 
-/** Accueil — rails de cartes (catalogue, live, historique) */
-export const HOME_RAIL = "container mx-auto w-full px-4 md:px-8 lg:px-12 xl:px-16";
+/** Accueil + rails catalogue — aligné fiche contenu */
+export const HOME_RAIL = VIEWER_SHELL_WIDTH;
 
 /** Accueil — blocs éditoriaux (pills, tarifs, CTA) — aligné sur PAGE_MAX */
 export const HOME_BLOCK = "container mx-auto w-full px-4 md:px-8 lg:px-12 xl:px-16";
@@ -38,7 +38,7 @@ export const REVEAL_ON_HOVER_CARD =
 
 /** Rails horizontaux — espacement adaptatif */
 export const RAIL_SCROLL_CLASS =
-  "flex gap-3 sm:gap-4 md:gap-5 lg:gap-6 overflow-x-auto overflow-y-visible py-3 scrollbar-none snap-x snap-mandatory -mx-1 px-1";
+  "rail-scroll flex gap-3 sm:gap-4 md:gap-5 lg:gap-6 py-2 md:py-3 scrollbar-none snap-x snap-proximity -mx-1 px-1";
 
 export function PublicPageHeader({
   kicker = "iVOD",
@@ -54,10 +54,10 @@ export function PublicPageHeader({
   return (
     <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold tracking-[0.2em] uppercase ivod-gradient-text mb-2">
+        <p className="text-caption font-semibold text-brand-magenta mb-2">
           {kicker}
         </p>
-        <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight">{title}</h1>
+        <h1 className="font-display text-2xl md:text-3xl font-semibold text-white tracking-tight">{title}</h1>
         <div className="mt-3 ivod-line-accent w-12" />
         {subtitle && (
           <div className="mt-3 text-[13px] text-white/45 font-light">{subtitle}</div>

@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@/lib/zod-resolver";
 import { z } from "@/lib/zod";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Mail, ShieldCheck, ArrowRight } from "lucide-react";
+import { Loader2, Mail, ShieldCheck, ArrowRight, Smartphone } from "lucide-react";
 import { paymentsApi } from "@/lib/api/payments";
 import { useAuthSession } from "@/lib/hooks/useAuthSession";
 import { formatXOF } from "@/lib/utils/format";
@@ -59,17 +59,27 @@ export function PaymentForm({ planLabel, amountFcfa, onSubmit, onCancel, isLoadi
       <div className="payment-form-panel__glow" aria-hidden />
 
       <header className="relative mb-6">
-        <p className="text-[11px] font-semibold tracking-[0.2em] uppercase ivod-gradient-text mb-2">
+        <p className="text-caption font-semibold text-brand-magenta mb-2">
           Paiement sécurisé
         </p>
         <div className="ivod-line-accent w-10 mb-4" />
         <p className="text-sm text-white/50 mb-1">{planLabel}</p>
         {amountFcfa != null && amountFcfa > 0 && (
-          <p className="text-2xl md:text-3xl font-bold tracking-tight ivod-gradient-text">
+          <p className="text-2xl md:text-3xl font-bold tracking-tight text-brand-magenta">
             {formatXOF(amountFcfa)}
           </p>
         )}
       </header>
+
+      <div className="relative flex flex-wrap items-center gap-2 mb-4">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-brand-gold/30 bg-brand-gold/10 text-[11px] font-semibold text-brand-gold">
+          <Smartphone size={12} />
+          Mobile Money
+        </span>
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-white/10 bg-white/[0.03] text-[11px] font-medium text-white/55">
+          100 % FCFA
+        </span>
+      </div>
 
       <div className="relative flex items-start gap-3 p-4 mb-6 border border-white/[0.08] bg-white/[0.02]">
         <ShieldCheck size={18} className="text-brand-magenta shrink-0 mt-0.5" strokeWidth={1.75} />

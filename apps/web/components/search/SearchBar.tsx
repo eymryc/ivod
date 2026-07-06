@@ -129,7 +129,7 @@ export function SearchBar({ onClose, autoFocus, initialQuery = "", syncUrl }: Pr
 
       {focused && debouncedQ.trim().length >= 2 && !isError && suggestions.length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-3 bg-[#0a0f18]/98 backdrop-blur-xl border border-white/10 overflow-hidden shadow-2xl z-50 max-h-[min(75vh,560px)] overflow-y-auto rounded-sm">
-          <p className="px-4 md:px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/35 border-b border-white/[0.06]">
+          <p className="px-4 md:px-5 py-3 text-caption font-semibold text-secondary-token border-b border-white/[0.06]">
             Suggestions
           </p>
           {suggestions.map((s, i) => (

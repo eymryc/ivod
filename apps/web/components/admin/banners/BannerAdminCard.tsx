@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   BarChart2,
@@ -14,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { assetUrl } from "@/lib/utils/assets";
+import { MediaImage } from "@/components/ui/MediaImage";
 import { BANNER_COUNTRIES } from "@/components/admin/banners/banner-constants";
 
 const COUNTRY_LABELS = Object.fromEntries(
@@ -86,7 +86,7 @@ export function BannerAdminCard({
         {/* Visuel hero */}
         <div className="relative aspect-[21/9] min-h-[120px] bg-[#050508] lg:aspect-auto lg:min-h-[148px] lg:border-r lg:border-white/[0.05]">
           {imgUrl ? (
-            <Image
+            <MediaImage
               src={imgUrl}
               alt=""
               fill

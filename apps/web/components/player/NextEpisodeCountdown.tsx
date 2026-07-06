@@ -52,7 +52,7 @@ export function NextEpisodeCountdown({
       <div className="p-4">
         <div className="mb-3 flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
+            <p className="text-caption font-semibold text-brand-magenta">
               Épisode suivant
             </p>
             <p className="mt-1 line-clamp-2 text-sm font-semibold text-white">
@@ -63,7 +63,7 @@ export function NextEpisodeCountdown({
           <button
             type="button"
             onClick={onDismiss}
-            className="shrink-0 rounded-lg p-1.5 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
+            className="ivod-btn shrink-0 p-1.5 text-white/45 transition-colors hover:bg-white/10 hover:text-white"
             aria-label="Annuler"
           >
             <X size={16} />
@@ -73,7 +73,7 @@ export function NextEpisodeCountdown({
         <button
           type="button"
           onClick={() => router.push(`/watch/${contentId}?ep=${nextEpisodeId}`)}
-          className="ivod-btn-primary flex w-full items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-95"
+          className="ivod-btn ivod-btn-primary flex w-full items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-95"
         >
           <SkipForward size={16} />
           Lancer maintenant

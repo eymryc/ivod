@@ -84,19 +84,19 @@ export function IdleDetection({ isPlaying, onConfirm, onDismiss }: IdleDetection
     <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <div className="max-w-sm p-8 text-center">
         <div className="text-4xl mb-4">😴</div>
-        <h2 className="text-xl font-bold mb-2">Vous regardez toujours ?</h2>
-        <p className="text-sm text-muted-foreground mb-6">
+        <h2 className="font-display text-xl font-bold mb-2">Vous regardez toujours ?</h2>
+        <p className="text-sm text-secondary-token mb-6">
           La lecture va s&apos;arrêter dans <span className="text-white font-bold">{countdown}s</span>.
         </p>
-        <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-6">
+        <div className="w-full h-1 bg-white/10 overflow-hidden mb-6">
           <div
-            className="h-full bg-primary transition-all duration-1000 ease-linear"
+            className="h-full content-card-progress-bar transition-all duration-1000 ease-linear"
             style={{ width: `${(countdown / 30) * 100}%` }}
           />
         </div>
         <button
           onClick={handleContinue}
-          className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl transition-colors text-sm"
+          className="ivod-btn ivod-btn-primary w-full py-3 text-sm font-semibold"
         >
           Continuer à regarder
         </button>

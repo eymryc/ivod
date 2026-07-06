@@ -22,7 +22,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               loading="eager"
             />
           </Link>
-          <p className="mt-8 text-[11px] font-semibold tracking-[0.2em] uppercase ivod-gradient-text">
+          <p className="mt-8 text-[11px] font-semibold text-brand-magenta">
             Cinéma & séries africains
           </p>
           <h2 className="mt-3 text-2xl xl:text-[1.65rem] font-semibold text-white tracking-tight leading-snug">
@@ -63,13 +63,17 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               alt="iVOD"
               width={100}
               height={40}
-              className="h-9 w-auto"
+              className="h-9 w-auto auth-logo-pulse"
               loading="eager"
             />
           </Link>
         </div>
 
         <div className="w-full max-w-[440px] lg:max-w-[460px]">{children}</div>
+
+        <p className="mt-6 max-w-sm text-center text-body text-secondary-token lg:hidden">
+          +500 titres africains · Paiement en FCFA · Mobile Money accepté
+        </p>
 
         <p className="mt-8 text-[11px] text-white/25 text-center font-light lg:hidden">
           © {new Date().getFullYear()} iVOD

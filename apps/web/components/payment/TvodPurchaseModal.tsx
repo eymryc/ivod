@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { X, ShoppingBag, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { X, ShoppingBag, Loader2, CheckCircle2, XCircle, Smartphone } from "lucide-react";
 import { paymentsApi } from "@/lib/api/payments";
 import { PaymentForm } from "./PaymentForm";
 import { formatXOF } from "@/lib/utils/format";
@@ -86,7 +86,7 @@ export function TvodPurchaseModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="bg-card border border-white/10 rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="bg-card border border-white/10 rounded-none shadow-2xl w-full max-w-md">
         {step === "form" && (
           <>
             <div className="flex items-start justify-between p-6 border-b border-white/10">
@@ -97,7 +97,11 @@ export function TvodPurchaseModal({
                 </div>
                 <p className="text-sm text-muted-foreground line-clamp-1">{contentTitle}</p>
                 <p className="text-2xl font-bold text-primary mt-2">{formatXOF(ppvPrice)}</p>
-                <p className="text-xs text-muted-foreground">Accès illimité · Paiement Paystack</p>
+                <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-gold border border-brand-gold/25 bg-brand-gold/10 px-2 py-0.5">
+                  <Smartphone size={12} />
+                  Mobile Money · Paystack
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Accès illimité après achat</p>
               </div>
               <button
                 type="button"
@@ -143,7 +147,7 @@ export function TvodPurchaseModal({
                 onClose();
                 router.push(`/watch/${contentId}`);
               }}
-              className="px-6 py-3 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-semibold transition-colors"
+              className="ivod-btn px-6 py-3 bg-primary hover:bg-primary-hover text-white rounded-none text-sm font-semibold transition-colors"
             >
               Regarder maintenant
             </button>
@@ -159,14 +163,14 @@ export function TvodPurchaseModal({
               <button
                 type="button"
                 onClick={() => setStep("form")}
-                className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-medium"
+                className="ivod-btn px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-none text-sm font-medium"
               >
                 Réessayer
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2.5 bg-surface border border-white/10 text-white rounded-xl text-sm"
+                className="ivod-btn px-5 py-2.5 bg-surface border border-white/10 text-white rounded-none text-sm"
               >
                 Annuler
               </button>

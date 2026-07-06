@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
   Home,
   Grid3X3,
@@ -16,11 +17,13 @@ import {
   MoreHorizontal,
   X,
   Sparkles,
+  Bell,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth.store";
+import { notificationsApi } from "@/lib/api/notifications";
 
 const PRIMARY_ITEMS = [
-  { href: "/", icon: Home, label: "Accueil" },
+  { href: "/", icon: Home, label: "Accueil", elevated: true },
   { href: "/films", icon: Grid3X3, label: "Films" },
   { href: "/series", icon: Tv, label: "Séries" },
   { href: "/search", icon: Search, label: "Recherche" },
@@ -32,6 +35,7 @@ const MORE_SHARED = [
 ] as const;
 
 const MORE_AUTH_ONLY = [
+  { href: "/notifications", icon: Bell, label: "Notifications" },
   { href: "/favorites", icon: Heart, label: "Favoris" },
   { href: "/downloads", icon: Download, label: "Téléchargements" },
   { href: "/history", icon: History, label: "Historique" },
@@ -46,6 +50,19 @@ export function MobileNav() {
   const pathname = usePathname();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [moreOpen, setMoreOpen] = useState(false);
+
+  const { data: notificationsData } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => notificationsApi.list(1, 20),
+    enabled: isAuthenticated,
+    staleTime: 30_000,
+  });
+
+  const unreadCount = useMemo(() => {
+    const items =
+      (notificationsData as { items?: Array<{ read?: boolean }> })?.items ?? [];
+    return items.filter((n) => !n.read).length;
+  }, [notificationsData]);
 
   const moreItems = useMemo(
     () => (isAuthenticated ? [...MORE_AUTH_ONLY, ...MORE_SHARED] : [...MORE_SHARED]),
@@ -85,7 +102,7 @@ export function MobileNav() {
           className="mobile-more-enter fixed bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-[56] md:hidden rounded-none border border-white/[0.1] bg-[#0a0f18]/98 backdrop-blur-xl shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
+            <span className="text-caption font-semibold text-secondary-token">
               Explorer
             </span>
             <button
@@ -124,21 +141,39 @@ export function MobileNav() {
         className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-surface/95 backdrop-blur-md border-t border-white/10 pb-safe"
         aria-label="Navigation principale"
       >
-        <div className="flex items-stretch justify-around px-1 pt-1.5">
-          {PRIMARY_ITEMS.map(({ href, icon: Icon, label }) => {
+        <div className="flex items-end justify-around px-1 pt-1.5">
+          {PRIMARY_ITEMS.map(({ href, icon: Icon, label, ...rest }) => {
             const active = isActivePath(pathname, href);
+            const elevated = "elevated" in rest && rest.elevated;
             return (
               <Link
                 key={href}
                 href={href}
                 aria-label={label}
                 aria-current={active ? "page" : undefined}
-                className={`flex flex-1 max-w-[5.5rem] flex-col items-center justify-center gap-0.5 px-2 py-2 transition-colors touch-manipulation min-h-[3.25rem] ${
-                  active ? "text-brand-magenta" : "text-white/50 hover:text-white/80"
-                }`}
+                className={`relative flex flex-1 max-w-[5.5rem] flex-col items-center justify-center gap-0.5 px-2 transition-colors touch-manipulation ${
+                  elevated ? "-mt-3 pb-2 min-h-[3.75rem]" : "py-2 min-h-[3.25rem]"
+                } ${active ? "text-brand-magenta" : "text-white/50 hover:text-white/80"}`}
               >
-                <Icon size={22} strokeWidth={active ? 2.5 : 1.5} className="shrink-0" />
-                <span className="text-[10px] font-medium leading-tight text-center truncate w-full">
+                {elevated && (
+                  <span
+                    className={`absolute -top-1 flex h-12 w-12 items-center justify-center border ${
+                      active
+                        ? "ivod-gradient border-white/20 text-white shadow-[0_4px_20px_rgba(230,0,126,0.35)]"
+                        : "bg-[#0a0f18] border-white/12 text-white/70"
+                    }`}
+                  >
+                    <Icon size={22} strokeWidth={active ? 2.5 : 1.75} className="shrink-0" />
+                  </span>
+                )}
+                {!elevated && (
+                  <Icon size={22} strokeWidth={active ? 2.5 : 1.5} className="shrink-0" />
+                )}
+                <span
+                  className={`text-[10px] font-medium leading-tight text-center truncate w-full ${
+                    elevated ? "mt-8" : ""
+                  }`}
+                >
                   {label}
                 </span>
               </Link>
@@ -150,11 +185,16 @@ export function MobileNav() {
             onClick={() => setMoreOpen((v) => !v)}
             aria-label="Plus de pages"
             aria-expanded={moreOpen}
-            className={`flex flex-1 max-w-[5.5rem] flex-col items-center justify-center gap-0.5 px-2 py-2 transition-colors touch-manipulation min-h-[3.25rem] ${
+            className={`relative flex flex-1 max-w-[5.5rem] flex-col items-center justify-center gap-0.5 px-2 py-2 transition-colors touch-manipulation min-h-[3.25rem] ${
               moreOpen || moreActive ? "text-brand-magenta" : "text-white/50 hover:text-white/80"
             }`}
           >
             <MoreHorizontal size={22} strokeWidth={moreOpen || moreActive ? 2.5 : 1.5} />
+            {isAuthenticated && unreadCount > 0 && (
+              <span className="absolute top-1 right-3 flex h-4 min-w-4 items-center justify-center px-0.5 ivod-gradient text-[9px] font-bold text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
             <span className="text-[10px] font-medium leading-tight">Plus</span>
           </button>
         </div>
