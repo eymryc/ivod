@@ -553,7 +553,21 @@ export class PaymentsService {
     }
 
     const provider = this.providerFactory.getProvider(payment.provider.code);
-    const callbackUrl = this.resolveCallbackUrl(payment.id, opts?.callbackUrl);
+
+    // Paystack rejette une 2e initialisation avec la même référence ("Duplicate
+    // Transaction Reference") — relancer un paiement PENDING en renvoyant
+    // `payment.id` (la référence du tout premier essai) échouait donc à chaque
+    // nouvelle tentative après un premier échec. Chaque relance a besoin de sa
+    // propre référence, unique. On la persiste dans `transactionId` (déjà
+    // @unique, pas de migration nécessaire) AVANT l'appel Paystack pour que le
+    // webhook/callback retrouve bien ce paiement via `findPaymentByReference`.
+    // Trouvé le 2026-07-06.
+    const attemptReference = `${payment.id}-${Date.now()}`;
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: { transactionId: attemptReference },
+    });
+    const callbackUrl = this.resolveCallbackUrl(attemptReference, opts?.callbackUrl);
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -566,7 +580,7 @@ export class PaymentsService {
       phoneNumber: opts?.phoneNumber ?? payment.phoneNumber ?? undefined,
       email,
       customerName: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || undefined,
-      reference: payment.id,
+      reference: attemptReference,
       description,
       callbackUrl,
     });
@@ -578,24 +592,17 @@ export class PaymentsService {
       });
     }
 
-    if (result.transactionId) {
-      await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: { transactionId: result.transactionId },
-      });
-    }
-
     const simulationMode =
       payment.provider.code === 'PAYSTACK' && !this.isPaystackConfigured() && this.allowPaymentSimulation();
 
     return {
       paymentId: payment.id,
       id: payment.id,
-      transactionId: result.transactionId,
+      transactionId: attemptReference,
       status: result.status,
       redirectUrl: result.redirectUrl,
       message: result.message,
-      reference: payment.id,
+      reference: attemptReference,
       simulationMode,
     };
   }
