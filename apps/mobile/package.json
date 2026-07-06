@@ -8,10 +8,10 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "lint": "tsc --noEmit",
-    "build:android": "npx eas build --platform android --profile production",
-    "build:ios": "npx eas build --platform ios --profile production",
-    "build:preview": "npx eas build --profile preview",
-    "update": "npx eas update --branch production"
+    "build:android": "npx eas-cli build --platform android --profile production",
+    "build:ios": "npx eas-cli build --platform ios --profile production",
+    "build:preview": "npx eas-cli build --profile preview",
+    "update": "npx eas-cli update --branch production"
   },
   "dependencies": {
     "@expo-google-fonts/rajdhani": "^0.4.1",

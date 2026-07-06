@@ -11,5 +11,5 @@ apps/api/backups
 apps/api/certbot-webroot
 apps/api/nginx/ssl/*.pem
 .env
-.env.local
+.env.*
 .DS_Store

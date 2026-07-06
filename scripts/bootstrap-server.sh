@@ -32,7 +32,7 @@ SCRIPT_TAG="bootstrap"
 source "${PROJECT_DIR}/scripts/lib/common.sh"
 
 # ── 1. Vérifications préalables ─────────────────────────────────────────────
-log "1/10 — Vérifications préalables"
+log "1/12 — Vérifications préalables"
 
 [ "$(id -u)" -eq 0 ] || die "ce script doit être lancé en root (sudo ./scripts/bootstrap-server.sh)"
 command -v dnf >/dev/null 2>&1 || die "dnf introuvable — ce script cible AlmaLinux/RHEL"
@@ -41,7 +41,7 @@ command -v dnf >/dev/null 2>&1 || die "dnf introuvable — ce script cible AlmaL
 log "OK : root, dnf disponible, apps/api/.env présent"
 
 # ── 2. Paquets système ───────────────────────────────────────────────────────
-log "2/10 — Paquets système (Docker, certbot)"
+log "2/12 — Paquets système (Docker, certbot)"
 
 if ! command -v docker >/dev/null 2>&1; then
   log "Docker absent, installation..."
@@ -65,7 +65,7 @@ command -v dig >/dev/null 2>&1 || dnf install -y bind-utils
 command -v make >/dev/null 2>&1 || dnf install -y make
 
 # ── 3. Firewalld ─────────────────────────────────────────────────────────────
-log "3/10 — Firewalld (ssh, http, https uniquement — 3000/3001 jamais publiés par Docker de toute façon)"
+log "3/12 — Firewalld (ssh, http, https uniquement — 3000/3001 jamais publiés par Docker de toute façon)"
 
 if systemctl is-active --quiet firewalld; then
   firewall-cmd --permanent --add-service=ssh >/dev/null
@@ -80,7 +80,7 @@ else
 fi
 
 # ── 4. Vérification DNS ──────────────────────────────────────────────────────
-log "4/10 — Vérification DNS de ${DOMAIN}"
+log "4/12 — Vérification DNS de ${DOMAIN}"
 
 SERVER_IP="$(curl -s -4 --max-time 5 https://ifconfig.me || true)"
 DOMAIN_IP="$(dig +short "${DOMAIN}" @1.1.1.1 2>/dev/null | tail -1 || true)"
@@ -95,9 +95,9 @@ fi
 
 # ── 5. Certificat Let's Encrypt (skip si déjà présent) ──────────────────────
 if [ -f "${PROJECT_DIR}/apps/api/nginx/ssl/fullchain.pem" ]; then
-  log "5/10 — Certificat déjà présent dans apps/api/nginx/ssl/, skip"
+  log "5/12 — Certificat déjà présent dans apps/api/nginx/ssl/, skip"
 else
-  log "5/10 — Génération du certificat Let's Encrypt (webroot bootstrap)"
+  log "5/12 — Génération du certificat Let's Encrypt (webroot bootstrap)"
   mkdir -p "${PROJECT_DIR}/apps/api/certbot-webroot"
 
   # Nginx temporaire juste pour répondre au challenge HTTP-01 (le vrai Nginx,
@@ -120,12 +120,33 @@ else
   docker stop certbot-bootstrap >/dev/null 2>&1 || true
 fi
 
-# ── 6. Premier démarrage ─────────────────────────────────────────────────────
-log "6/10 — Démarrage de la stack (make prod-build)"
+# ── 6. Tuning réseau (clients distants — upload vidéo) ──────────────────────
+log "6/12 — Tuning réseau (BBR + buffers TCP, meilleur débit longue distance)"
+
+# Ce serveur est hébergé en Europe ; une part significative des utilisateurs
+# iVOD (Afrique de l'Ouest) sont donc loin (latence élevée). Sur ce genre de
+# lien, l'algorithme de congestion "cubic" (défaut AlmaLinux) et les buffers
+# TCP par défaut plafonnent fortement le débit d'un SEUL flux — typiquement
+# le cas d'un upload vidéo (presigned PUT direct navigateur → MinIO). BBR +
+# buffers plus larges corrigent ça côté serveur uniquement, rien à changer
+# côté client. Idempotent (sysctl -p peut être relancé sans effet de bord).
+cat > /etc/sysctl.d/99-ivod-network.conf <<'SYSCTL'
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+net.core.rmem_max = 67108864
+net.core.wmem_max = 67108864
+net.ipv4.tcp_rmem = 4096 87380 67108864
+net.ipv4.tcp_wmem = 4096 65536 67108864
+SYSCTL
+sysctl -p /etc/sysctl.d/99-ivod-network.conf >/dev/null
+log "Congestion control actif : $(sysctl -n net.ipv4.tcp_congestion_control)"
+
+# ── 7. Premier démarrage ─────────────────────────────────────────────────────
+log "7/12 — Démarrage de la stack (make prod-build)"
 make -C "${PROJECT_DIR}" prod-build
 
-# ── 7. Attente des health checks ─────────────────────────────────────────────
-log "7/10 — Attente que tous les services soient healthy (jusqu'à 5 min)"
+# ── 8. Attente des health checks ─────────────────────────────────────────────
+log "8/12 — Attente que tous les services soient healthy (jusqu'à 5 min)"
 
 CONTAINERS="ivod-postgres-prod ivod-redis-prod ivod-minio-prod ivod-api-1-prod ivod-api-2-prod ivod-web-prod ivod-nginx-prod"
 
@@ -137,8 +158,8 @@ for container in ${CONTAINERS}; do
   log "${container} : $(docker inspect -f '{{.State.Health.Status}}' "${container}" 2>/dev/null || echo inconnu)"
 done
 
-# ── 8. Renouvellement certbot automatique ────────────────────────────────────
-log "8/10 — Hook de renouvellement certbot"
+# ── 9. Renouvellement certbot automatique ────────────────────────────────────
+log "9/12 — Hook de renouvellement certbot"
 
 mkdir -p /etc/letsencrypt/renewal-hooks/deploy
 if [ ! -e /etc/letsencrypt/renewal-hooks/deploy/ivod-nginx.sh ]; then
@@ -149,8 +170,8 @@ else
 fi
 systemctl enable --now certbot-renew.timer 2>/dev/null || warn "certbot-renew.timer introuvable — le paquet certbot ne l'a peut-être pas créé sur cette version"
 
-# ── 9. Timers de sauvegarde ───────────────────────────────────────────────────
-log "9/10 — Timers de sauvegarde (Postgres quotidien + MinIO 4x/jour)"
+# ── 10. Timers de sauvegarde ───────────────────────────────────────────────────
+log "10/12 — Timers de sauvegarde (Postgres quotidien + MinIO 4x/jour)"
 
 install_timer() {
   local name="$1" description="$2" script="$3" oncalendar="$4"
@@ -180,8 +201,8 @@ systemctl daemon-reload
 systemctl enable --now ivod-backup-postgres.timer ivod-backup-minio.timer
 log "Timers installés et activés"
 
-# ── 10. Seed initial (base vide uniquement) ───────────────────────────────────
-log "10/11 — Seed initial (si la base est vide)"
+# ── 11. Seed initial (base vide uniquement) ───────────────────────────────────
+log "11/12 — Seed initial (si la base est vide)"
 
 load_env
 
@@ -195,8 +216,8 @@ else
   warn "Impossible de lire le nombre d'utilisateurs — seed ignoré (lancez manuellement : make prod-db-seed)"
 fi
 
-# ── 11. Smoke test ────────────────────────────────────────────────────────────
-log "11/11 — Smoke test HTTP"
+# ── 12. Smoke test ────────────────────────────────────────────────────────────
+log "12/12 — Smoke test HTTP"
 
 sleep 5
 API_HEALTH="$(curl -sk -o /dev/null -w '%{http_code}' "https://${DOMAIN}/api/v1/health" || echo "000")"

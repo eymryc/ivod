@@ -19,6 +19,20 @@
 #                 pipeline vidéo). Bloquer dessus dès aujourd'hui casserait
 #                 la CI sans lien avec le code qu'on modifie réellement.
 #                 À faire évoluer vers bloquant une fois le backlog trié.
+#
+# ── Tests automatisés ────────────────────────────────────────────────────
+# api-test : RAPPORT SEUL pour l'instant (pas dans les `needs` de `deploy`) —
+#            décision du 2026-07-03, le temps de vérifier que la suite est
+#            stable avant de risquer de bloquer un déploiement légitime
+#            dessus. Contrairement aux jobs sécurité ci-dessus, ce n'est PAS
+#            rendu volontairement non-bloquant à cause de bruit préexistant —
+#            la suite part de zéro échec connu. Premier périmètre couvert :
+#            module vidéo (apps/api/src/modules/videos/*.spec.ts) — ladder de
+#            qualité, détection CPU/recommandation de ressources, et
+#            validation du DTO à l'origine du bug de production du jour
+#            (voir video-pipeline-settings.service.spec.ts et
+#            multipart-complete.dto.spec.ts). À étendre à d'autres modules
+#            (auth, paiements) une fois ce socle éprouvé.
 # =============================================================================
 
 name: CI
@@ -75,6 +89,25 @@ jobs:
       - run: pnpm run lint
         working-directory: apps/api
       - run: pnpm run build
+        working-directory: apps/api
+
+  api-test:
+    name: API — tests unitaires (rapport)
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: apps/api/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/api
+      - run: pnpm run test
         working-directory: apps/api
 
   web:

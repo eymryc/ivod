@@ -29,7 +29,20 @@ log "Copie de src/ vers ${API_CONTAINER}:/app/src"
 docker cp "${PROJECT_DIR}/apps/api/src" "${API_CONTAINER}:/app/src"
 
 log "Exécution du seed (1 à 2 minutes)..."
-docker exec "${API_CONTAINER}" sh -c \
-  'npx --yes ts-node@10.9.2 --transpile-only --skip-project /app/prisma/seed.ts'
+docker exec "${API_CONTAINER}" sh -c '
+cat > /tmp/tsconfig.seed.json <<EOF
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2021",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false
+  }
+}
+EOF
+npx --yes -p ts-node@10.9.2 -p typescript@5.6.3 ts-node \
+  --transpile-only --project /tmp/tsconfig.seed.json /app/prisma/seed.ts
+'
 
 log "Seed terminé."

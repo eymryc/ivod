@@ -20,6 +20,7 @@ REMOTE_HOST="${REMOTE_HOST:-root@ivod-preprod-srv01.xselcloud.com}"
 REMOTE_DIR="${REMOTE_DIR:-/var/www/ivod}"
 LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+PROJECT_DIR="${LOCAL_DIR}"
 SCRIPT_TAG="remote-deploy"
 # shellcheck source=scripts/lib/common.sh
 source "${LOCAL_DIR}/scripts/lib/common.sh"
