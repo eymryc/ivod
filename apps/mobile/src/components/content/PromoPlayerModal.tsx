@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { View, Text, Modal, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useQuery } from "@tanstack/react-query";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { X } from "lucide-react-native";
-import Video from "react-native-video";
 import { promoApi } from "@/infrastructure/api";
 import { QueryKeys } from "@/core/constants/query-keys";
 import type { PromoVideo } from "@/core/entities/promo.entity";
+import { mediaUrl } from "@/presentation/utils/media-url";
 import { colors } from "@/theme/colors";
 import { typography } from "@/theme/typography";
 
@@ -16,13 +17,30 @@ interface Props {
 }
 
 export function PromoPlayerModal({ promo, contentTitle, onClose }: Props) {
-  const videoRef = useRef<React.ComponentRef<typeof Video>>(null);
-
   const { data: stream, isLoading, isError } = useQuery({
     queryKey: QueryKeys.stream.promo(promo.id),
     queryFn: () => promoApi.getStream(promo.id),
     staleTime: 50 * 60_000,
   });
+
+  const playbackUri = stream?.url ? mediaUrl(stream.url) ?? stream.url : null;
+  const showVideo = Boolean(playbackUri && !isError);
+
+  const player = useVideoPlayer(null, (p) => {
+    p.loop = false;
+  });
+
+  useEffect(() => {
+    if (!showVideo || !playbackUri) return;
+    player.replace(playbackUri);
+    player.loop = false;
+    player.play();
+    const sub = player.addListener("playToEnd", () => onClose());
+    return () => {
+      sub.remove();
+      player.pause();
+    };
+  }, [showVideo, playbackUri, player, onClose]);
 
   return (
     <Modal visible animationType="fade" onRequestClose={onClose}>
@@ -42,14 +60,12 @@ export function PromoPlayerModal({ promo, contentTitle, onClose }: Props) {
         <View style={styles.player}>
           {isLoading ? (
             <ActivityIndicator color={colors.magenta} size="large" />
-          ) : stream?.url && !isError ? (
-            <Video
-              ref={videoRef}
-              source={{ uri: stream.url }}
+          ) : showVideo ? (
+            <VideoView
               style={StyleSheet.absoluteFill}
-              controls
-              resizeMode="contain"
-              onEnd={onClose}
+              player={player}
+              nativeControls
+              contentFit="contain"
             />
           ) : (
             <Text style={styles.error}>Vidéo promotionnelle indisponible.</Text>

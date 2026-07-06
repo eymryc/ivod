@@ -26,11 +26,9 @@ type FormData = z.infer<typeof schema>;
 type CreateProfileModalProps = {
   open: boolean;
   onClose: () => void;
-  /** Après création : rester sur /profiles ou aller à l'accueil */
-  selectOnCreate?: boolean;
 };
 
-export function CreateProfileModal({ open, onClose, selectOnCreate = false }: CreateProfileModalProps) {
+export function CreateProfileModal({ open, onClose }: CreateProfileModalProps) {
   const qc = useQueryClient();
   const { setProfiles, setActiveProfile } = useProfileStore();
 
@@ -72,7 +70,13 @@ export function CreateProfileModal({ open, onClose, selectOnCreate = false }: Cr
       const updated = await profilesApi.list();
       const list = Array.isArray(updated) ? updated : [];
       setProfiles(list);
-      if (selectOnCreate) setActiveProfile(profile.id);
+      // Toujours basculer sur le profil qu'on vient de créer : `selectOnCreate` ne
+      // contrôlait que la redirection (voir plus bas), mais n'étant jamais passé
+      // par le seul appelant (ProfileSelector), le profil actif ne changeait
+      // jamais — tout ce qui était regardé/suivi ensuite restait attribué à
+      // l'ancien profil actif, donnant l'impression d'un partage entre profils
+      // qui n'existait pas côté données. Trouvé le 2026-07-06.
+      setActiveProfile(profile.id);
       toast.success("Profil créé");
       qc.invalidateQueries({ queryKey: ["profiles"] });
       onClose();

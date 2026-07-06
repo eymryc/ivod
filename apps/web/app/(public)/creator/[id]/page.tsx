@@ -5,9 +5,8 @@ import { Loader2, Users, Film, Bell, BellCheck, ShieldCheck, Clapperboard, Compa
 import Link from "next/link";
 import { getApiErrorMessage, showApiError } from "@/lib/api/feedback";
 import { creatorsApi } from "@/lib/api/creators";
-import { get, post, del } from "@/lib/api/client";
+import { post, del, get } from "@/lib/api/client";
 import { ContentCard } from "@/components/content/ContentCard";
-import { ContentCardSkeleton } from "@/components/content/ContentCardSkeleton";
 import { assetUrl } from "@/lib/utils/assets";
 import { MediaImage } from "@/components/ui/MediaImage";
 import { formatCount } from "@/lib/utils/format";
@@ -23,6 +22,12 @@ interface CreatorProfile {
   verified?: boolean;
   subscriberCount?: number;
   publishedContentsCount?: number;
+  // Renvoyé par GET /creators/:id — jusqu'à 12 contenus publiés les plus récents,
+  // déjà filtrés côté API. Il n'existe pas de GET /creators/:id/contents dédié
+  // (l'ancienne page appelait cette route inexistante : 404 silencieux jamais
+  // vérifié, la grille restait vide alors que le compteur — lui alimenté par un
+  // champ différent — affichait le bon total). Trouvé le 2026-07-06.
+  contents?: any[];
 }
 
 export default function CreatorProfilePage() {
@@ -33,13 +38,6 @@ export default function CreatorProfilePage() {
   const { data: creator, isLoading, isError, error } = useQuery({
     queryKey: ["creator", id],
     queryFn: () => creatorsApi.getOne(id) as Promise<CreatorProfile>,
-    staleTime: 5 * 60_000,
-  });
-
-  const { data: contents, isLoading: contentsLoading } = useQuery({
-    queryKey: ["creator-contents-public", id],
-    queryFn: () => get<any>(`/creators/${id}/contents?status=PUBLISHED&limit=20`),
-    enabled: !!creator,
     staleTime: 5 * 60_000,
   });
 
@@ -68,7 +66,7 @@ export default function CreatorProfilePage() {
 
   const avatarUrl = assetUrl(creator?.avatarObjectKey);
   const bannerUrl = assetUrl(creator?.bannerObjectKey);
-  const contentsList: any[] = (contents as any)?.items ?? [];
+  const contentsList: any[] = creator?.contents ?? [];
   const publishedCount = creator?.publishedContentsCount ?? contentsList.length;
   const following = followStatus?.following ?? false;
 
@@ -183,13 +181,7 @@ export default function CreatorProfilePage() {
           <p className="mb-2 text-caption font-semibold text-brand-magenta">Filmographie</p>
           <h2 className="mb-6 text-xl font-semibold text-white">Contenus publiés</h2>
 
-          {contentsLoading ? (
-            <div className={VIEWER_GRID_CLASS}>
-              {Array.from({ length: 10 }).map((_, i) => (
-                <ContentCardSkeleton key={i} variant="grid" />
-              ))}
-            </div>
-          ) : contentsList.length === 0 ? (
+          {contentsList.length === 0 ? (
             <div className="relative mx-auto flex max-w-lg flex-col items-center py-16 text-center md:py-20">
               <div className="relative mb-6 flex h-20 w-20 items-center justify-center border border-white/[0.1] bg-white/[0.03]">
                 <div className="absolute inset-0 ivod-gradient opacity-10" />
