@@ -1319,7 +1319,7 @@ export class VideosService {
       where: { id: assetId },
       data: { status: VideoAssetStatus.UPLOADED, errorMessage: null },
     });
-    await this.pipeline.enqueueProbe(assetId);
+    await this.pipeline.createPipelineFlow(assetId);
 
     return {
       assetId,

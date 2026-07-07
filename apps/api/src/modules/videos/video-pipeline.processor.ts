@@ -137,13 +137,22 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
   // Cached encoder detection (per process lifetime)
   private _encoder: VideoEncoder | null = null;
 
-  /** Processus ffmpeg actifs → assetId — pour les tuer proprement sur SIGTERM
-   * ET marquer immédiatement l'asset en échec (voir onApplicationShutdown). */
-  private readonly _activeProcs = new Map<ReturnType<typeof spawn>, string>();
+  /** Processus ffmpeg actifs → {assetId, job} — pour les tuer proprement sur
+   * SIGTERM, marquer immédiatement l'asset en échec ET faire échouer le job
+   * BullMQ correspondant proprement (voir onApplicationShutdown). Le `job` est
+   * la même instance que le Worker nous a transmise — son `.token` reste
+   * valide pour moveToFailed() tant que le process n'a pas complètement
+   * quitté. */
+  private readonly _activeProcs = new Map<ReturnType<typeof spawn>, { assetId: string; job: Job }>();
 
   /** Réapplication périodique des réglages pipeline (voir applyPipelineSettings). */
   private _settingsPollTimer: ReturnType<typeof setInterval> | null = null;
   private static readonly SETTINGS_POLL_MS = 30_000;
+
+  /** Sonde périodique des pipelines orphelins (voir healOrphanedPipelines). */
+  private _orphanSweepTimer: ReturnType<typeof setInterval> | null = null;
+  private static readonly ORPHAN_SWEEP_MS = 5 * 60_000;
+  private static readonly ORPHAN_STALE_MS = 15 * 60_000;
 
   constructor(
     private readonly prisma:    PrismaService,
@@ -181,6 +190,54 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
     }
   }
 
+  /**
+   * Détecte et relance les pipelines "orphelins" : un asset resté en
+   * TRANSCODING/PROBING/PACKAGING sans qu'aucun job BullMQ suivi (actif, en
+   * attente...) ne lui corresponde. Cet état peut survenir quand le worker
+   * est redéployé pendant qu'un job est actif — voir onApplicationShutdown,
+   * qui échoue désormais proprement les jobs actifs au moment de l'arrêt,
+   * mais ce filet couvre aussi les cas où l'interruption a été plus brutale
+   * (OOM kill, crash) sans passer par ce hook. Ne retraite jamais les
+   * renditions déjà encodées (`skipExistingRenditions` dans prepareTranscode)
+   * — la relance ne refait donc que les étapes manquantes (généralement juste
+   * l'empaquetage final). `ORPHAN_STALE_MS` (15 min) évite de agir sur un job
+   * qui vient tout juste de démarrer. Trouvé le 2026-07-07.
+   */
+  private async healOrphanedPipelines(): Promise<void> {
+    try {
+      const staleDate = new Date(Date.now() - VideoPipelineProcessor.ORPHAN_STALE_MS);
+      const candidates = await this.prisma.videoAsset.findMany({
+        where: {
+          status: {
+            in: [VideoAssetStatus.TRANSCODING, VideoAssetStatus.PROBING, VideoAssetStatus.PACKAGING],
+          },
+          updatedAt: { lt: staleDate },
+        },
+        select: { id: true },
+      });
+
+      for (const { id } of candidates) {
+        const alive = await this.pipeline.hasLiveJob(id);
+        if (alive) continue;
+
+        this.logger.warn(
+          `Pipeline orphelin détecté pour l'asset ${id} (aucun job BullMQ suivi) — relance automatique`,
+        );
+        try {
+          await this.prisma.videoAsset.update({
+            where: { id },
+            data: { status: VideoAssetStatus.UPLOADED, errorMessage: null },
+          });
+          await this.pipeline.createPipelineFlow(id);
+        } catch (err) {
+          this.logger.error(`healOrphanedPipelines: relance ${id} — ${(err as Error).message}`);
+        }
+      }
+    } catch (err) {
+      this.logger.error(`healOrphanedPipelines: ${(err as Error).message}`);
+    }
+  }
+
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
   /** Récupération au démarrage : assets bloqués en TRANSCODING/PROBING/PACKAGING → FAILED. */
@@ -194,6 +251,9 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
     this._settingsPollTimer = setInterval(() => {
       void this.applyPipelineSettings();
     }, VideoPipelineProcessor.SETTINGS_POLL_MS);
+    this._orphanSweepTimer = setInterval(() => {
+      void this.healOrphanedPipelines();
+    }, VideoPipelineProcessor.ORPHAN_SWEEP_MS);
     try {
       const staleMs = Math.max(JOB_LOCK_DURATION, 3_600_000);
       const staleDate = new Date(Date.now() - staleMs);
@@ -236,9 +296,14 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
       clearInterval(this._settingsPollTimer);
       this._settingsPollTimer = null;
     }
+    if (this._orphanSweepTimer) {
+      clearInterval(this._orphanSweepTimer);
+      this._orphanSweepTimer = null;
+    }
     if (this._activeProcs.size === 0) return;
 
-    const interruptedAssetIds = [...new Set(this._activeProcs.values())];
+    const active = [...this._activeProcs.values()];
+    const interruptedAssetIds = [...new Set(active.map((a) => a.assetId))];
     this.logger.warn(
       `Arrêt ${signal ?? 'gracieux'} — interruption de ${this._activeProcs.size} processus ffmpeg (assets: ${interruptedAssetIds.join(', ')})`,
     );
@@ -249,6 +314,27 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
     await new Promise<void>((r) => setTimeout(r, 5_000));
     for (const proc of this._activeProcs.keys()) {
       if (!proc.killed) proc.kill('SIGKILL');
+    }
+
+    // Échoue proprement chaque job BullMQ actif (avec son token de verrou en
+    // cours) AVANT de couper — sans ça, le job reste "active" dans Redis et
+    // dépend entièrement de l'expiration du verrou + de la détection de job
+    // bloqué de BullMQ pour être repris, ce qui a laissé des jobs PACKAGE
+    // parents orphelins (jamais promus dans aucune liste suivie) après un
+    // déploiement pendant un encodage — trouvé le 2026-07-07 sur plusieurs
+    // assets (AKOUA, Maquisards...) bloqués indéfiniment après une relance du
+    // worker en pleine transcodage.
+    for (const { assetId, job } of active) {
+      if (!job.token) continue;
+      try {
+        await job.moveToFailed(
+          new Error('Interrompu par un déploiement — relancez l’encodage'),
+          job.token,
+          false,
+        );
+      } catch (err) {
+        this.logger.error(`moveToFailed [${assetId}/${job.id}] après interruption: ${(err as Error).message}`);
+      }
     }
 
     try {
@@ -377,6 +463,7 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
   private async handleTranscodePreview(job: Job<TranscodePayload>): Promise<ProbeMeta> {
     const { assetId } = job.data;
     const tmpDir = this.tmpDir(assetId);
+    await this.updateAsset(assetId, VideoAssetStatus.TRANSCODING);
     const videoJob = await this.startVideoJob(assetId, VIDEO_JOB_TYPES.TRANSCODE_PREVIEW, job);
 
     try {
@@ -407,6 +494,7 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
   private async handleTranscodeFull(job: Job<TranscodePayload>): Promise<void> {
     const { assetId } = job.data;
     const tmpDir = this.tmpDir(assetId);
+    await this.updateAsset(assetId, VideoAssetStatus.TRANSCODING);
     const videoJob = await this.startVideoJob(assetId, VIDEO_JOB_TYPES.TRANSCODE_FULL, job);
 
     try {
@@ -913,9 +1001,6 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
 
       await this.contentDuration.syncFromVideoAsset(assetId);
 
-      // Promote content from DRAFT → PENDING_REVIEW when pipeline completes
-      await this.promoteContentStatus(asset.contentId);
-
       await this.doneVideoJob(videoJob.id);
       await this.videoNotifications.notifyReady(assetId);
 
@@ -1107,7 +1192,7 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const proc = spawn(this.ffmpegPath, ['-progress', 'pipe:2', ...args]);
-      this._activeProcs.set(proc, (job.data as { assetId: string }).assetId);
+      this._activeProcs.set(proc, { assetId: (job.data as { assetId: string }).assetId, job });
 
       // Timeout : 8× durée vidéo, min 1h, max 12h
       const timeoutMs = totalSec > 0
@@ -1169,28 +1254,6 @@ export class VideoPipelineProcessor extends WorkerHost implements OnModuleInit, 
         }
       });
     });
-  }
-
-  /** Promote content status DRAFT → PENDING_REVIEW when pipeline completes */
-  private async promoteContentStatus(contentId: string): Promise<void> {
-    const content = await this.prisma.content.findUnique({
-      where:   { id: contentId },
-      include: { status: { select: { code: true } } },
-    });
-    if (!content) return;
-
-    const currentCode = (content as any).status?.code;
-    if (currentCode !== 'DRAFT') return;
-
-    const pending = await this.prisma.refContentStatus.findUnique({ where: { code: 'PENDING_REVIEW' } });
-    if (!pending) return;
-
-    await this.prisma.content.update({
-      where: { id: contentId },
-      data:  { statusId: pending.id },
-    });
-
-    this.logger.log(`Content ${contentId} promoted DRAFT → PENDING_REVIEW`);
   }
 
   // ─── Prisma helpers ────────────────────────────────────────────────────────
