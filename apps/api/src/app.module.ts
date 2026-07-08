@@ -76,6 +76,7 @@ import { SecurityLogsModule } from './modules/security-logs/security-logs.module
 import { HealthModule } from './modules/health/health.module';
 import { CronModule } from './modules/cron/cron.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
 
 @Module({
   imports: [
@@ -130,6 +131,7 @@ import { StorageModule } from './modules/storage/storage.module';
     ReferencesModule, AdminModule, SecurityLogsModule,     HealthModule,
     CronModule,
     StorageModule,
+    MetricsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

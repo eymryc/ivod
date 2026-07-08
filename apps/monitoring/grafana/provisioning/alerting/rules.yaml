@@ -101,3 +101,152 @@ groups:
           summary: "La RAM du serveur iVOD dépasse 90% d'utilisation — vérifier les jobs ffmpeg concurrents (docker stats) et le nombre de replicas API"
         labels:
           severity: warning
+
+  - orgId: 1
+    name: api
+    folder: iVOD
+    interval: 1m
+    rules:
+      - uid: ivod-api-down
+        title: "Aucune instance API disponible"
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-ds
+            model:
+              editorMode: code
+              expr: 'sum(up{job="ivod-api"})'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [1]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: ["B"]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: B
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          summary: "Ni ivod-api-1-prod ni ivod-api-2-prod ne répondent au scrape /api/v1/metrics — vérifier docker ps et docker logs ivod-api-1-prod/ivod-api-2-prod"
+        labels:
+          severity: critical
+
+      - uid: ivod-api-error-rate-high
+        title: "Taux d'erreur HTTP 5xx > 5%"
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-ds
+            model:
+              editorMode: code
+              expr: 'sum(rate(http_requests_total{status_code=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0.05]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: ["B"]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: B
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Plus de 5% des requêtes HTTP échouent en 5xx depuis 5 min — voir dashboard iVOD — API et les logs Loki (niveau ERROR)"
+        labels:
+          severity: warning
+
+      - uid: ivod-video-jobs-failed-high
+        title: "Jobs vidéo en échec accumulés"
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-ds
+            model:
+              editorMode: code
+              expr: 'video_queue_jobs{state="failed"}'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [5]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: ["B"]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: B
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "Plus de 5 jobs d'encodage vidéo en échec dans la file BullMQ — vérifier /admin/video-pipeline et les logs du worker"
+        labels:
+          severity: warning

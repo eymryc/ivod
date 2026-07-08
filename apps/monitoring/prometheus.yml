@@ -17,3 +17,13 @@ scrape_configs:
   - job_name: cadvisor
     static_configs:
       - targets: ["cadvisor:8080"]
+
+  # Nécessite que prometheus rejoigne le réseau ivod-prod (voir
+  # docker-compose.monitoring.yml) — api_1/api_2 n'ont pas de port publié
+  # sur l'hôte, seul un conteneur du même réseau Docker peut les atteindre.
+  - job_name: ivod-api
+    metrics_path: /api/v1/metrics
+    static_configs:
+      - targets: ["ivod-api-1-prod:3000", "ivod-api-2-prod:3000"]
+        labels:
+          service: ivod-api

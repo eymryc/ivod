@@ -15,12 +15,17 @@ scrape_configs:
         filters:
           - name: name
             values:
-              - ivod-api-prod
+              # Filtre Docker = substring, pas exact — "ivod-api-prod" ne
+              # matchait ni ivod-api-1-prod ni ivod-api-2-prod (les 2 réplicas
+              # réels). Résultat : zéro log API dans Loki. Trouvé le 2026-07-08.
+              - ivod-api-1-prod
+              - ivod-api-2-prod
               - ivod-video-worker-prod
               - ivod-web-prod
               - ivod-nginx-prod
               - ivod-postgres-prod
               - ivod-redis-prod
+              - ivod-minio-prod
     relabel_configs:
       - source_labels: [__meta_docker_container_name]
         regex: /(.*)

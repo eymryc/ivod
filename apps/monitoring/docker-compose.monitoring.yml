@@ -134,6 +134,7 @@ services:
       - "127.0.0.1:9090:9090"
     restart: unless-stopped
     networks:
+      - ivod-prod
       - monitoring
     depends_on:
       - node-exporter
