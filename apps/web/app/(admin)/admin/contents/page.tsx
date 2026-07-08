@@ -20,8 +20,10 @@ import { adminWatchHref } from "@/lib/utils/admin-watch";
 
 const STATUS_FILTERS = [
   { code: "PENDING_REVIEW", label: "En attente" },
+  { code: "APPROVED", label: "Programmés" },
   { code: "PUBLISHED", label: "Publiés" },
   { code: "REJECTED", label: "Rejetés" },
+  { code: "ARCHIVED", label: "Archivés" },
   { code: "DRAFT", label: "Brouillons" },
 ] as const;
 
@@ -68,7 +70,17 @@ export default function AdminContentsPage() {
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id: string) => adminApi.approveContent(id),
+    mutationFn: ({ id, releaseDate }: { id: string; releaseDate?: string }) =>
+      adminApi.approveContent(id, releaseDate),
+    onSuccess: (data) => {
+      showApiSuccess(data);
+      qc.invalidateQueries({ queryKey: ["admin-contents"] });
+    },
+    onError: (err: ApiError) => showApiError(err),
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: (id: string) => adminApi.archiveContent(id),
     onSuccess: (data) => {
       showApiSuccess(data);
       qc.invalidateQueries({ queryKey: ["admin-contents"] });
@@ -235,8 +247,10 @@ export default function AdminContentsPage() {
                 <AdminContentDetailPanel
                   content={selected}
                   showModerationActions={selected.status?.code === "PENDING_REVIEW"}
-                  onApprove={() => approveMutation.mutate(selected.id)}
+                  onApprove={(releaseDate) => approveMutation.mutate({ id: selected.id, releaseDate })}
                   onReject={() => setRejectId(selected.id)}
+                  onArchive={() => archiveMutation.mutate(selected.id)}
+                  archiving={archiveMutation.isPending}
                   onWatch={() => router.push(adminWatchHref(selected, adminReturnPath))}
                   watchReturnPath={adminReturnPath}
                   approving={approveMutation.isPending}

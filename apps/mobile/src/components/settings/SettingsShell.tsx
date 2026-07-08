@@ -12,6 +12,7 @@ import {
   Baby,
   Lock,
   ChevronRight,
+  Clapperboard,
 } from "lucide-react-native";
 import { BackButton } from "@/components/layout/BackButton";
 import type { LucideIcon } from "lucide-react-native";
@@ -20,8 +21,9 @@ import { AccentLine } from "@/components/layout/AccentLine";
 import { colors, gradients } from "@/theme/colors";
 import { typography } from "@/theme/typography";
 import { shadows } from "@/theme/shadows";
+import { useAuthStore } from "@/store/auth.store";
 
-const NAV: { href: Href; label: string; description: string; icon: LucideIcon }[] = [
+const BASE_NAV: { href: Href; label: string; description: string; icon: LucideIcon }[] = [
   { href: "/settings", label: "Mon profil", description: "Identité et email", icon: User },
   { href: "/settings/subscription", label: "Abonnement", description: "Plan et factures", icon: CreditCard },
   { href: "/settings/history", label: "Historique", description: "Visionnages", icon: History },
@@ -32,13 +34,25 @@ const NAV: { href: Href; label: string; description: string; icon: LucideIcon }[
   { href: "/settings/privacy", label: "Confidentialité", description: "RGPD", icon: Lock },
 ];
 
+const CREATOR_NAV_ITEM = {
+  href: "/settings/creator" as Href,
+  label: "Profil créateur",
+  description: "Nom de scène et bio",
+  icon: Clapperboard,
+};
+
 export function SettingsShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const userRole = useAuthStore((s) => s.user?.role);
+  const isCreatorAccount = userRole === "CREATOR" || userRole === "ADMIN";
+  const nav = isCreatorAccount
+    ? [...BASE_NAV.slice(0, 1), CREATOR_NAV_ITEM, ...BASE_NAV.slice(1)]
+    : BASE_NAV;
   return (
     <PageCanvas>
       <View style={styles.root}>
-        <BackButton />
+        <BackButton label="Retour au profil" onPress={() => router.push("/(tabs)/profil")} />
 
         <View style={styles.header}>
           <BrandLogo size="sm" />
@@ -51,7 +65,7 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.navScroll}>
           <View style={styles.navRow}>
-            {NAV.map(({ href, label, description, icon: Icon }) => {
+            {nav.map(({ href, label, description, icon: Icon }) => {
               const hrefStr = String(href);
               const active =
                 hrefStr === "/settings"

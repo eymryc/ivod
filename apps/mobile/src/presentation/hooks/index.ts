@@ -16,3 +16,8 @@ export type { UseDownloadResult } from './use-download';
 
 export { useWatchSession } from './use-watch-session';
 export type { UseWatchSessionResult } from './use-watch-session';
+
+export { useTabBarLayout, useTabBarOffset } from './use-tab-bar-layout';
+
+export { useResponsiveLayout, getHomeHeroHeight } from './use-responsive-layout';
+export type { ResponsiveLayout, DeviceSize } from './use-responsive-layout';

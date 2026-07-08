@@ -23,6 +23,7 @@ import {
 const schema = z.object({
   firstName: z.string().min(2, "Prénom requis (min. 2 caractères)"),
   lastName: z.string().min(1, "Nom requis"),
+  phone: z.string().max(32).optional(),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -39,6 +40,7 @@ export default function SettingsProfilePage() {
     defaultValues: {
       firstName: user?.firstName ?? "",
       lastName: user?.lastName ?? "",
+      phone: user?.phone ?? "",
     },
   });
 
@@ -47,6 +49,7 @@ export default function SettingsProfilePage() {
     reset({
       firstName: user.firstName ?? "",
       lastName: user.lastName ?? "",
+      phone: user.phone ?? "",
     });
   }, [user, reset]);
 
@@ -55,16 +58,19 @@ export default function SettingsProfilePage() {
       usersApi.updateProfile({
         firstName: data.firstName.trim(),
         lastName: data.lastName.trim(),
+        phone: data.phone?.trim() || undefined,
       }),
     onSuccess: (data) => {
       updateUser({
         firstName: data.firstName,
         lastName: data.lastName,
         name: data.name,
+        phone: data.phone ?? undefined,
       });
       reset({
         firstName: data.firstName ?? "",
         lastName: data.lastName ?? "",
+        phone: data.phone ?? "",
       });
       toast.success("Profil mis à jour");
     },
@@ -119,6 +125,13 @@ export default function SettingsProfilePage() {
               <p className="text-xs text-red-400 mt-1.5">{errors.lastName.message}</p>
             )}
           </div>
+        </div>
+
+        <div>
+          <label className="block text-caption font-semibold text-secondary-token mb-2">
+            Téléphone
+          </label>
+          <input {...register("phone")} className={SETTINGS_INPUT_CLASS} placeholder="+225..." />
         </div>
 
         <div>

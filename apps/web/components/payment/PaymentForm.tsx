@@ -84,8 +84,8 @@ export function PaymentForm({ planLabel, amountFcfa, onSubmit, onCancel, isLoadi
       <div className="relative flex items-start gap-3 p-4 mb-6 border border-white/[0.08] bg-white/[0.02]">
         <ShieldCheck size={18} className="text-brand-magenta shrink-0 mt-0.5" strokeWidth={1.75} />
         <p className="text-xs text-white/55 leading-relaxed">
-          Paiement via Paystack (carte ou Mobile Money selon options Paystack). Transaction chiffrée et
-          conforme PCI-DSS.
+          Paiement via une passerelle sécurisée (carte ou Mobile Money selon disponibilité). Transaction
+          chiffrée et conforme PCI-DSS.
         </p>
       </div>
 
@@ -123,31 +123,25 @@ export function PaymentForm({ planLabel, amountFcfa, onSubmit, onCancel, isLoadi
 
         {paystackConfig?.secretKeyInvalid && (
           <p className="text-[11px] text-red-400/95 border border-red-500/25 bg-red-500/10 px-3 py-2 leading-relaxed">
-            Clé secrète Paystack invalide (<code className="text-red-300/90">sk_test_...</code>{" "}
-            n’est pas acceptée). Copiez la <strong>Secret Key</strong> complète depuis le dashboard
-            Paystack dans <code className="text-red-300/90">apps/api/.env</code>, puis{" "}
-            <code className="text-red-300/90">make dev-restart</code>.
+            Le paiement est temporairement indisponible. Réessayez dans quelques minutes.
           </p>
         )}
 
         {paystackConfig?.configured === false && !paystackConfig?.secretKeyInvalid && (
           <p className="text-[11px] text-red-400/95 border border-red-500/25 bg-red-500/10 px-3 py-2 leading-relaxed">
-            Paystack n’est pas configuré sur le serveur. Ajoutez{" "}
-            <code className="text-red-300/90">PAYSTACK_SECRET_KEY</code> et{" "}
-            <code className="text-red-300/90">PAYSTACK_PUBLIC_KEY</code> dans{" "}
-            <code className="text-red-300/90">apps/api/.env</code>, puis redémarrez l’API.
+            Le paiement n’est pas disponible pour le moment.
           </p>
         )}
 
         {paystackConfig?.simulationMode && (
           <p className="text-[11px] text-amber-400/90 border border-amber-500/20 bg-amber-500/5 px-3 py-2">
-            Mode simulation serveur — aucun débit, pas de page Paystack (ALLOW_PAYMENT_SIMULATION).
+            Mode démo — aucun débit réel.
           </p>
         )}
 
         {paystackConfig?.configured && paystackConfig?.publicKey?.startsWith("pk_test") && (
           <p className="text-[11px] text-amber-400/90 border border-amber-500/20 bg-amber-500/5 px-3 py-2">
-            Clés Paystack de test — utilisez une carte de test Paystack pour simuler un débit.
+            Mode démo actif.
           </p>
         )}
 

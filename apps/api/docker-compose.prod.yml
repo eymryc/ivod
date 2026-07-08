@@ -255,11 +255,16 @@ services:
     image: redis:8-alpine
     container_name: ivod-redis-prod
     # AOF (appendonly) en complément de RDB : durabilité sub-seconde si le container plante.
-    # allkeys-lru : éviction LRU sur toutes les clés quand maxmemory est atteint (cache BullMQ safe).
+    # noeviction (recommandation officielle BullMQ) : les jobs/files BullMQ ne sont PAS
+    # un cache — une clé supprimée silencieusement sous pression mémoire (allkeys-lru,
+    # l'ancien réglage) peut corrompre l'état d'un flow (job parent orphelin, jamais repris).
+    # noeviction fait échouer les écritures bruyamment si maxmemory est atteint plutôt que de
+    # perdre des données en silence — avec 256mb de marge et ~4mb utilisés actuellement,
+    # marge très confortable. Corrigé le 2026-07-07.
     command: >
       redis-server
       --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
+      --maxmemory-policy noeviction
       --save 60 1000
       --appendonly yes
       --appendfsync everysec

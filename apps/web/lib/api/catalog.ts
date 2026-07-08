@@ -11,6 +11,8 @@ export type CatalogRailType = "query" | "personalized" | "editorial";
 
 export type CatalogRailPersonalizedKind =
   | "continue_watching"
+  | "resume_tonight"
+  | "unfinished"
   | "my_list"
   | "recommendations";
 
@@ -24,6 +26,8 @@ export type CatalogRailQuery = {
   countryOfOrigin?: string;
   publishedWithinDays?: number;
   minRating?: number;
+  releaseYearFrom?: number;
+  releaseYearTo?: number;
 };
 
 export type CatalogRail = {
@@ -38,6 +42,8 @@ export type CatalogRail = {
   query?: CatalogRailQuery;
   link?: string;
   contentIds?: string[];
+  targetPlanCodes?: string[];
+  targetCountryCodes?: string[];
 };
 
 export type AdminCatalogRail = {
@@ -52,13 +58,37 @@ export type AdminCatalogRail = {
   link: string | null;
   startsAt: string | null;
   endsAt: string | null;
+  queryJson: CatalogRailQuery | null;
+  targetPlanCodes: string[];
+  targetCountryCodes: string[];
   _count: { items: number };
   items: { contentId: string; position: number; content: { id: string; title: string } }[];
 };
 
+export type ResolvedCatalogRail = CatalogRail & { items: unknown[] };
+
 export const catalogApi = {
-  getRails: (surface: CatalogRailSurface) =>
-    get<CatalogRail[]>(`/catalog/rails?surface=${surface}`),
+  getRails: (surface: CatalogRailSurface, plan?: string | null, country?: string | null) =>
+    get<CatalogRail[]>(
+      `/catalog/rails?surface=${surface}${plan ? `&plan=${encodeURIComponent(plan)}` : ""}${
+        country ? `&country=${encodeURIComponent(country)}` : ""
+      }`,
+    ),
+
+  /** Rails + contenus des rails query/editorial résolus en un seul appel. */
+  getResolvedRails: (
+    surface: CatalogRailSurface,
+    maxMaturityRating?: string | null,
+    plan?: string | null,
+    country?: string | null,
+  ) =>
+    get<ResolvedCatalogRail[]>(
+      `/catalog/rails/resolved?surface=${surface}${
+        maxMaturityRating ? `&maxMaturityRating=${encodeURIComponent(maxMaturityRating)}` : ""
+      }${plan ? `&plan=${encodeURIComponent(plan)}` : ""}${
+        country ? `&country=${encodeURIComponent(country)}` : ""
+      }`,
+    ),
 
   adminList: (surface?: CatalogRailSurface) =>
     get<AdminCatalogRail[]>(
@@ -75,6 +105,9 @@ export const catalogApi = {
       link: string | null;
       startsAt: string | null;
       endsAt: string | null;
+      targetPlanCodes: string[];
+      targetCountryCodes: string[];
+      query: CatalogRailQuery;
     }>,
   ) => patch<AdminCatalogRail>(`/admin/catalog-rails/${code}`, data),
 
@@ -84,11 +117,15 @@ export const catalogApi = {
   adminSetItems: (code: string, contentIds: string[]) =>
     put<AdminCatalogRail>(`/admin/catalog-rails/${code}/items`, { contentIds }),
 
-  adminCreateEditorial: (data: {
+  adminCreateRail: (data: {
     code: string;
     title: string;
     surfaces: CatalogRailSurface[];
     subtitle?: string;
     link?: string;
+    type?: "editorial" | "query";
+    query?: CatalogRailQuery;
+    targetPlanCodes?: string[];
+    targetCountryCodes?: string[];
   }) => post<AdminCatalogRail>("/admin/catalog-rails", data),
 };

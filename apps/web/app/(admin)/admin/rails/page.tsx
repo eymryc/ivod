@@ -22,8 +22,10 @@ import { showApiError, showApiSuccess } from "@/lib/api/feedback";
 import {
   catalogApi,
   type AdminCatalogRail,
+  type CatalogRailQuery,
   type CatalogRailSurface,
 } from "@/lib/api/catalog";
+import { referencesApi } from "@/lib/api/references";
 import {
   AdminPageHeader,
   AdminPrimaryButton,
@@ -38,6 +40,232 @@ import {
   type RailContentItem,
 } from "@/components/admin/RailContentPicker";
 import { inputClsSm as inputCls, labelCls } from "@/lib/ui/cinema-field";
+
+const PLAN_CODES = ["FREE", "BASIC", "PREMIUM"];
+
+/** Dérive un identifiant technique à partir d'un titre lisible (ex. "Sélection de juin" → "selection_de_juin"). */
+function slugifyRailCode(title: string): string {
+  return title
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function TogglePill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-3 py-1.5 text-[12px] font-medium border transition-colors ${
+        active
+          ? "border-primary/50 bg-primary/15 text-primary"
+          : "border-white/[0.08] text-white/45 hover:text-white/70"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function RailTargetingFields({
+  planCodes,
+  onPlanCodesChange,
+  countryCodes,
+  onCountryCodesChange,
+}: {
+  planCodes: string[];
+  onPlanCodesChange: (codes: string[]) => void;
+  countryCodes: string;
+  onCountryCodesChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-3 border-t border-white/[0.06] pt-4">
+      <p className="text-[10px] font-semibold tracking-[0.14em] uppercase text-white/35">
+        Ciblage (optionnel)
+      </p>
+      <div>
+        <label className={labelCls}>Plans autorisés — aucun = tous les plans</label>
+        <div className="flex gap-2 mt-1.5">
+          {PLAN_CODES.map((code) => (
+            <TogglePill
+              key={code}
+              active={planCodes.includes(code)}
+              onClick={() =>
+                onPlanCodesChange(
+                  planCodes.includes(code)
+                    ? planCodes.filter((c) => c !== code)
+                    : [...planCodes, code],
+                )
+              }
+            >
+              {code}
+            </TogglePill>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className={labelCls} htmlFor="rail-countries">
+          Pays autorisés (codes ISO séparés par virgule) — vide = tous les pays
+        </label>
+        <input
+          id="rail-countries"
+          className={inputCls}
+          placeholder="CI, SN, ML"
+          value={countryCodes}
+          onChange={(e) => onCountryCodesChange(e.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function RailQueryFields({
+  query,
+  onChange,
+  contentTypes,
+}: {
+  query: CatalogRailQuery;
+  onChange: (q: CatalogRailQuery) => void;
+  contentTypes: { code: string; label: string }[];
+}) {
+  const set = (patch: Partial<CatalogRailQuery>) => onChange({ ...query, ...patch });
+  return (
+    <div className="space-y-3 border-t border-white/[0.06] pt-4">
+      <p className="text-[10px] font-semibold tracking-[0.14em] uppercase text-white/35">
+        Critères du rail dynamique
+      </p>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls} htmlFor="q-contentType">
+            Type de contenu
+          </label>
+          <select
+            id="q-contentType"
+            className={inputCls}
+            value={query.contentType ?? ""}
+            onChange={(e) => set({ contentType: e.target.value || undefined })}
+          >
+            <option value="">Tous</option>
+            {contentTypes.map((ct) => (
+              <option key={ct.code} value={ct.code}>
+                {ct.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="q-genreCodes">
+            Genres (codes séparés par virgule)
+          </label>
+          <input
+            id="q-genreCodes"
+            className={inputCls}
+            placeholder="ACTION, DRAME"
+            value={query.genreCodes?.join(", ") ?? ""}
+            onChange={(e) =>
+              set({
+                genreCodes: e.target.value
+                  .split(",")
+                  .map((s) => s.trim().toUpperCase())
+                  .filter(Boolean),
+              })
+            }
+          />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="q-yearFrom">
+            Année de sortie — de
+          </label>
+          <input
+            id="q-yearFrom"
+            type="number"
+            className={inputCls}
+            placeholder="1990"
+            value={query.releaseYearFrom ?? ""}
+            onChange={(e) =>
+              set({ releaseYearFrom: e.target.value ? Number(e.target.value) : undefined })
+            }
+          />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="q-yearTo">
+            Année de sortie — à
+          </label>
+          <input
+            id="q-yearTo"
+            type="number"
+            className={inputCls}
+            placeholder="1999"
+            value={query.releaseYearTo ?? ""}
+            onChange={(e) =>
+              set({ releaseYearTo: e.target.value ? Number(e.target.value) : undefined })
+            }
+          />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="q-sort">
+            Tri
+          </label>
+          <select
+            id="q-sort"
+            className={inputCls}
+            value={query.sort ?? "publishedAt"}
+            onChange={(e) => set({ sort: e.target.value })}
+          >
+            <option value="publishedAt">Plus récents</option>
+            <option value="viewCount">Plus vus</option>
+            <option value="averageRating">Mieux notés</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="q-limit">
+            Nombre de titres max
+          </label>
+          <input
+            id="q-limit"
+            type="number"
+            className={inputCls}
+            placeholder="20"
+            value={query.limit ?? ""}
+            onChange={(e) => set({ limit: e.target.value ? Number(e.target.value) : undefined })}
+          />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="q-country">
+            Pays d&apos;origine du contenu
+          </label>
+          <input
+            id="q-country"
+            className={inputCls}
+            placeholder="CI"
+            value={query.countryOfOrigin ?? ""}
+            onChange={(e) => set({ countryOfOrigin: e.target.value || undefined })}
+          />
+        </div>
+        <div className="flex items-end pb-1.5">
+          <label className="flex items-center gap-2 text-[13px] text-white/60 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={query.isExclusive ?? false}
+              onChange={(e) => set({ isExclusive: e.target.checked || undefined })}
+            />
+            Exclusifs iVOD uniquement
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const SURFACES: { code: CatalogRailSurface; label: string }[] = [
   { code: "home", label: "Accueil" },
@@ -82,8 +310,15 @@ function RailEditModal({
   rail,
   editTitle,
   editContents,
+  editQuery,
+  editPlanCodes,
+  editCountryCodes,
+  contentTypes,
   onTitleChange,
   onContentsChange,
+  onQueryChange,
+  onPlanCodesChange,
+  onCountryCodesChange,
   onClose,
   onSave,
   isSaving,
@@ -91,8 +326,15 @@ function RailEditModal({
   rail: AdminCatalogRail;
   editTitle: string;
   editContents: RailContentItem[];
+  editQuery: CatalogRailQuery;
+  editPlanCodes: string[];
+  editCountryCodes: string;
+  contentTypes: { code: string; label: string }[];
   onTitleChange: (v: string) => void;
   onContentsChange: (items: RailContentItem[]) => void;
+  onQueryChange: (q: CatalogRailQuery) => void;
+  onPlanCodesChange: (codes: string[]) => void;
+  onCountryCodesChange: (v: string) => void;
   onClose: () => void;
   onSave: () => void;
   isSaving: boolean;
@@ -133,12 +375,21 @@ function RailEditModal({
 
           {rail.type === "editorial" ? (
             <RailContentPicker value={editContents} onChange={onContentsChange} />
+          ) : rail.type === "query" ? (
+            <RailQueryFields query={editQuery} onChange={onQueryChange} contentTypes={contentTypes} />
           ) : (
             <p className="text-[12px] text-white/40 font-light border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
               Ce rail est de type <strong className="text-white/65">{rail.type}</strong>. Seuls le
-              titre et l&apos;activation sont modifiables ici.
+              titre, l&apos;activation et le ciblage sont modifiables ici.
             </p>
           )}
+
+          <RailTargetingFields
+            planCodes={editPlanCodes}
+            onPlanCodesChange={onPlanCodesChange}
+            countryCodes={editCountryCodes}
+            onCountryCodesChange={onCountryCodesChange}
+          />
 
           <div className="flex gap-3 pt-2">
             <button
@@ -315,8 +566,16 @@ export default function AdminRailsPage() {
   const [editing, setEditing] = useState<AdminCatalogRail | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContents, setEditContents] = useState<RailContentItem[]>([]);
+  const [editQuery, setEditQuery] = useState<CatalogRailQuery>({});
+  const [editPlanCodes, setEditPlanCodes] = useState<string[]>([]);
+  const [editCountryCodes, setEditCountryCodes] = useState("");
   const [newCode, setNewCode] = useState("");
+  const [newCodeTouched, setNewCodeTouched] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [newType, setNewType] = useState<"editorial" | "query">("editorial");
+  const [newQuery, setNewQuery] = useState<CatalogRailQuery>({});
+  const [newPlanCodes, setNewPlanCodes] = useState<string[]>([]);
+  const [newCountryCodes, setNewCountryCodes] = useState("");
   const [railDragIndex, setRailDragIndex] = useState<number | null>(null);
   const [railDropIndex, setRailDropIndex] = useState<number | null>(null);
 
@@ -324,6 +583,19 @@ export default function AdminRailsPage() {
     queryKey: ["admin-catalog-rails", surface],
     queryFn: () => catalogApi.adminList(surface),
   });
+
+  const { data: refs } = useQuery({
+    queryKey: ["references"],
+    queryFn: referencesApi.getAll,
+    staleTime: 5 * 60_000,
+  });
+  const contentTypes: { code: string; label: string }[] = refs?.contentTypes ?? [];
+
+  const parseCodes = (v: string) =>
+    v
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
 
   const list = rails ?? [];
 
@@ -348,7 +620,12 @@ export default function AdminRailsPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!editing) return;
-      await catalogApi.adminUpdate(editing.code, { title: editTitle });
+      await catalogApi.adminUpdate(editing.code, {
+        title: editTitle,
+        targetPlanCodes: editPlanCodes,
+        targetCountryCodes: parseCodes(editCountryCodes),
+        ...(editing.type === "query" && { query: editQuery }),
+      });
       if (editing.type === "editorial") {
         await catalogApi.adminSetItems(
           editing.code,
@@ -393,17 +670,26 @@ export default function AdminRailsPage() {
 
   const createMutation = useMutation({
     mutationFn: () =>
-      catalogApi.adminCreateEditorial({
+      catalogApi.adminCreateRail({
         code: newCode.trim(),
         title: newTitle.trim(),
         surfaces: [surface],
+        type: newType,
+        ...(newType === "query" && { query: newQuery }),
+        targetPlanCodes: newPlanCodes,
+        targetCountryCodes: parseCodes(newCountryCodes),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-catalog-rails"] });
       setNewCode("");
+      setNewCodeTouched(false);
       setNewTitle("");
+      setNewType("editorial");
+      setNewQuery({});
+      setNewPlanCodes([]);
+      setNewCountryCodes("");
       setShowCreate(false);
-      showApiSuccess("Rail éditorial créé");
+      showApiSuccess("Rail créé");
     },
     onError: showApiError,
   });
@@ -417,6 +703,9 @@ export default function AdminRailsPage() {
         title: i.content?.title ?? i.contentId,
       })) ?? [],
     );
+    setEditQuery(rail.queryJson ?? {});
+    setEditPlanCodes(rail.targetPlanCodes ?? []);
+    setEditCountryCodes((rail.targetCountryCodes ?? []).join(", "));
   };
 
   return (
@@ -426,8 +715,15 @@ export default function AdminRailsPage() {
           rail={editing}
           editTitle={editTitle}
           editContents={editContents}
+          editQuery={editQuery}
+          editPlanCodes={editPlanCodes}
+          editCountryCodes={editCountryCodes}
+          contentTypes={contentTypes}
           onTitleChange={setEditTitle}
           onContentsChange={setEditContents}
+          onQueryChange={setEditQuery}
+          onPlanCodesChange={setEditPlanCodes}
+          onCountryCodesChange={setEditCountryCodes}
           onClose={() => setEditing(null)}
           onSave={() => saveMutation.mutate()}
           isSaving={saveMutation.isPending}
@@ -436,13 +732,13 @@ export default function AdminRailsPage() {
 
       <AdminPageHeader
         title="Rails catalogue"
-        subtitle={`${stats.total} rail${stats.total !== 1 ? "s" : ""} sur ${surfaceLabel} — ordre, titres et collections éditoriales`}
+        subtitle={`${stats.total} rail${stats.total !== 1 ? "s" : ""} sur ${surfaceLabel} — ordre, titres, filtres et ciblage`}
         action={
           <AdminPrimaryButton
             icon={Plus}
             onClick={() => setShowCreate((v) => !v)}
           >
-            Rail éditorial
+            Nouveau rail
           </AdminPrimaryButton>
         }
       />
@@ -464,44 +760,88 @@ export default function AdminRailsPage() {
       </div>
 
       {showCreate ? (
-        <AdminPanel title={`Nouveau rail éditorial · ${surfaceLabel}`} className="mb-6">
-          <p className="text-[13px] text-white/45 font-light mb-4">
-            Collection manuelle (sélection du mois, festival, thématique…). Assignez les contenus
-            après création via l&apos;éditeur.
-          </p>
-          <div className="grid sm:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className={labelCls} htmlFor="rail-code">
-                Code unique
-              </label>
-              <input
-                id="rail-code"
-                className={inputCls}
-                placeholder="selection_juin"
-                value={newCode}
-                onChange={(e) => setNewCode(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className={labelCls} htmlFor="rail-title">
-                Titre affiché
-              </label>
-              <input
-                id="rail-title"
-                className={inputCls}
-                placeholder="Sélection de juin"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-              />
-            </div>
+        <AdminPanel title={`Nouveau rail · ${surfaceLabel}`} className="mb-6">
+          <div className="mb-4">
+            <label className={labelCls} htmlFor="rail-title">
+              Titre affiché aux visiteurs
+            </label>
+            <input
+              id="rail-title"
+              className={inputCls}
+              placeholder="Sélection de juin"
+              value={newTitle}
+              onChange={(e) => {
+                setNewTitle(e.target.value);
+                if (!newCodeTouched) setNewCode(slugifyRailCode(e.target.value));
+              }}
+            />
+            <p className="text-[11px] text-white/30 font-mono mt-1">
+              Identifiant interne :{" "}
+              {newCodeTouched ? (
+                <input
+                  className="bg-transparent border-b border-white/20 text-white/50 focus:outline-none focus:border-primary/50 font-mono text-[11px]"
+                  value={newCode}
+                  onChange={(e) => setNewCode(e.target.value)}
+                />
+              ) : (
+                <span>{newCode || "—"}</span>
+              )}{" "}
+              {!newCodeTouched && (
+                <button
+                  type="button"
+                  onClick={() => setNewCodeTouched(true)}
+                  className="text-primary/70 hover:text-primary underline underline-offset-2"
+                >
+                  modifier
+                </button>
+              )}
+            </p>
           </div>
+
+          <div className="mb-4">
+            <label className={labelCls}>Comment ce rail se remplit-il ?</label>
+            <div className="flex gap-2 mt-1.5">
+              <TogglePill active={newType === "editorial"} onClick={() => setNewType("editorial")}>
+                Je choisis les titres moi-même
+              </TogglePill>
+              <TogglePill active={newType === "query"} onClick={() => setNewType("query")}>
+                Le système choisit automatiquement
+              </TogglePill>
+            </div>
+            <p className="text-[12px] text-white/45 font-light mt-2">
+              {newType === "editorial"
+                ? "Après création, vous sélectionnerez les films/séries un par un dans l'éditeur — ils ne changent pas tout seuls."
+                : "Vous définissez des critères ci-dessous (ex. genre, période 1990-1999...) — le rail se met à jour automatiquement quand de nouveaux titres correspondants sont publiés."}
+            </p>
+          </div>
+
+          {newType === "query" ? (
+            <div className="mb-4">
+              <RailQueryFields query={newQuery} onChange={setNewQuery} contentTypes={contentTypes} />
+            </div>
+          ) : null}
+
+          <div className="mb-4">
+            <RailTargetingFields
+              planCodes={newPlanCodes}
+              onPlanCodesChange={setNewPlanCodes}
+              countryCodes={newCountryCodes}
+              onCountryCodesChange={setNewCountryCodes}
+            />
+          </div>
+
           <div className="flex gap-3">
             <button
               type="button"
               onClick={() => {
                 setShowCreate(false);
                 setNewCode("");
+                setNewCodeTouched(false);
                 setNewTitle("");
+                setNewType("editorial");
+                setNewQuery({});
+                setNewPlanCodes([]);
+                setNewCountryCodes("");
               }}
               className="px-4 py-2 rounded-none border border-white/[0.08] text-[13px] text-white/50 hover:text-white transition-colors"
             >

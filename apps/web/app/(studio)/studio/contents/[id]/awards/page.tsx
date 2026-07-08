@@ -182,9 +182,8 @@ export default function AwardsPage() {
                     className="text-primary underline underline-offset-2"
                   >
                     Admin → Références → Types de distinction
-                  </Link>
-                  , puis lancer le seed si besoin :{" "}
-                  <code className="text-[11px] text-white/70">npx prisma db seed</code>
+                  </Link>{" "}
+                  pour en ajouter.
                 </div>
               ) : (
                 <IvodSelect

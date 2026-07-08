@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Param, Body, Query, UseGuards, Patch, Delete } from '@nestjs/common';
 import { CreatorsService } from './creators.service';
-import { CreateCreatorFullAdminDto, UpdateCreatorDto } from './dto/creators.dto';
+import { CreateCreatorFullAdminDto, UpdateCreatorDto, UpdateMyCreatorDto, CreatorUploadUrlDto } from './dto/creators.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -115,6 +115,32 @@ export class CreatorsController {
   })
   getMyProfile(@CurrentUser('id') userId: string) {
     return this.creatorsService.getMyProfile(userId);
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('CREATOR', 'ADMIN')
+  @ApiOperation({ summary: 'Mettre à jour mon profil créateur' })
+  @ApiBody({ type: UpdateMyCreatorDto })
+  @ApiUnauthorizedResponse({ description: 'JWT required' })
+  @ApiForbiddenResponse({ description: 'Creator or admin role required' })
+  updateMyProfile(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateMyCreatorDto,
+  ) {
+    return this.creatorsService.updateMyProfile(userId, dto);
+  }
+
+  @Post('me/upload-url')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('CREATOR', 'ADMIN')
+  @ApiOperation({ summary: 'Obtenir une URL d’upload pour avatar ou bannière créateur' })
+  @ApiBody({ type: CreatorUploadUrlDto })
+  getMyUploadUrl(
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreatorUploadUrlDto,
+  ) {
+    return this.creatorsService.getMyUploadUrl(userId, dto.mimeType, dto.slot);
   }
 
   @Get('me/contents')

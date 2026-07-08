@@ -1,9 +1,14 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../common/types';
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   private async defaultProfile(userId: string) {
     const profile = await this.prisma.profile.findFirst({
@@ -65,16 +70,34 @@ export class ReportsService {
   }
 
   async updateStatus(id: string, status: string, adminUserId: string) {
-    const report = await this.prisma.contentReport.findUnique({ where: { id }, select: { id: true } });
+    const report = await this.prisma.contentReport.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        profile: { select: { userId: true } },
+        content: { select: { id: true, title: true } },
+      },
+    });
     if (!report) throw new NotFoundException({ code: 'REPORT_002', message: 'Signalement introuvable' });
 
     const statusId = await this.refId(this.prisma.refReportStatus, status);
 
-    return this.prisma.contentReport.update({
+    const updated = await this.prisma.contentReport.update({
       where: { id },
       data: { statusId, reviewedByUserId: adminUserId },
       include: this.include,
     });
+
+    const statusLabel = (updated as any).status?.label ?? status;
+    this.notifications.dispatch({
+      userId: report.profile.userId,
+      type: NotificationType.REPORT_REVIEWED,
+      title: 'Signalement traité',
+      body: `Votre signalement pour « ${report.content.title} » a été traité : ${statusLabel}.`,
+      data: { reportId: id, contentId: report.content.id, status },
+    }).catch(() => {});
+
+    return updated;
   }
 
   async getByContent(contentId: string) {

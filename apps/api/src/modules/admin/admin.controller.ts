@@ -95,7 +95,7 @@ export class AdminController {
   }
 
   @Put('contents/:id/approve')
-  @ApiOperation({ summary: 'Approve content publication' })
+  @ApiOperation({ summary: 'Approve content publication (optionnellement programmée via releaseDate)' })
   @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
   @ApiSuccessResponse({
     description: 'Content approved',
@@ -106,8 +106,9 @@ export class AdminController {
       meta: { timestamp: '2026-03-23T16:30:00.000Z', version: 'v1' },
     },
   })
-  approveContent(@Param('id') id: string) {
-    return this.adminService.moderateContent(id, 'approve');
+  approveContent(@Param('id') id: string, @Body() body?: { releaseDate?: string }) {
+    const releaseDate = body?.releaseDate ? new Date(body.releaseDate) : undefined;
+    return this.adminService.moderateContent(id, 'approve', undefined, releaseDate);
   }
 
   @Put('contents/:id/reject')
@@ -124,6 +125,22 @@ export class AdminController {
   })
   rejectContent(@Param('id') id: string, @Body() body?: { reason?: string }) {
     return this.adminService.moderateContent(id, 'reject', body?.reason);
+  }
+
+  @Put('contents/:id/archive')
+  @ApiOperation({ summary: 'Retirer un contenu publié du catalogue (statut ARCHIVED)' })
+  @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
+  @ApiSuccessResponse({
+    description: 'Content archived',
+    example: {
+      success: true,
+      data: { id: 'cmx', status: 'ARCHIVED' },
+      error: null,
+      meta: { timestamp: '2026-03-23T16:30:00.000Z', version: 'v1' },
+    },
+  })
+  archiveContent(@Param('id') id: string, @Body() body?: { reason?: string }) {
+    return this.adminService.archiveContent(id, body?.reason);
   }
 
   @Put('episodes/:id/approve')

@@ -22,12 +22,16 @@ export default function PaymentCallbackScreen() {
   const router = useRouter();
   const qc = useQueryClient();
   const params = useLocalSearchParams<{
+    paymentId?: string;
     reference?: string;
     trxref?: string;
     sim?: string;
     returnTo?: string;
+    browser?: string;
   }>();
-  const reference = params.reference ?? params.trxref ?? "";
+  /** Id interne iVOD — toujours utilisé pour sync/getOne (≠ référence prestataire après relance). */
+  const paymentId =
+    params.paymentId ?? params.reference ?? params.trxref ?? "";
   const isSim = params.sim === "1";
   const returnTo = params.returnTo;
   const successPath =
@@ -36,14 +40,14 @@ export default function PaymentCallbackScreen() {
   const [simConfirmed, setSimConfirmed] = useState(false);
 
   useEffect(() => {
-    if (!reference) return;
-    paymentsApi.syncPayment(reference).catch(() => {});
-  }, [reference]);
+    if (!paymentId) return;
+    paymentsApi.syncPayment(paymentId).catch(() => {});
+  }, [paymentId]);
 
   const { data: payment, refetch, isError } = useQuery({
-    queryKey: ["payment-callback", reference],
-    queryFn: () => paymentsApi.getOne(reference),
-    enabled: !!reference,
+    queryKey: ["payment-callback", paymentId],
+    queryFn: () => paymentsApi.getOne(paymentId),
+    enabled: !!paymentId,
     refetchInterval: (query) => {
       const p = query.state.data;
       if (!p) return 3000;
@@ -54,20 +58,20 @@ export default function PaymentCallbackScreen() {
   });
 
   useEffect(() => {
-    if (!reference) return;
+    if (!paymentId) return;
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
-      paymentsApi.syncPayment(reference).catch(() => {});
+      paymentsApi.syncPayment(paymentId).catch(() => {});
       refetch();
     });
     return () => sub.remove();
-  }, [reference, refetch]);
+  }, [paymentId, refetch]);
 
   useEffect(() => {
-    if (!reference) return;
+    if (!paymentId) return;
     const t = setInterval(() => setPollCount((c) => c + 1), 3000);
     return () => clearInterval(t);
-  }, [reference]);
+  }, [paymentId]);
 
   useEffect(() => {
     if (!isPaymentCompleted(payment?.status)) return;
@@ -78,18 +82,18 @@ export default function PaymentCallbackScreen() {
   }, [payment?.status, router, successPath, qc]);
 
   const confirmSimPayment = () => {
-    if (!reference) return;
+    if (!paymentId) return;
     setSimConfirmed(true);
-    paymentsApi.devComplete(reference).then(() => refetch());
+    paymentsApi.devComplete(paymentId).then(() => refetch());
   };
 
-  if (isSim && reference && !isPaymentCompleted(payment?.status) && !simConfirmed) {
+  if (isSim && paymentId && !isPaymentCompleted(payment?.status) && !simConfirmed) {
     return (
       <StateView
         icon={<ActivityIndicator color={colors.gold} size={40} />}
         title="Mode simulation"
-        message="Paystack n'est pas configuré. Confirmez pour tester l'activation d'abonnement en local."
-        sub={reference}
+        message="Mode démo : aucun débit réel. Confirmez pour tester l'activation d'abonnement."
+        sub={paymentId}
         primaryLabel="Simuler un paiement réussi"
         onPrimary={confirmSimPayment}
         secondaryLabel="Annuler"
@@ -98,7 +102,7 @@ export default function PaymentCallbackScreen() {
     );
   }
 
-  if (!reference) {
+  if (!paymentId) {
     return (
       <StateView
         icon={<XCircle color="#f87171" size={48} />}
@@ -127,7 +131,7 @@ export default function PaymentCallbackScreen() {
       <StateView
         icon={<ActivityIndicator color={colors.magenta} size={40} />}
         title="Vérification en cours…"
-        message="Nous confirmons votre paiement auprès de Paystack."
+        message="Nous confirmons votre paiement auprès du prestataire."
       />
     );
   }
@@ -162,7 +166,11 @@ export default function PaymentCallbackScreen() {
     <StateView
       icon={<ActivityIndicator color={colors.magenta} size={40} />}
       title="Paiement en cours…"
-      message="Si vous avez terminé sur Paystack, patientez quelques secondes."
+      message={
+        params.browser === "1"
+          ? "Si vous avez terminé le paiement dans le navigateur, revenez à l'app ou patientez quelques secondes."
+          : "Si vous avez terminé le paiement, patientez quelques secondes."
+      }
       secondaryLabel="Actualiser"
       onSecondary={() => refetch()}
     />

@@ -8,10 +8,13 @@ import * as WebBrowser from "expo-web-browser";
 import { useAuthStore } from "@/store/auth.store";
 import { useProfileStore } from "@/store/profile.store";
 import { PushBootstrap } from "@/components/PushBootstrap";
+import { ProfileBootstrap } from "@/components/ProfileBootstrap";
 import { FontProvider } from "@/components/layout/FontProvider";
 import { ErrorBoundary } from "@/presentation/providers/ErrorBoundary";
 import { ToastHost } from "@/components/ui/IvodToast";
 import { isAuthRequiredPath, needsActiveProfile } from "@/core/navigation/route-access";
+import { setSessionExpiredHandler } from "@/infrastructure/api/session-events";
+import { toast } from "@/presentation/utils/toast";
 import { colors } from "@/theme/colors";
 import { fontFamily } from "@/theme/typography";
 
@@ -43,6 +46,16 @@ export default function RootLayout() {
     loadAuth();
     hydrateProfile();
   }, []);
+
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      void useAuthStore.getState().logout().then(() => {
+        toast.info("Session expirée, reconnectez-vous.");
+        router.replace("/(auth)/login");
+      });
+    });
+    return () => setSessionExpiredHandler(null);
+  }, [router]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -81,6 +94,7 @@ export default function RootLayout() {
       <FontProvider onReady={onFontsReady}>
         <QueryClientProvider client={queryClient}>
           <QueryFocusSetup />
+          <ProfileBootstrap />
           <PushBootstrap />
           <ToastHost />
           <StatusBar style="light" />

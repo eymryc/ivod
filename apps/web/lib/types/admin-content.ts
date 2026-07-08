@@ -16,6 +16,7 @@ export type AdminContentListItem = {
   shortDescription?: string | null;
   description?: string | null;
   releaseYear?: number | null;
+  releaseDate?: string | null;
   duration?: number | null;
   ppvPrice?: number | null;
   tags?: string[];

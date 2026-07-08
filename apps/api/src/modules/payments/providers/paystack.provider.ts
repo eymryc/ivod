@@ -162,7 +162,9 @@ export class PaystackProvider implements IPaymentProvider {
           amount: data?.amount != null ? fromPaystackAmount(Number(data.amount)) : undefined,
         };
       }
-      if (gatewayStatus === 'failed' || gatewayStatus === 'abandoned' || gatewayStatus === 'reversed') {
+      // `abandoned` = transaction non finalisée — ne pas marquer FAILED tant que le client
+      // peut encore être sur le checkout Paystack (sync prématuré côté mobile).
+      if (gatewayStatus === 'failed' || gatewayStatus === 'reversed') {
         return { status: 'FAILED' };
       }
       return { status: 'PENDING' };

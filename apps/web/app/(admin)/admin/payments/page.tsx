@@ -112,7 +112,7 @@ export default function AdminPaymentsPage() {
               Monétisation
             </p>
             <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
-              Paiements Paystack
+              Paiements
             </h1>
             <div className="ivod-line-accent w-14 mt-4 mb-4" />
             <p className="text-sm text-white/50 font-light max-w-xl leading-relaxed">
@@ -142,7 +142,6 @@ export default function AdminPaymentsPage() {
                 {(stats?.completedCount ?? 0) !== 1 ? "s" : ""} confirmé
                 {(stats?.completedCount ?? 0) !== 1 ? "s" : ""}
                 {" "}
-                Paystack
                 {status || search.trim() ? " (filtres actifs)" : " (historique)"}
               </p>
             </div>
@@ -443,7 +442,7 @@ export default function AdminPaymentsPage() {
               <div className="admin-payments-foot mt-6 flex flex-wrap items-center gap-2 px-4 py-3 text-[11px] text-white/45">
                 <ExternalLink size={13} className="text-brand-magenta/70 shrink-0" />
                 <span>
-                  Webhooks Paystack :{" "}
+                  Webhooks paiement :{" "}
                   <code className="text-white/55 font-mono text-[10px]">
                     charge.success · charge.failed · refund.processed
                   </code>

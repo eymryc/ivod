@@ -7,9 +7,10 @@ import { AnalyticsModule } from '../analytics/analytics.module';
 import { NotificationsCoreModule } from '../notifications/notifications-core.module';
 import { MailModule } from '../mail/mail.module';
 import { RedisService } from '../../common/services/redis.service';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
-  imports: [PrismaModule, SubscriptionsModule, SearchModule, AnalyticsModule, NotificationsCoreModule, MailModule],
+  imports: [PrismaModule, SubscriptionsModule, SearchModule, AnalyticsModule, NotificationsCoreModule, MailModule, AdminModule],
   providers: [CronService, RedisService],
 })
 export class CronModule {}

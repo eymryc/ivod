@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateProfileDto, UpdateUserPreferencesDto } from './dto/users.dto';
 
@@ -69,10 +69,22 @@ export class UsersService {
     const firstName = dto.firstName?.trim();
     const lastName = dto.lastName?.trim();
     const legacyName = dto.name?.trim();
+    const phone =
+      dto.phone !== undefined ? dto.phone.replace(/\s+/g, '').trim() || null : undefined;
     const computedName =
       firstName !== undefined || lastName !== undefined
         ? `${firstName ?? ''} ${lastName ?? ''}`.trim()
         : legacyName;
+
+    if (phone) {
+      const existingPhone = await this.prisma.user.findFirst({
+        where: { phone, NOT: { id } },
+        select: { id: true },
+      });
+      if (existingPhone) {
+        throw new ConflictException({ code: 'AUTH_008', message: 'Téléphone déjà utilisé' });
+      }
+    }
 
     return this.prisma.user.update({
       where: { id },
@@ -81,8 +93,18 @@ export class UsersService {
         ...(lastName !== undefined && { lastName }),
         ...(computedName && { name: computedName }),
         ...(dto.avatarUrl !== undefined && { avatarUrl: dto.avatarUrl }),
+        ...(phone !== undefined && { phone }),
       },
-      select: { id: true, email: true, name: true, firstName: true, lastName: true, avatarUrl: true, updatedAt: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        avatarUrl: true,
+        updatedAt: true,
+      },
     });
   }
 

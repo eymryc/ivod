@@ -150,9 +150,11 @@ export class MinioService implements OnModuleInit {
     await this.client.putObject(bucket, objectKey, data, data.length, { 'Content-Type': contentType });
   }
 
-  /** Upload multipart — init */
+  /** Upload multipart — init (appel réseau serveur→MinIO direct, pas une simple signature : doit
+   * utiliser le client interne `minio:9000`, pas `urlClient` qui pointe sur l'endpoint public
+   * `localhost:9000` — injoignable depuis l'intérieur du container, d'où l'ECONNREFUSED observé). */
   async initiateMultipartUpload(bucket: string, objectKey: string): Promise<string> {
-    return this.urlClient.initiateNewMultipartUpload(bucket, objectKey, {});
+    return this.client.initiateNewMultipartUpload(bucket, objectKey, {});
   }
 
   /** URL signée pour une partie multipart */

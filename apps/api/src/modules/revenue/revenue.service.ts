@@ -1,9 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../common/types';
 
 @Injectable()
 export class RevenueService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   private async resolveStatementStatusId(code: string): Promise<string> {
     const ref = await this.prisma.refRevenueStatementStatus.findUniqueOrThrow({ where: { code }, select: { id: true } });
@@ -151,14 +156,31 @@ export class RevenueService {
   async markPaid(statementId: string) {
     const stmt = await this.prisma.revenueStatement.findUnique({
       where: { id: statementId },
-      include: { status: { select: { code: true } } },
+      include: { status: { select: { code: true } }, beneficiaryType: { select: { code: true } } },
     });
     if (!stmt) throw new NotFoundException({ code: 'REVENUE_001', message: 'Relevé de revenus introuvable' });
     if ((stmt as any).status.code !== 'LOCKED') throw new BadRequestException({ code: 'REVENUE_003', message: 'Seul un relevé verrouillé (LOCKED) peut être marqué comme payé' });
     const statusPaidId = await this.resolveStatementStatusId('PAID');
-    return this.prisma.revenueStatement.update({
+    const updated = await this.prisma.revenueStatement.update({
       where: { id: statementId },
       data: { statusId: statusPaidId, paidAt: new Date() },
     });
+
+    if ((stmt as any).beneficiaryType?.code === 'CREATOR') {
+      this.prisma.creator.findUnique({ where: { id: stmt.beneficiaryId }, select: { userId: true } })
+        .then((creator) => {
+          if (!creator) return;
+          return this.notifications.dispatch({
+            userId: creator.userId,
+            type: NotificationType.REVENUE_PAID,
+            title: 'Revenus versés',
+            body: `Votre relevé de revenus (${updated.beneficiaryAmount.toLocaleString('fr-FR')} ${updated.currency}) a été payé.`,
+            data: { statementId, amount: updated.beneficiaryAmount, currency: updated.currency },
+          });
+        })
+        .catch(() => {});
+    }
+
+    return updated;
   }
 }

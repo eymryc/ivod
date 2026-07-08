@@ -10,5 +10,6 @@ import { VideosModule } from '../videos/videos.module';
   imports: [CreatorsModule, MailModule, NotificationsCoreModule, VideosModule],
   controllers: [AdminController],
   providers: [AdminService],
+  exports: [AdminService],
 })
 export class AdminModule {}

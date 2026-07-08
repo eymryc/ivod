@@ -277,10 +277,21 @@ export class AdminService {
     return code === 'SERIE' || code === 'WEB_SERIE';
   }
 
-  async moderateContent(contentId: string, action: 'approve' | 'reject', rejectionReason?: string) {
+  /**
+   * @param releaseDate Si fournie et future, approuve sans publier immédiatement
+   *   (statut APPROVED, `Content.releaseDate` posée) — la publication effective
+   *   est faite par `CronService.publishScheduledContent()` à l'échéance.
+   */
+  async moderateContent(
+    contentId: string,
+    action: 'approve' | 'reject',
+    rejectionReason?: string,
+    releaseDate?: Date,
+  ) {
     const content = await this.prisma.content.findUnique({
       where: { id: contentId },
       include: {
+        status: { select: { code: true } },
         contentType: { select: { code: true } },
         videoAssets: {
           where: { status: { in: [...PLAYABLE_VIDEO_STATUSES] } },
@@ -300,99 +311,255 @@ export class AdminService {
       });
     }
 
-    const newStatusCode = action === 'approve' ? 'PUBLISHED' : 'REJECTED';
-    const publishedAt = action === 'approve' ? new Date() : undefined;
+    const previousStatus = (content as any).status?.code ?? 'PENDING_REVIEW';
 
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.content.update({
+    if (action === 'reject') {
+      return this.rejectContent(contentId, content, previousStatus, rejectionReason);
+    }
+
+    if (releaseDate && releaseDate.getTime() > Date.now()) {
+      return this.scheduleContentApproval(contentId, content, previousStatus, releaseDate);
+    }
+
+    return this.publishContent(contentId, content, previousStatus);
+  }
+
+  /** Publication immédiate (transaction + effets de bord + notifications). */
+  private async publishContent(
+    contentId: string,
+    content: {
+      title: string;
+      uploadedByUserId: string | null;
+      uploadedBy: { email: string | null; firstName: string | null } | null;
+    },
+    previousStatus: string,
+  ) {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.content.update({
         where: { id: contentId },
         data: {
-          status: { connect: { code: newStatusCode } },
-          ...(publishedAt && { publishedAt }),
-          ...(action === 'reject' && {
-            rejectionReason: rejectionReason?.trim() || 'Contenu non conforme aux règles de publication.',
-          }),
-          ...(action === 'approve' && { rejectionReason: null }),
+          status: { connect: { code: 'PUBLISHED' } },
+          publishedAt: new Date(),
+          rejectionReason: null,
         },
       });
-      // Indexer pour la recherche si publié
-      if (newStatusCode === 'PUBLISHED') {
-        await tx.videoAsset.updateMany({
-          where: {
-            contentId,
-            episodeId: null,
-            status: { in: ['READY', 'READY_PREVIEW'] },
-          },
-          data: { status: 'PUBLISHED' },
-        });
+      await tx.videoAsset.updateMany({
+        where: { contentId, episodeId: null, status: { in: ['READY', 'READY_PREVIEW'] } },
+        data: { status: 'PUBLISHED' },
+      });
 
-        const parts = [updated.title, updated.description ?? '', ...(updated.tags ?? [])].filter(Boolean);
-        tx.searchIndex.upsert({
-          where: { contentId },
-          create: { contentId, indexedText: parts.join(' ').toLowerCase() },
-          update: { indexedText: parts.join(' ').toLowerCase() },
-        }).catch(() => {});
-        tx.contentStats.upsert({ where: { contentId }, create: { contentId }, update: {} }).catch(() => {});
-        tx.refModerationStatus.findUnique({ where: { code: 'DONE' }, select: { id: true } })
-          .then((ref) => ref ? tx.moderationQueue.updateMany({ where: { contentId }, data: { statusId: ref.id } }) : null)
-          .catch(() => {});
-      }
-      return updated;
+      const parts = [u.title, u.description ?? '', ...(u.tags ?? [])].filter(Boolean);
+      tx.searchIndex.upsert({
+        where: { contentId },
+        create: { contentId, indexedText: parts.join(' ').toLowerCase() },
+        update: { indexedText: parts.join(' ').toLowerCase() },
+      }).catch(() => {});
+      tx.contentStats.upsert({ where: { contentId }, create: { contentId }, update: {} }).catch(() => {});
+      tx.refModerationStatus.findUnique({ where: { code: 'DONE' }, select: { id: true } })
+        .then((ref) => ref ? tx.moderationQueue.updateMany({ where: { contentId }, data: { statusId: ref.id } }) : null)
+        .catch(() => {});
+      tx.contentStatusHistory.create({
+        data: { contentId, oldStatus: previousStatus, newStatus: 'PUBLISHED', comment: 'Publication' },
+      }).catch(() => {});
+
+      return u;
     }).then(async (updated) => {
-      const finalReason = action === 'reject'
-        ? (rejectionReason?.trim() || 'Contenu non conforme aux règles de publication.')
-        : undefined;
-
       if (content.uploadedBy?.email) {
         this.mail.sendContentModerationEmail({
           to: content.uploadedBy.email,
           creatorFirstName: content.uploadedBy.firstName ?? content.uploadedBy.email,
           contentTitle: content.title,
           contentType: 'content',
-          action,
-          rejectionReason: finalReason,
+          action: 'approve',
         }).catch((err: Error) => this.logger.error('Erreur email modération contenu', err.message));
       }
 
       if (content.uploadedByUserId) {
-        const notifType = action === 'approve' ? NotificationType.CONTENT_APPROVED : NotificationType.CONTENT_REJECTED;
         this.notifications.dispatch({
           userId: content.uploadedByUserId,
-          type: notifType,
-          title: action === 'approve' ? 'Contenu publié ✓' : 'Contenu rejeté',
-          body: action === 'approve'
-            ? `« ${content.title} » a été approuvé et est maintenant publié.`
-            : `« ${content.title} » a été rejeté : ${finalReason}`,
-          data: { contentId: contentId, contentTitle: content.title, rejectionReason: finalReason },
+          type: NotificationType.CONTENT_APPROVED,
+          title: 'Contenu publié ✓',
+          body: `« ${content.title} » a été approuvé et est maintenant publié.`,
+          data: { contentId, contentTitle: content.title },
         }).catch((err: Error) => this.logger.error('Erreur dispatch notification modération', err.message));
 
-        // Fan-out NEW_CONTENT to all followers of the creator
-        if (action === 'approve') {
-          this.prisma.creator.findFirst({
-            where: { userId: content.uploadedByUserId },
-            select: { id: true },
-          }).then(async (creator) => {
-            if (!creator) return;
-            const follows = await this.prisma.follow.findMany({
-              where: { creatorId: creator.id },
-              select: { followerId: true },
-              take: 1000,
-            });
-            for (const f of follows) {
-              await this.notifications.dispatch({
-                userId: f.followerId,
-                type: NotificationType.NEW_CONTENT,
-                title: 'Nouveau contenu disponible',
-                body: `« ${content.title} » est maintenant disponible.`,
-                data: { contentId, creatorId: content.uploadedByUserId! },
-              }).catch(() => {});
-            }
-          }).catch((err: Error) => this.logger.error('Erreur fan-out NEW_CONTENT', err.message));
-        }
+        this.prisma.creator.findFirst({
+          where: { userId: content.uploadedByUserId },
+          select: { id: true },
+        }).then(async (creator) => {
+          if (!creator) return;
+          const follows = await this.prisma.follow.findMany({
+            where: { creatorId: creator.id },
+            select: { followerId: true },
+            take: 1000,
+          });
+          for (const f of follows) {
+            await this.notifications.dispatch({
+              userId: f.followerId,
+              type: NotificationType.NEW_CONTENT,
+              title: 'Nouveau contenu disponible',
+              body: `« ${content.title} » est maintenant disponible.`,
+              data: { contentId, creatorId: content.uploadedByUserId! },
+            }).catch(() => {});
+          }
+        }).catch((err: Error) => this.logger.error('Erreur fan-out NEW_CONTENT', err.message));
       }
 
       return updated;
     });
+
+    return updated;
+  }
+
+  private async rejectContent(
+    contentId: string,
+    content: {
+      title: string;
+      uploadedByUserId: string | null;
+      uploadedBy: { email: string | null; firstName: string | null } | null;
+    },
+    previousStatus: string,
+    rejectionReason?: string,
+  ) {
+    const finalReason = rejectionReason?.trim() || 'Contenu non conforme aux règles de publication.';
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.content.update({
+        where: { id: contentId },
+        data: { status: { connect: { code: 'REJECTED' } }, rejectionReason: finalReason },
+      });
+      tx.contentStatusHistory.create({
+        data: { contentId, oldStatus: previousStatus, newStatus: 'REJECTED', comment: finalReason },
+      }).catch(() => {});
+      return u;
+    });
+
+    if (content.uploadedBy?.email) {
+      this.mail.sendContentModerationEmail({
+        to: content.uploadedBy.email,
+        creatorFirstName: content.uploadedBy.firstName ?? content.uploadedBy.email,
+        contentTitle: content.title,
+        contentType: 'content',
+        action: 'reject',
+        rejectionReason: finalReason,
+      }).catch((err: Error) => this.logger.error('Erreur email modération contenu', err.message));
+    }
+
+    if (content.uploadedByUserId) {
+      this.notifications.dispatch({
+        userId: content.uploadedByUserId,
+        type: NotificationType.CONTENT_REJECTED,
+        title: 'Contenu rejeté',
+        body: `« ${content.title} » a été rejeté : ${finalReason}`,
+        data: { contentId, contentTitle: content.title, rejectionReason: finalReason },
+      }).catch((err: Error) => this.logger.error('Erreur dispatch notification modération', err.message));
+    }
+
+    return updated;
+  }
+
+  private async scheduleContentApproval(
+    contentId: string,
+    content: { title: string; uploadedByUserId: string | null },
+    previousStatus: string,
+    releaseDate: Date,
+  ) {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.content.update({
+        where: { id: contentId },
+        data: { status: { connect: { code: 'APPROVED' } }, releaseDate, rejectionReason: null },
+      });
+      tx.contentStatusHistory.create({
+        data: {
+          contentId,
+          oldStatus: previousStatus,
+          newStatus: 'APPROVED',
+          comment: `Publication programmée le ${releaseDate.toISOString()}`,
+        },
+      }).catch(() => {});
+      return u;
+    });
+
+    if (content.uploadedByUserId) {
+      this.notifications.dispatch({
+        userId: content.uploadedByUserId,
+        type: NotificationType.CONTENT_APPROVED,
+        title: 'Contenu approuvé — publication programmée',
+        body: `« ${content.title} » a été approuvé, publication prévue le ${releaseDate.toLocaleDateString('fr-FR')}.`,
+        data: { contentId, contentTitle: content.title, releaseDate: releaseDate.toISOString() },
+      }).catch((err: Error) => this.logger.error('Erreur dispatch notification approbation programmée', err.message));
+    }
+
+    return updated;
+  }
+
+  /**
+   * Publie un contenu APPROVED dont la date de sortie programmée est atteinte.
+   * Appelé par `CronService` — silencieux si le contenu n'est plus APPROVED
+   * (déjà publié/annulé entretemps) ou si sa vidéo a été retirée depuis
+   * l'approbation (garde-fou, ne devrait normalement pas arriver).
+   */
+  async publishScheduledContent(contentId: string): Promise<void> {
+    const content = await this.prisma.content.findUnique({
+      where: { id: contentId },
+      include: {
+        status: { select: { code: true } },
+        contentType: { select: { code: true } },
+        videoAssets: {
+          where: { status: { in: [...PLAYABLE_VIDEO_STATUSES] } },
+          take: 1,
+          select: { id: true },
+        },
+        uploadedBy: { select: { email: true, firstName: true } },
+      },
+    });
+    if (!content || (content as any).status?.code !== 'APPROVED') return;
+
+    const isSeries = this.isSeriesContentType(content.contentType.code);
+    if (!isSeries && content.videoAssets.length === 0) {
+      this.logger.warn(`publishScheduledContent: contenu ${contentId} programmé mais sans vidéo jouable — publication différée`);
+      return;
+    }
+
+    await this.publishContent(contentId, content, 'APPROVED');
+  }
+
+  /** Retire un contenu publié du catalogue sans le supprimer (statut ARCHIVED). */
+  async archiveContent(contentId: string, reason?: string) {
+    const content = await this.prisma.content.findUnique({
+      where: { id: contentId },
+      include: {
+        status: { select: { code: true } },
+        uploadedBy: { select: { email: true, firstName: true } },
+      },
+    });
+    if (!content) throw new NotFoundException({ code: 'CONTENT_001', message: 'Contenu introuvable' });
+
+    const previousStatus = (content as any).status?.code ?? 'PUBLISHED';
+    const finalReason = reason?.trim() || 'Archivé par un administrateur';
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.content.update({
+        where: { id: contentId },
+        data: { status: { connect: { code: 'ARCHIVED' } } },
+      });
+      tx.contentStatusHistory.create({
+        data: { contentId, oldStatus: previousStatus, newStatus: 'ARCHIVED', comment: finalReason },
+      }).catch(() => {});
+      return u;
+    });
+
+    if (content.uploadedByUserId) {
+      this.notifications.dispatch({
+        userId: content.uploadedByUserId,
+        type: NotificationType.CONTENT_ARCHIVED,
+        title: 'Contenu archivé',
+        body: `« ${content.title} » a été retiré du catalogue. Motif : ${finalReason}`,
+        data: { contentId, contentTitle: content.title, rejectionReason: finalReason },
+      }).catch((err: Error) => this.logger.error('Erreur dispatch notification archivage', err.message));
+    }
+
+    return updated;
   }
 
   async moderateEpisode(episodeId: string, action: 'approve' | 'reject', rejectionReason?: string) {

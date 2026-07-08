@@ -6,7 +6,7 @@ import { ChevronDown } from "lucide-react";
 const FAQ = [
   {
     q: "Comment payer ?",
-    a: "Tous les paiements passent par Paystack : carte bancaire ou Mobile Money selon les options affichées sur la page Paystack. Montants en FCFA (XOF). iVOD ne débite pas directement les opérateurs.",
+    a: "Tous les paiements passent par un prestataire sécurisé : carte bancaire ou Mobile Money selon les options affichées sur la page de paiement. Montants en FCFA (XOF). iVOD ne débite pas directement les opérateurs.",
   },
   {
     q: "Quelle différence entre gratuit et Premium ?",

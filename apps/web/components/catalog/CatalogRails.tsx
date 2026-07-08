@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery, useQueries } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { ContentCard } from "@/components/content/ContentCard";
 import { ContentCardSkeleton } from "@/components/content/ContentCardSkeleton";
@@ -10,18 +10,21 @@ import { RailSection } from "@/components/home/ScrollRow";
 import { HOME_RAIL, RAIL_SCROLL_CLASS, VIEWER_SHELL_WIDTH } from "@/components/public/PublicShell";
 import { HomeSectionReveal, RailCardMotion } from "@/components/home/HomeMotion";
 import { catalogApi, type CatalogRailSurface } from "@/lib/api/catalog";
-import { contentsApi } from "@/lib/api/contents";
 import { favoritesApi } from "@/lib/api/favorites";
 import { get } from "@/lib/api/client";
 import { watchApi } from "@/lib/api/watch";
-import { railQueryToListParams } from "@/lib/catalog/rail-query";
+import {
+  filterResumeTonight,
+  filterUnfinishedSeries,
+  type RailHistoryItem,
+} from "@/lib/catalog/resume-rails";
 import { useCatalogMaturityFilter } from "@/lib/hooks/useCatalogMaturityFilter";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 import { useAuthStore } from "@/lib/stores/auth.store";
 import { useProfileStore } from "@/lib/stores/profile.store";
 import { ContinueWatchingRail } from "@/components/catalog/ContinueWatchingRail";
 import { FeaturedGridRail } from "@/components/design/FeaturedGridRail";
 import type { ContentCardContent } from "@/components/content/ContentCard";
-import { SSR_HOME_RAIL_PREFETCH_LIMIT } from "@/lib/catalog/home-rails.constants";
 
 function extractItems(data: unknown): ContentCardContent[] {
   const items = (data as { items?: ContentCardContent[] })?.items;
@@ -52,6 +55,7 @@ function QueryRailRow({
   historyMap,
   isLoading,
   variant,
+  hideIfEmpty = true,
 }: {
   title: string;
   link?: string;
@@ -59,9 +63,26 @@ function QueryRailRow({
   historyMap?: Record<string, number>;
   isLoading: boolean;
   variant: "home" | "catalog";
+  hideIfEmpty?: boolean;
 }) {
   if (isLoading) return <QueryRailSkeleton title={title} variant={variant} />;
-  if (!items.length) return null;
+  if (!items.length) {
+    if (hideIfEmpty) return null;
+    const shellClass = variant === "home" ? HOME_RAIL : VIEWER_SHELL_WIDTH;
+    return (
+      <div className={variant === "home" ? undefined : "mb-14 md:mb-20"}>
+        <div className={`${shellClass} mb-3`}>
+          <div className="ivod-line-accent w-10 mb-3" />
+          <h2 className="font-display text-xl md:text-2xl font-semibold text-white tracking-tight">
+            {title}
+          </h2>
+        </div>
+        <div className={shellClass}>
+          <p className="text-[13px] text-white/40 font-light">Aucun contenu disponible pour l&apos;instant.</p>
+        </div>
+      </div>
+    );
+  }
 
   const badge = link ? (
     <Link
@@ -113,6 +134,8 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const activeProfileId = useProfileStore((s) => s.activeProfileId);
   const catalogMaturity = useCatalogMaturityFilter();
+  const { plan } = useSubscription();
+  const activePlan = isAuthenticated ? plan : null;
   const variant = surface === "home" ? "home" : "catalog";
   const [loadDeferredRails, setLoadDeferredRails] = useState(
     surface !== "home",
@@ -133,15 +156,43 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
   }, [surface, loadDeferredRails]);
 
   const { data: rails, isLoading: railsLoading } = useQuery({
-    queryKey: ["catalog-rails", surface],
-    queryFn: () => catalogApi.getRails(surface),
-    staleTime: 60 * 60_000,
+    queryKey: ["catalog-rails-resolved", surface, catalogMaturity, activePlan],
+    queryFn: () => catalogApi.getResolvedRails(surface, catalogMaturity, activePlan),
+    staleTime: 60_000,
   });
 
   const visibleRails = (rails ?? []).filter((r) => !r.requiresAuth || isAuthenticated);
-  const fetchableRails = visibleRails.filter(
-    (r) => r.type === "query" || (r.type === "editorial" && (r.contentIds?.length ?? 0) > 0),
-  );
+
+  // "Infinite scroll" visuel : on ne rajoute pas de nouvelles données côté API,
+  // on révèle progressivement les rails déjà chargés.
+  const supportsInfiniteReveal =
+    surface === "home" || surface === "films" || surface === "series" || surface === "web-series" || surface === "animation";
+  const infiniteBatch = 3;
+  const defaultRenderCount = supportsInfiniteReveal ? 6 : visibleRails.length;
+  const [renderCount, setRenderCount] = useState(defaultRenderCount);
+  const loadMoreRailsRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!supportsInfiniteReveal) return;
+    setRenderCount(Math.min(defaultRenderCount, visibleRails.length));
+  }, [supportsInfiniteReveal, defaultRenderCount, visibleRails.length, surface]);
+
+  useEffect(() => {
+    if (!supportsInfiniteReveal) return;
+    if (renderCount >= visibleRails.length) return;
+    const el = loadMoreRailsRef.current;
+    if (!el) return;
+
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setRenderCount((c) => Math.min(c + infiniteBatch, visibleRails.length));
+      },
+      { rootMargin: "600px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [supportsInfiniteReveal, renderCount, visibleRails.length]);
 
   const { data: history } = useQuery({
     queryKey: ["watch-history-rails", activeProfileId, surface],
@@ -149,7 +200,7 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
       activeProfileId
         ? watchApi.getHistoryByProfile(activeProfileId, 1, 20)
         : watchApi.getHistory(1, 20),
-    enabled: isAuthenticated && surface === "home",
+    enabled: isAuthenticated && (surface === "home" || surface === "series"),
     staleTime: 60_000,
     select: (data: unknown) => (data as { items?: unknown[] })?.items ?? [],
   });
@@ -176,42 +227,6 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
     ? (recommendationsRaw as ContentCardContent[])
     : extractItems(recommendationsRaw);
 
-  const contentQueries = useQueries({
-    queries: fetchableRails.map((rail, railIndex) => ({
-      queryKey: [
-        "catalog-rail-content",
-        surface,
-        rail.id,
-        rail.type,
-        rail.query,
-        rail.contentIds,
-        catalogMaturity,
-        excludeContentId,
-      ],
-      queryFn: async () => {
-        const data =
-          rail.type === "editorial" && rail.contentIds?.length
-            ? await contentsApi.list({
-                ids: rail.contentIds.join(","),
-                maxMaturityRating: catalogMaturity ?? undefined,
-              })
-            : await contentsApi.list(
-                railQueryToListParams(rail.query, catalogMaturity),
-              );
-        const items = extractItems(data);
-        return excludeContentId
-          ? items.filter((c) => c.id !== excludeContentId)
-          : items;
-      },
-      enabled:
-        !railsLoading &&
-        (surface !== "home" ||
-          loadDeferredRails ||
-          railIndex < SSR_HOME_RAIL_PREFETCH_LIMIT),
-      staleTime: 3 * 60_000,
-    })),
-  });
-
   if (railsLoading) {
     return (
       <div className={surface === "home" ? undefined : "space-y-10 md:space-y-12"}>
@@ -220,12 +235,13 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
     );
   }
 
-  let queryIdx = 0;
   let editorialRailIdx = 0;
 
   return (
     <div className={surface === "home" ? undefined : "space-y-10 md:space-y-12"}>
-      {visibleRails.map((rail) => {
+      {visibleRails
+        .slice(0, supportsInfiniteReveal ? renderCount : visibleRails.length)
+        .map((rail) => {
         if (rail.type === "personalized") {
           if (rail.personalizedKind === "continue_watching") {
             return (
@@ -236,8 +252,34 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
               />
             );
           }
+          if (rail.personalizedKind === "resume_tonight") {
+            const tonight = filterResumeTonight((history as RailHistoryItem[]) ?? []);
+            if (!tonight.length && rail.hideIfEmpty !== false) return null;
+            return (
+              <ContinueWatchingRail
+                key={rail.id}
+                title={rail.title}
+                sessions={tonight}
+                filter={() => true}
+                hideIfEmpty={rail.hideIfEmpty}
+              />
+            );
+          }
+          if (rail.personalizedKind === "unfinished") {
+            const unfinished = filterUnfinishedSeries((history as RailHistoryItem[]) ?? []);
+            if (!unfinished.length && rail.hideIfEmpty !== false) return null;
+            return (
+              <ContinueWatchingRail
+                key={rail.id}
+                title={rail.title}
+                sessions={unfinished}
+                filter={() => true}
+                hideIfEmpty={rail.hideIfEmpty}
+              />
+            );
+          }
           if (rail.personalizedKind === "my_list") {
-            if (!favoriteItems.length) return null;
+            if (!favoriteItems.length && rail.hideIfEmpty !== false) return null;
             return (
               <QueryRailRow
                 key={rail.id}
@@ -247,11 +289,12 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
                 historyMap={historyMap}
                 isLoading={false}
                 variant={variant}
+                hideIfEmpty={rail.hideIfEmpty}
               />
             );
           }
           if (rail.personalizedKind === "recommendations") {
-            if (!recommendationItems.length) return null;
+            if (!recommendationItems.length && rail.hideIfEmpty !== false) return null;
             return (
               <QueryRailRow
                 key={rail.id}
@@ -261,6 +304,7 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
                 historyMap={historyMap}
                 isLoading={false}
                 variant={variant}
+                hideIfEmpty={rail.hideIfEmpty}
               />
             );
           }
@@ -268,12 +312,28 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
         }
 
         if (rail.type === "editorial" && !rail.contentIds?.length) {
+          if (rail.hideIfEmpty === false) {
+            return (
+              <QueryRailRow
+                key={rail.id}
+                title={rail.title}
+                link={rail.link}
+                items={[]}
+                historyMap={historyMap}
+                isLoading={false}
+                variant={variant}
+                hideIfEmpty={false}
+              />
+            );
+          }
           return null;
         }
 
         if (rail.type === "query" || rail.type === "editorial") {
-          const q = contentQueries[queryIdx++];
-          const items = (q.data as ContentCardContent[] | undefined) ?? [];
+          const rawItems = (rail.items as ContentCardContent[] | undefined) ?? [];
+          const items = excludeContentId
+            ? rawItems.filter((c) => c.id !== excludeContentId)
+            : rawItems;
           editorialRailIdx += 1;
 
           if (
@@ -300,14 +360,19 @@ export function CatalogRails({ surface, historyMap = {}, excludeContentId }: Pro
               link={rail.link}
               items={items}
               historyMap={historyMap}
-              isLoading={q.isLoading || !q.isFetched}
+              isLoading={false}
               variant={variant}
+              hideIfEmpty={rail.hideIfEmpty}
             />
           );
         }
 
         return null;
       })}
+
+      {supportsInfiniteReveal && renderCount < visibleRails.length ? (
+        <div ref={loadMoreRailsRef} className="h-1" />
+      ) : null}
     </div>
   );
 }

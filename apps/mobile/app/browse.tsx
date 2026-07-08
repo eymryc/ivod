@@ -27,6 +27,7 @@ import { homeApi } from "@/infrastructure/api";
 import { colors } from "@/theme/colors";
 import { typography } from "@/theme/typography";
 import { layout } from "@/theme/layout";
+import { useTabBarOffset } from "@/presentation/hooks/use-tab-bar-layout";
 
 const LIMIT = 24;
 const SORTS_FALLBACK = [
@@ -36,6 +37,7 @@ const SORTS_FALLBACK = [
 ];
 
 export default function BrowseScreen() {
+  const tabBarOffset = useTabBarOffset(16);
   const params = useLocalSearchParams<{
     type?: string;
     genre?: string;
@@ -204,7 +206,7 @@ export default function BrowseScreen() {
             keyExtractor={(item) => item.id}
             numColumns={2}
             columnWrapperStyle={styles.row}
-            contentContainerStyle={styles.list}
+            contentContainerStyle={[styles.list, { paddingBottom: tabBarOffset }]}
             showsVerticalScrollIndicator={false}
             onScroll={onScroll}
             scrollEventThrottle={200}
@@ -245,7 +247,6 @@ const styles = StyleSheet.create({
   sortBar: { marginBottom: 8 },
   list: {
     paddingHorizontal: layout.pagePaddingX,
-    paddingBottom: layout.tabBarOffset + 16,
     flexGrow: 1,
   },
   row: {

@@ -16,11 +16,13 @@ import {
 } from "lucide-react";
 import { ContentForm, type ContentFormData } from "@/components/studio/ContentForm";
 import { contentsApi } from "@/lib/api/contents";
-import { uploadContentPoster } from "@/lib/api/upload-content-poster";
-import { coverUrl } from "@/lib/utils/assets";
+import { uploadContentPoster, uploadContentBanner } from "@/lib/api/upload-content-poster";
+import { coverUrl, assetUrl } from "@/lib/utils/assets";
 import { MediaImage } from "@/components/ui/MediaImage";
 import { BrandLoader } from "@/components/ui/BrandLoader";
 import { ContentEditActionsPanel } from "@/components/studio/ContentEditActionsPanel";
+import { SubmitForReviewModal, type SubmitChecklistItem } from "@/components/studio/SubmitForReviewModal";
+import { ContentCompletionChecklist } from "@/components/studio/ContentCompletionChecklist";
 import {
   formatCount,
   formatDate,
@@ -114,7 +116,9 @@ function ActionButton({
   );
 }
 
-type StudioTab = "fiche" | "promo" | "structure";
+type StudioTab = "fiche" | "promo" | "structure" | "cast" | "awards" | "video";
+
+const PIPELINE_BUSY = new Set(["UPLOADED", "PROBING", "TRANSCODING", "PACKAGING"]);
 
 export default function EditContentPage() {
   const { id } = useParams<{ id: string }>();
@@ -127,6 +131,7 @@ export default function EditContentPage() {
     rawTab === "structure" ? "structure" : rawTab === "promo" ? "promo" : "fiche";
   const [studioTab, setStudioTab] = useState<StudioTab>(initialTab);
   const [retryPending, setRetryPending] = useState(false);
+  const [submitModalOpen, setSubmitModalOpen] = useState(false);
 
   useEffect(() => {
     const t = searchParams.get("tab");
@@ -163,6 +168,9 @@ export default function EditContentPage() {
       if (data.posterFile) {
         await uploadContentPoster(id, data.posterFile);
       }
+      if (data.bannerFile) {
+        await uploadContentBanner(id, data.bannerFile);
+      }
       return updated;
     },
     onSuccess: (data) => { showApiSuccess(data);
@@ -186,6 +194,7 @@ export default function EditContentPage() {
     onSuccess: (data) => { showApiSuccess(data);
       qc.invalidateQueries({ queryKey: ["content", id] });
       qc.invalidateQueries({ queryKey: ["creator-contents"] });
+      setSubmitModalOpen(false);
     },
     onError: (err: ApiError) => showApiError(err),
   });
@@ -282,6 +291,10 @@ export default function EditContentPage() {
   const statusCode = (content.status as string) ?? "DRAFT";
   const statusUi = STATUS_UI[statusCode] ?? STATUS_UI.DRAFT;
   const posterSrc = coverUrl(content);
+  const bannerAsset = content.mediaAssets?.find(
+    (a: { type?: { code?: string } }) => a.type?.code === "BANNER",
+  );
+  const existingBannerSrc = assetUrl(bannerAsset?.objectKey) ?? null;
   const posterCacheKey =
     content.posterObjectKey ??
     content.mediaAssets?.find((a: { objectKey?: string; isPrimary?: boolean }) => a.isPrimary)?.objectKey ??
@@ -289,6 +302,19 @@ export default function EditContentPage() {
   const canSubmit = statusCode === "DRAFT" || statusCode === "REJECTED";
   const seasonCount = (content as { seasonCount?: number }).seasonCount ?? 0;
   const episodeCount = (content as { episodeCount?: number }).episodeCount ?? 0;
+  const hasPoster = !!posterSrc;
+  const hasGenre = (content.genres?.length ?? 0) > 0;
+  const hasDescription = !!content.description?.trim();
+  const videoStatus = (content as { videoStatus?: string | null }).videoStatus;
+  const hasVideo = isSeries
+    ? episodeCount > 0
+    : videoStatus === "READY" || videoStatus === "PUBLISHED";
+  const submitChecklist: SubmitChecklistItem[] = [
+    { label: "Description renseignée", done: hasDescription },
+    { label: "Au moins un genre", done: hasGenre },
+    { label: "Affiche ajoutée", done: hasPoster },
+    { label: isSeries ? "Au moins un épisode encodé" : "Vidéo encodée et prête", done: hasVideo },
+  ];
   const awardsCount = Array.isArray(
     (content as { contentAwards?: unknown[] }).contentAwards,
   )
@@ -301,6 +327,7 @@ export default function EditContentPage() {
     ? (content as { contentCrews: unknown[] }).contentCrews.length
     : 0;
   const distributionCount = castCount + crewCount;
+  const isEncoding = PIPELINE_BUSY.has(videoStatus ?? "");
   const durationSec = resolveDurationSeconds(
     content.duration,
     (content as { videoDurationSec?: number }).videoDurationSec,
@@ -368,6 +395,10 @@ export default function EditContentPage() {
               </span>
             </div>
 
+            <div className="mt-3">
+              <ContentCompletionChecklist items={submitChecklist} variant="compact" />
+            </div>
+
             <div className="flex flex-wrap gap-4 mt-4 text-[12px] text-readable-dim">
               <span className="inline-flex items-center gap-1.5">
                 <Eye size={12} className="text-readable-muted" />
@@ -416,22 +447,22 @@ export default function EditContentPage() {
         <ContentEditActionsPanel
           contentId={id}
           contentTitle={content.title}
-          videoPlayable={content.videoPlayable}
-          videoStatus={(content as { videoStatus?: string | null }).videoStatus}
-          hasContentVideo={hasContentVideo}
-          distributionCount={distributionCount}
-          awardsCount={awardsCount}
           canSubmit={canSubmit}
           submitPending={submitMutation.isPending}
           deletePending={deleteMutation.isPending}
-          onSubmit={() => {
-            if (confirm("Soumettre ce contenu pour validation par l'équipe iVOD ?")) {
-              submitMutation.mutate();
-            }
-          }}
+          onSubmit={() => setSubmitModalOpen(true)}
           onDelete={() => deleteMutation.mutate()}
         />
       </header>
+
+      <SubmitForReviewModal
+        open={submitModalOpen}
+        contentTitle={content.title}
+        checklist={submitChecklist}
+        pending={submitMutation.isPending}
+        onClose={() => setSubmitModalOpen(false)}
+        onConfirm={() => submitMutation.mutate()}
+      />
 
       {/* Film: barre de progression pipeline vidéo */}
       {hasContentVideo && !isSeries && filmPipelineStatus && filmPipelineStatus !== "IDLE" && (
@@ -451,8 +482,25 @@ export default function EditContentPage() {
         <StudioTabBar
           tabs={[
             { id: "fiche" as const, label: isSeries ? "Fiche série" : "Modifier la fiche" },
-            { id: "promo" as const, label: "Vidéos promotionnelles" },
+            ...(hasContentVideo && !isSeries
+              ? [{
+                  id: "video" as const,
+                  label: isEncoding ? "Vidéo · encodage…" : content.videoPlayable ? "Vidéo" : "Vidéo · à ajouter",
+                  href: `/studio/contents/${id}/upload`,
+                }]
+              : []),
             ...(isSeries ? [{ id: "structure" as const, label: "Saisons & épisodes" }] : []),
+            {
+              id: "cast" as const,
+              label: `Distribution${distributionCount > 0 ? ` (${distributionCount})` : ""}`,
+              href: `/studio/contents/${id}/cast`,
+            },
+            {
+              id: "awards" as const,
+              label: `Palmarès${awardsCount > 0 ? ` (${awardsCount})` : ""}`,
+              href: `/studio/contents/${id}/awards`,
+            },
+            { id: "promo" as const, label: "Vidéos promotionnelles" },
           ]}
           active={studioTab}
           onChange={setStudioTab}
@@ -480,6 +528,7 @@ export default function EditContentPage() {
               key={`${id}-${posterCacheKey}`}
               defaultValues={defaultValues}
               existingPosterSrc={posterSrc}
+              existingBannerSrc={existingBannerSrc}
               onSubmit={(d) => updateMutation.mutate(d)}
               isLoading={updateMutation.isPending}
               submitLabel="Enregistrer les modifications"

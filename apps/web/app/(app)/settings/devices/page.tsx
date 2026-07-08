@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { registerCurrentDevice } from "@/lib/hooks/useAuth";
 import { Monitor, Smartphone, Tablet, Tv, Loader2, Trash2 } from "lucide-react";
@@ -8,6 +8,7 @@ import { showApiError, showApiSuccess } from "@/lib/api/feedback";
 import { devicesApi } from "@/lib/api/devices";
 import { ApiError } from "@/lib/api/client";
 import { formatRelative } from "@/lib/utils/format";
+import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 import {
   SettingsPanel,
   SettingsSectionHeader,
@@ -34,11 +35,13 @@ export default function DevicesPage() {
     staleTime: 2 * 60_000,
   });
 
+  const [confirmDeviceId, setConfirmDeviceId] = useState<string | null>(null);
   const revokeMutation = useMutation({
     mutationFn: devicesApi.revoke,
     onSuccess: (data) => {
       showApiSuccess(data);
       qc.invalidateQueries({ queryKey: ["devices"] });
+      setConfirmDeviceId(null);
     },
     onError: (err: ApiError) => showApiError(err),
   });
@@ -92,11 +95,7 @@ export default function DevicesPage() {
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm(`Révoquer l'accès de "${device.deviceName}" ?`)) {
-                    revokeMutation.mutate(device.id);
-                  }
-                }}
+                onClick={() => setConfirmDeviceId(device.id)}
                 disabled={revokeMutation.isPending}
                 aria-label="Révoquer cet appareil"
                 className="ivod-btn flex h-10 w-10 items-center justify-center border border-white/10 text-white/45 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 transition-colors"
@@ -111,6 +110,16 @@ export default function DevicesPage() {
           ))}
         </SettingsList>
       )}
+
+      <ConfirmDeleteModal
+        open={!!confirmDeviceId}
+        title="Révoquer l'appareil"
+        message={`Révoquer l'accès de "${devices?.find((d: any) => d.id === confirmDeviceId)?.deviceName ?? "cet appareil"}" ?`}
+        confirmLabel="Révoquer"
+        pending={revokeMutation.isPending}
+        onClose={() => setConfirmDeviceId(null)}
+        onConfirm={() => confirmDeviceId && revokeMutation.mutate(confirmDeviceId)}
+      />
     </SettingsPanel>
   );
 }

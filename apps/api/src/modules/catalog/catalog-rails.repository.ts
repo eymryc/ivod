@@ -7,16 +7,40 @@ import type { CatalogRailSurface } from './domain/catalog-rail.types';
 export class CatalogRailsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findActiveForSurface(surface: CatalogRailSurface, now = new Date()) {
+  findActiveForSurface(
+    surface: CatalogRailSurface,
+    opts?: { planCode?: string; countryCode?: string },
+    now = new Date(),
+  ) {
     return this.prisma.editorialRail.findMany({
       where: {
         isActive: true,
         surfaces: { has: surface },
-        OR: [
-          { startsAt: null, endsAt: null },
-          { startsAt: { lte: now }, endsAt: null },
-          { startsAt: null, endsAt: { gte: now } },
-          { startsAt: { lte: now }, endsAt: { gte: now } },
+        AND: [
+          {
+            OR: [
+              { startsAt: null, endsAt: null },
+              { startsAt: { lte: now }, endsAt: null },
+              { startsAt: null, endsAt: { gte: now } },
+              { startsAt: { lte: now }, endsAt: { gte: now } },
+            ],
+          },
+          opts?.planCode
+            ? {
+                OR: [
+                  { targetPlanCodes: { isEmpty: true } },
+                  { targetPlanCodes: { has: opts.planCode } },
+                ],
+              }
+            : {},
+          opts?.countryCode
+            ? {
+                OR: [
+                  { targetCountryCodes: { isEmpty: true } },
+                  { targetCountryCodes: { has: opts.countryCode } },
+                ],
+              }
+            : {},
         ],
       },
       orderBy: { position: 'asc' },
@@ -134,6 +158,28 @@ export class CatalogRailsRepository {
 
   countAll() {
     return this.prisma.editorialRail.count();
+  }
+
+  async maxPosition(): Promise<number> {
+    const top = await this.prisma.editorialRail.findFirst({
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    });
+    return top?.position ?? -1;
+  }
+
+  codesForSurface(surface: CatalogRailSurface) {
+    return this.prisma.editorialRail
+      .findMany({ where: { surfaces: { has: surface } }, select: { code: true } })
+      .then((rows) => rows.map((r) => r.code));
+  }
+
+  async findExistingContentIds(contentIds: string[]): Promise<string[]> {
+    const rows = await this.prisma.content.findMany({
+      where: { id: { in: contentIds } },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
   }
 
   /** Titres publiés et visibles sur le viewer (aligné sur GET /contents). */

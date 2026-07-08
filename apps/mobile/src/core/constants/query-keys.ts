@@ -70,6 +70,9 @@ export const QueryKeys = {
   // ── Téléchargements ───────────────────────────────────────────────────────
   downloads: {
     list: () => ['downloads'] as const,
+    offlineLocal: () => ['offline-local'] as const,
+    offlineStatus: (contentId: string, episodeId?: string) =>
+      ['offline-local', 'status', contentId, episodeId ?? 'film'] as const,
   },
 
   // ── Historique ────────────────────────────────────────────────────────────

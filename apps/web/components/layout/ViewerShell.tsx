@@ -22,7 +22,7 @@ type ViewerShellProps = {
 
 const MAIN_BASE = "flex-1 overflow-x-hidden";
 const MAIN_OFFSET_TOP = "pt-[3.75rem]";
-const MAIN_MOBILE_NAV = "pb-mobile-nav md:pb-0";
+const MAIN_MOBILE_NAV = "pb-mobile-nav lg:pb-0";
 
 export function ViewerShell({
   children,

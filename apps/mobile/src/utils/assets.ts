@@ -45,7 +45,7 @@ export function storageObjectUrl(objectKey?: string | null): string | null {
 
 type MediaAssetLike = {
   type?: { code: string } | string;
-  objectKey: string;
+  objectKey?: string;
   isPrimary?: boolean;
 };
 

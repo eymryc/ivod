@@ -41,7 +41,21 @@ export type CatalogRail = {
   contentIds?: string[];
 };
 
+export type ResolvedCatalogRail = CatalogRail & { items: unknown[] };
+
 export const catalogApi = {
   getRails: (surface: CatalogRailSurface): Promise<CatalogRail[]> =>
     api.get<CatalogRail[]>(`/catalog/rails?surface=${surface}`, false),
+
+  /** Rails + contenus des rails query/editorial résolus en un seul appel. */
+  getResolvedRails: (
+    surface: CatalogRailSurface,
+    maxMaturityRating?: string | null,
+  ): Promise<ResolvedCatalogRail[]> =>
+    api.get<ResolvedCatalogRail[]>(
+      `/catalog/rails/resolved?surface=${surface}${
+        maxMaturityRating ? `&maxMaturityRating=${encodeURIComponent(maxMaturityRating)}` : ''
+      }`,
+      false,
+    ),
 };

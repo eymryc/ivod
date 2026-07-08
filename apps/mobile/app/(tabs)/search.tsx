@@ -22,13 +22,16 @@ import { HorizontalPillBar } from "@/components/layout/HorizontalPillBar";
 import { PremiumPillDock } from "@/components/layout/PremiumPillDock";
 import { ContentGridCell } from "@/components/layout/ContentGrid";
 import { useContentTypes } from "@/hooks/use-content-types";
+import { contentTypeToSlug } from "@/core/catalog/content-types";
 import { useAuthStore } from "@/store/auth.store";
 import { useCatalogMaturityFilter } from "@/presentation/hooks/use-catalog-maturity-filter";
 import { colors } from "@/theme/colors";
 import { typography } from "@/theme/typography";
 import { layout } from "@/theme/layout";
+import { useTabBarOffset } from "@/presentation/hooks/use-tab-bar-layout";
 
 export default function SearchScreen() {
+  const tabBarOffset = useTabBarOffset();
   const router = useRouter();
   const qc = useQueryClient();
   const isAuth = useAuthStore((s) => s.isAuthenticated);
@@ -39,7 +42,12 @@ export default function SearchScreen() {
   const { types } = useContentTypes();
 
   const filters = useMemo(
-    () => [{ id: "", label: "Tout" }, ...types.map((t) => ({ id: t.code, label: t.label }))],
+    () => [
+      { id: "", label: "Tout" },
+      ...types
+        .filter((t) => !!contentTypeToSlug(t.code))
+        .map((t) => ({ id: t.code, label: t.label })),
+    ],
     [types],
   );
 
@@ -196,7 +204,7 @@ export default function SearchScreen() {
             keyExtractor={(i) => i.id}
             numColumns={2}
             columnWrapperStyle={styles.row}
-            contentContainerStyle={styles.grid}
+            contentContainerStyle={[styles.grid, { paddingBottom: tabBarOffset }]}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
@@ -256,7 +264,7 @@ const styles = StyleSheet.create({
   filtersBar: { marginBottom: 0, maxHeight: 40 },
   hint: { flex: 1, justifyContent: "center", padding: 32 },
   loader: { marginTop: 48 },
-  grid: { paddingHorizontal: layout.pagePaddingX, paddingBottom: layout.tabBarOffset },
+  grid: { paddingHorizontal: layout.pagePaddingX },
   row: { gap: layout.gridGap, marginBottom: layout.gridGap, justifyContent: "space-between" },
   empty: { ...typography.bodyMuted, textAlign: "center" },
 });

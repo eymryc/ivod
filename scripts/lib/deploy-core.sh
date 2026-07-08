@@ -7,6 +7,24 @@
 
 : "${PROJECT_DIR:?PROJECT_DIR doit être défini}"
 
+check_active_transcodes() {
+  local count
+  count="$(docker exec ivod-postgres-prod psql -U ivod -d ivod -t -A -c \
+    "SELECT COUNT(*) FROM video_assets WHERE status IN ('TRANSCODING','PROBING','PACKAGING');" 2>/dev/null || echo "")"
+
+  if [ -z "${count}" ]; then
+    warn "Impossible de vérifier les encodages actifs (postgres injoignable) — poursuite du déploiement."
+    return 0
+  fi
+  if [ "${count}" -gt 0 ]; then
+    warn "${count} asset(s) en cours d'encodage — redéployer le worker va les interrompre."
+    warn "Sans risque de blocage permanent (job échoué proprement + relance auto si besoin),"
+    warn "mais le travail de transcodage déjà effectué pour ce cycle sera perdu (repart de PROBE)."
+  else
+    log "Aucun encodage actif — redéploiement du worker sans impact."
+  fi
+}
+
 deploy_api_instance() {
   local svc="$1" container="$2"
   local health_tries="${3:-30}" health_interval="${4:-2}"
@@ -30,6 +48,9 @@ run_prod_deploy() {
 
   deploy_api_instance api_1 ivod-api-1-prod "${health_tries}" "${health_interval}"
   deploy_api_instance api_2 ivod-api-2-prod "${health_tries}" "${health_interval}"
+
+  log "Vérification des encodages actifs avant redéploiement du worker..."
+  check_active_transcodes
 
   log "Redéploiement du worker vidéo..."
   # shellcheck disable=SC2086

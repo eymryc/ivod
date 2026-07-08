@@ -25,7 +25,7 @@ export const DISTRIBUTION_MODES: {
   {
     mode: "TVOD",
     label: "Vendu à l'unité",
-    hint: "Chaque spectateur paie ce titre via Paystack (carte ou Mobile Money)",
+    hint: "Chaque spectateur paie ce titre via un prestataire sécurisé (carte ou Mobile Money)",
     visibility: "PPV",
     phase: "growth",
   },
@@ -81,14 +81,20 @@ export function viewerOfferLabel(
   return base;
 }
 
-/** Badge offre (pub / abo / PPV) — réservé aux visiteurs non connectés. */
+/**
+ * Badge offre — réservé aux visiteurs non connectés, et uniquement pour le
+ * contenu qui nécessite un geste payant (abonnement / PPV). Le contenu
+ * gratuit ("Public") n'affiche plus de badge : répété sur chaque carte d'une
+ * rangée, il n'apportait aucune information utile — seul ce qui bloque
+ * réellement la lecture mérite d'être signalé.
+ */
 export function shouldShowOfferBadgeOnCard(
   isAuthenticated: boolean,
   visibility: string | null | undefined,
   offerLabel: string | null,
 ): boolean {
   if (isAuthenticated) return false;
-  return !!offerLabel && !!visibility && visibility !== "PRIVATE";
+  return !!offerLabel && (visibility === "SUBSCRIBERS_ONLY" || visibility === "PPV");
 }
 
 export function viewerOfferBadgeClass(visibility: string | null | undefined): string {

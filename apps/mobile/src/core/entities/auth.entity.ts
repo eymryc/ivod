@@ -24,6 +24,7 @@ export interface AuthUser {
   lastName?: string;
   /** Nom complet calculé ou alias côté API. */
   name?: string;
+  phone?: string | null;
   avatarUrl?: string | null;
   /** Code du rôle (VIEWER, CREATOR, ADMIN). */
   role?: string;

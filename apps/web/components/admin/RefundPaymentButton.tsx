@@ -76,7 +76,7 @@ export function RefundPaymentButton({ paymentId, amount, disabled }: RefundPayme
       type="button"
       disabled={disabled || mutation.isPending}
       onClick={() => setOpen(true)}
-      title={`Rembourser ${amount} FCFA via Paystack`}
+      title={`Rembourser ${amount} FCFA`}
       className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-none border border-red-500/35 text-red-400 hover:bg-red-500/10 disabled:opacity-40 transition-colors"
     >
       <RotateCcw size={12} />

@@ -101,36 +101,53 @@ export class PaymentsService {
     return { items, total, page, limit };
   }
 
-  /** Vérifie Paystack et finalise le paiement si succès (callback sans webhook). */
-  async syncFromGateway(userId: string, paymentId: string) {
-    const payment = await this.prisma.payment.findFirst({
-      where: { id: paymentId, userId },
+  /** Résout un paiement par id interne ou référence Paystack (transactionId). */
+  private async findPaymentForUser(userId: string, paymentIdOrRef: string) {
+    return this.prisma.payment.findFirst({
+      where: {
+        userId,
+        OR: [{ id: paymentIdOrRef }, { transactionId: paymentIdOrRef }],
+      },
       include: {
         status: { select: { code: true } },
         provider: { select: { code: true } },
       },
     });
+  }
+
+  /** Référence envoyée à Paystack (≠ id interne après une relance checkout). */
+  private paystackVerifyReference(payment: { id: string; transactionId: string | null }): string {
+    return payment.transactionId?.trim() || payment.id;
+  }
+
+  /** Vérifie Paystack et finalise le paiement si succès (callback sans webhook). */
+  async syncFromGateway(userId: string, paymentIdOrRef: string) {
+    const payment = await this.findPaymentForUser(userId, paymentIdOrRef);
     if (!payment) {
       throw new NotFoundException({ code: 'PAYMENT_001', message: 'Paiement introuvable' });
     }
     if (payment.status.code === 'COMPLETED' || payment.status.code === 'FAILED') {
-      return this.getOne(userId, paymentId);
+      return this.getOne(userId, payment.id);
     }
     if (payment.provider.code !== 'PAYSTACK') {
-      return this.getOne(userId, paymentId);
+      return this.getOne(userId, payment.id);
     }
-    const verification = await this.providerFactory.getProvider('PAYSTACK').verifyPayment(payment.id);
+    const paystackRef = this.paystackVerifyReference(payment);
+    const verification = await this.providerFactory.getProvider('PAYSTACK').verifyPayment(paystackRef);
     if (verification.status === 'COMPLETED') {
-      await this.completePayment(payment.id, { source: 'sync' }, verification.amount);
+      await this.completePayment(payment.id, { source: 'sync', paystackRef }, verification.amount);
     } else if (verification.status === 'FAILED') {
-      await this.failPayment(payment.id, { source: 'sync' });
+      await this.failPayment(payment.id, { source: 'sync', paystackRef });
     }
-    return this.getOne(userId, paymentId);
+    return this.getOne(userId, payment.id);
   }
 
-  async getOne(userId: string, paymentId: string) {
+  async getOne(userId: string, paymentIdOrRef: string) {
     const payment = await this.prisma.payment.findFirst({
-      where: { id: paymentId, userId },
+      where: {
+        userId,
+        OR: [{ id: paymentIdOrRef }, { transactionId: paymentIdOrRef }],
+      },
       include: {
         status: { select: { code: true, label: true } },
         provider: { select: { code: true, label: true } },

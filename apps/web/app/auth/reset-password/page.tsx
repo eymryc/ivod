@@ -13,7 +13,16 @@ import { authApi } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
 import { authInputClass } from "@/lib/ui/cinema-field";
 
+function normalizeResetCode(raw: string): string {
+  return (raw ?? "")
+    .toUpperCase()
+    // garde lettres/chiffres seulement (supporte copie avec espaces & thin-spaces)
+    .replace(/[^A-Z0-9]/g, "");
+}
+
 const schema = z.object({
+  email: z.string().email("Email invalide"),
+  token: z.string().min(6, "Code requis"),
   newPassword: z.string().min(8, "Minimum 8 caractères"),
   confirmPassword: z.string(),
 }).refine((d) => d.newPassword === d.confirmPassword, {
@@ -28,27 +37,32 @@ export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const email = searchParams.get("email") ?? "";
-  const token = searchParams.get("token") ?? "";
+  const emailFromUrl = searchParams.get("email") ?? "";
+  const tokenFromUrl = searchParams.get("token") ?? "";
 
   const mutation = useMutation({
-    mutationFn: (data: FormData) => authApi.resetPassword({ email, token, newPassword: data.newPassword }),
+    mutationFn: (data: FormData) =>
+      authApi.resetPassword({
+        email: data.email,
+        token: normalizeResetCode(data.token),
+        newPassword: data.newPassword,
+      }),
     onSuccess: () => setDone(true),
     onError: (err: ApiError) => showApiError(err),
   });
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) });
-
-  if (!email || !token) {
-    return (
-      <div className="bg-card border border-white/10 rounded-2xl p-8 shadow-2xl text-center">
-        <p className="text-red-400 mb-4">Lien invalide ou expiré.</p>
-        <Link href="/auth/forgot-password" className="text-primary hover:text-primary-hover font-medium text-sm">
-          Demander un nouveau lien
-        </Link>
-      </div>
-    );
-  }
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      email: emailFromUrl,
+      token: tokenFromUrl,
+    },
+  });
 
   if (done) {
     return (
@@ -70,10 +84,41 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="bg-card border border-white/10 rounded-2xl p-8 shadow-2xl">
-      <h1 className="text-2xl font-bold mb-1">Nouveau mot de passe</h1>
-      <p className="text-sm text-muted-foreground mb-6">Choisissez un mot de passe sécurisé (minimum 8 caractères).</p>
+      <h1 className="text-2xl font-bold mb-1">Réinitialiser le mot de passe</h1>
+      <p className="text-sm text-muted-foreground mb-6">
+        Collez le code reçu par e-mail (les espaces sont acceptés) et choisissez un nouveau mot de passe.
+      </p>
 
       <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Email</label>
+          <input
+            {...register("email")}
+            type="email"
+            placeholder="email@exemple.com"
+            className={authInputClass}
+            autoComplete="email"
+          />
+          {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Code</label>
+          <input
+            {...register("token")}
+            inputMode="text"
+            placeholder="Ex. C3CD…"
+            className={authInputClass}
+            autoComplete="one-time-code"
+            onChange={(e) => setValue("token", e.target.value)}
+            onBlur={(e) => setValue("token", normalizeResetCode(e.target.value))}
+          />
+          <p className="text-xs text-white/50 mt-1">
+            Astuce : vous pouvez coller le code tel quel, même avec des espaces.
+          </p>
+          {errors.token && <p className="text-xs text-red-400 mt-1">{errors.token.message}</p>}
+        </div>
+
         <div>
           <label className="block text-sm font-medium mb-1.5">Nouveau mot de passe</label>
           <div className="relative">
@@ -109,6 +154,15 @@ export default function ResetPasswordPage() {
           {mutation.isPending && <Loader2 size={16} className="animate-spin" />}
           Réinitialiser le mot de passe
         </button>
+
+        <div className="pt-2 text-center">
+          <Link
+            href="/auth/forgot-password"
+            className="text-primary hover:text-primary-hover font-medium text-sm"
+          >
+            Renvoyer un code
+          </Link>
+        </div>
       </form>
     </div>
   );

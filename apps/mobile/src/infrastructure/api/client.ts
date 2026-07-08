@@ -15,6 +15,7 @@
 import * as SecureStore from 'expo-secure-store';
 import type { ApiResponse } from '@/core/entities/api-response';
 import { ApiError, AuthRequiredError, SessionExpiredError } from '@/core/errors';
+import { notifySessionExpired } from './session-events';
 
 // ─── Configuration ─────────────────────────────────────────────────────────
 
@@ -177,6 +178,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     if (newToken) {
       return request<T>(endpoint, { ...options, _isRetry: true });
     }
+    notifySessionExpired();
     throw new SessionExpiredError();
   }
 

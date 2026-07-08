@@ -3,16 +3,17 @@
  *
  * Encapsule le workflow complet :
  * 1. Appel au service offline (API + FileSystem)
- * 2. Suivi de la progression (0–100 %)
- * 3. Invalidation du cache de downloads après succès
+ * 2. Suivi de la progression (0–100 %) via store global
+ * 3. Invalidation des caches downloads + index local après succès
  * 4. Gestion centralisée des erreurs
  */
 
-import { useState } from 'react';
+import { useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { downloadContentOffline } from '@/infrastructure/services/offline.service';
 import { QueryKeys } from '@/core/constants/query-keys';
 import { getErrorMessage } from '@/core/errors';
+import { downloadTargetKey, useDownloadStore } from '@/store/download.store';
 import type { OfflineItem } from '@/core/entities';
 
 export interface UseDownloadResult {
@@ -38,25 +39,54 @@ export function useDownload(
   onSuccess?: (item: OfflineItem) => void,
   onError?: (message: string) => void,
 ): UseDownloadResult {
-  const [progress, setProgress] = useState<number | null>(null);
   const qc = useQueryClient();
+  const targetKey = contentId ? downloadTargetKey(contentId, meta.episodeId) : '';
+
+  const progress = useDownloadStore((state) =>
+    targetKey ? (state.active[targetKey]?.progress ?? null) : null,
+  );
+  const isActiveInStore = useDownloadStore((state) =>
+    targetKey ? targetKey in state.active : false,
+  );
+  const { start, setProgress, clear } = useDownloadStore();
+
+  const invalidateDownloadCaches = useCallback(() => {
+    void qc.invalidateQueries({ queryKey: QueryKeys.downloads.list() });
+    void qc.invalidateQueries({ queryKey: QueryKeys.downloads.offlineLocal() });
+    if (contentId) {
+      void qc.invalidateQueries({
+        queryKey: QueryKeys.downloads.offlineStatus(contentId, meta.episodeId),
+      });
+    }
+  }, [qc, contentId, meta.episodeId]);
 
   const { mutate, isPending } = useMutation({
     mutationFn: async (): Promise<OfflineItem> => {
       if (!contentId) throw new Error('contentId requis');
-      setProgress(0);
-      return downloadContentOffline(contentId, meta, setProgress);
+      start(targetKey);
+      return downloadContentOffline(contentId, meta, (pct) => setProgress(targetKey, pct));
     },
     onSuccess: (item) => {
-      setProgress(null);
-      qc.invalidateQueries({ queryKey: QueryKeys.downloads.list() });
+      clear(targetKey);
+      invalidateDownloadCaches();
       onSuccess?.(item);
     },
     onError: (err) => {
-      setProgress(null);
+      clear(targetKey);
       onError?.(getErrorMessage(err));
     },
   });
 
-  return { download: mutate, progress, isPending };
+  const download = useCallback(() => {
+    if (!contentId || isActiveInStore || isPending) return;
+    mutate();
+  }, [contentId, isActiveInStore, isPending, mutate]);
+
+  const isDownloading = isPending || isActiveInStore;
+
+  return {
+    download,
+    progress: isDownloading ? progress : null,
+    isPending: isDownloading,
+  };
 }

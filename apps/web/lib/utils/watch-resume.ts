@@ -81,6 +81,12 @@ export function pickResumeSession(
 export function buildResumeWatchHref(
   contentId: string,
   episodeId?: string | null,
+  watchedSeconds?: number,
 ): string {
-  return episodeId ? `/watch/${contentId}?ep=${episodeId}` : `/watch/${contentId}`;
+  const params = new URLSearchParams();
+  if (episodeId) params.set("ep", episodeId);
+  const t = Math.floor(watchedSeconds ?? 0);
+  if (t > 0) params.set("t", String(t));
+  const q = params.toString();
+  return `/watch/${contentId}${q ? `?${q}` : ""}`;
 }

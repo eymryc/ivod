@@ -154,8 +154,8 @@ export function PricingPlans({
                 Un film, un prix — sans abonnement
               </h3>
               <p className="text-sm text-white/55 leading-relaxed max-w-xl">
-                Certains titres sont disponibles en achat unique via Paystack. Payez une fois,
-                regardez autant de fois que vous voulez.
+                Certains titres sont disponibles en achat unique. Payez une fois, regardez autant de
+                fois que vous voulez.
               </p>
               <p className="text-xs text-white/40 mt-3 font-medium">
                 {PPV_PRICE_SUGGESTIONS.map((p) => formatXOF(p)).join(" · ")}
@@ -176,11 +176,11 @@ export function PricingPlans({
           <div className="pricing-trust-strip flex flex-wrap items-center justify-center gap-x-8 gap-y-4 px-6 py-5">
             <span className="inline-flex items-center gap-2 text-xs text-white/55">
               <Shield size={15} className="text-brand-magenta shrink-0" />
-              Paiement sécurisé Paystack
+              Paiement sécurisé
             </span>
             <span className="inline-flex items-center gap-2 text-xs text-white/55">
               <Smartphone size={15} className="text-brand-orange shrink-0" />
-              Mobile Money via Paystack
+              Mobile Money (si disponible)
             </span>
             <span className="inline-flex items-center gap-2 text-xs text-white/55">
               <Sparkles size={15} className="text-brand-gold shrink-0" />

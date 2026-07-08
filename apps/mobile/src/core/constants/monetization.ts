@@ -48,12 +48,16 @@ export function viewerOfferBadgeTextColor(visibility: string | null | undefined)
   }
 }
 
-/** Badge offre (pub / abo / PPV) — réservé aux visiteurs non connectés. */
+/**
+ * Badge offre — réservé aux visiteurs non connectés, et uniquement pour le
+ * contenu qui nécessite un geste payant (abonnement / PPV). Le contenu
+ * gratuit ("Public") n'affiche plus de badge — voir web/lib/constants/monetization.ts.
+ */
 export function shouldShowOfferBadgeOnCard(
   isAuthenticated: boolean,
   visibility: string | null | undefined,
   offerLabel: string | null,
 ): boolean {
   if (isAuthenticated) return false;
-  return !!offerLabel && !!visibility && visibility !== 'PRIVATE';
+  return !!offerLabel && (visibility === 'SUBSCRIBERS_ONLY' || visibility === 'PPV');
 }

@@ -59,7 +59,7 @@ export function PaymentForm({
       <View style={styles.notice}>
         <ShieldCheck color={colors.magenta} size={18} />
         <Text style={styles.noticeText}>
-          Paiement via Paystack (carte ou Mobile Money). Transaction chiffrée et conforme PCI-DSS.
+          Paiement via une passerelle sécurisée (carte ou Mobile Money). Transaction chiffrée et conforme PCI-DSS.
         </Text>
       </View>
 
@@ -69,25 +69,25 @@ export function PaymentForm({
 
       {paystackConfig?.secretKeyInvalid ? (
         <Text style={styles.warnError}>
-          Clé secrète Paystack invalide sur le serveur. Vérifiez apps/api/.env puis redémarrez l&apos;API.
+          Le paiement est temporairement indisponible sur ce serveur.
         </Text>
       ) : null}
 
       {paystackConfig?.configured === false && !paystackConfig?.secretKeyInvalid ? (
         <Text style={styles.warnError}>
-          Paystack n&apos;est pas configuré sur le serveur (PAYSTACK_SECRET_KEY / PAYSTACK_PUBLIC_KEY).
+          Le paiement n&apos;est pas disponible pour le moment.
         </Text>
       ) : null}
 
       {paystackConfig?.simulationMode ? (
         <Text style={styles.warnSim}>
-          Mode simulation — aucun débit réel (ALLOW_PAYMENT_SIMULATION).
+          Mode démo — aucun débit réel.
         </Text>
       ) : null}
 
       {paystackConfig?.publicKey?.startsWith("pk_test") && paystackConfig?.configured ? (
         <Text style={styles.warnSim}>
-          Clés Paystack de test — utilisez une carte de test Paystack.
+          Mode démo actif.
         </Text>
       ) : null}
 

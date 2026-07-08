@@ -25,7 +25,7 @@ import {
 import { formatXOF } from "@/lib/utils/format";
 
 const PAYSTACK_INFO =
-  "Les revenus créateur sont calculés par iVOD. Les spectateurs paient via Paystack (abonnements & achats à l'unité) ; vos reversements suivent le calendrier des relevés ci-dessous.";
+  "Les revenus créateur sont calculés par iVOD. Les spectateurs paient via un prestataire sécurisé (abonnements & achats à l'unité) ; vos reversements suivent le calendrier des relevés ci-dessous.";
 
 const STATUS_FILTERS = [
   { code: "", label: "Tous" },

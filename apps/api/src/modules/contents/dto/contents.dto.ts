@@ -52,6 +52,14 @@ export class QueryContentsDto {
   @IsOptional() @Type(() => Number) @IsInt()
   year?: number;
 
+  @ApiPropertyOptional({ example: 1990, description: 'Année de sortie minimale (rails par décennie)' })
+  @IsOptional() @Type(() => Number) @IsInt()
+  releaseYearFrom?: number;
+
+  @ApiPropertyOptional({ example: 1999, description: 'Année de sortie maximale (rails par décennie)' })
+  @IsOptional() @Type(() => Number) @IsInt()
+  releaseYearTo?: number;
+
   @ApiPropertyOptional({ example: 3, description: 'Note minimale (1-5)' })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5)
   minRating?: number;

@@ -260,8 +260,10 @@ export function AdminPagination({
 export const CONTENT_STATUS_UI: Record<string, { label: string; dot: string; text: string }> = {
   DRAFT: { label: "Brouillon", dot: "bg-white/35", text: "text-white/45" },
   PENDING_REVIEW: { label: "En attente", dot: "bg-secondary", text: "text-secondary" },
+  APPROVED: { label: "Programmé", dot: "bg-sky-400", text: "text-sky-400/90" },
   PUBLISHED: { label: "Publié", dot: "bg-emerald-400", text: "text-emerald-400/90" },
   REJECTED: { label: "Rejeté", dot: "bg-red-400", text: "text-red-400/90" },
+  ARCHIVED: { label: "Archivé", dot: "bg-white/25", text: "text-white/40" },
 };
 
 export const ROLE_UI: Record<string, string> = {

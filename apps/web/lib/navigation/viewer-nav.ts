@@ -4,6 +4,7 @@ export const VIEWER_NAV_LINKS = [
   { label: "Films", href: "/films", matchType: "FILM" },
   { label: "Séries", href: "/series", matchType: "SERIE" },
   { label: "Web-séries", href: "/web-series", matchType: "WEB_SERIE" },
+  { label: "Animation", href: "/animation", matchType: "ANIMATION" },
   { label: "Ma liste", href: "/favorites", matchType: "MY_LIST", authOnly: true },
   { label: "Téléchargements", href: "/downloads", matchType: "DOWNLOADS", authOnly: true },
   { label: "Tarifs", href: "/pricing", matchType: "PRICING" },

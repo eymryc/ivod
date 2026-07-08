@@ -40,23 +40,32 @@ export default function ForgotPasswordPage() {
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
   if (sent) {
+    const email = getValues("email");
     return (
       <AuthSuccessPanel
-        title="E-mail envoyé"
+        title="Code envoyé"
         description={
           <>
-            Un lien de réinitialisation a été envoyé à{" "}
-            <span className="text-white/75 font-medium">{getValues("email")}</span>.
-            Vérifiez votre boîte de réception et les spams.
+            Un code de réinitialisation a été envoyé à{" "}
+            <span className="text-white/75 font-medium">{email}</span>. Vérifiez votre boîte
+            de réception et les spams, puis saisissez ce code avec votre nouveau mot de passe.
           </>
         }
         action={
-          <Link
-            href="/auth/login"
-            className="inline-flex h-11 items-center justify-center px-6 rounded-lg bg-primary text-white text-[14px] font-semibold hover:bg-primary/90 transition-colors"
-          >
-            Retour à la connexion
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            <Link
+              href={`/auth/reset-password?email=${encodeURIComponent(email)}`}
+              className="inline-flex h-11 items-center justify-center px-6 rounded-lg bg-primary text-white text-[14px] font-semibold hover:bg-primary/90 transition-colors"
+            >
+              J’ai un code
+            </Link>
+            <Link
+              href="/auth/login"
+              className="inline-flex h-11 items-center justify-center px-6 rounded-lg border border-white/10 bg-white/[0.04] text-white/90 text-[14px] font-semibold hover:bg-white/[0.08] transition-colors"
+            >
+              Retour à la connexion
+            </Link>
+          </div>
         }
       />
     );
@@ -65,7 +74,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthCard
       title="Mot de passe oublié"
-      subtitle="Indiquez votre e-mail — nous vous enverrons un lien sécurisé pour définir un nouveau mot de passe."
+      subtitle="Indiquez votre e-mail — nous vous enverrons un code pour définir un nouveau mot de passe."
     >
       <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 mb-5 -mt-1">
         <Mail size={20} className="text-primary/80" strokeWidth={1.5} />
@@ -82,7 +91,7 @@ export default function ForgotPasswordPage() {
           />
         </AuthField>
 
-        <AuthSubmitButton loading={mutation.isPending}>Envoyer le lien</AuthSubmitButton>
+        <AuthSubmitButton loading={mutation.isPending}>Recevoir le code</AuthSubmitButton>
       </form>
 
       <div className="mt-6">

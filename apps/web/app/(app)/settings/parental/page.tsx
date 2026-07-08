@@ -8,6 +8,7 @@ import { showApiError, showApiSuccess } from "@/lib/api/feedback";
 import { profilesApi } from "@/lib/api/profiles";
 import { useProfileStore } from "@/lib/stores/profile.store";
 import { ApiError } from "@/lib/api/client";
+import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 import {
   SettingsPanel,
   SettingsSectionHeader,
@@ -70,11 +71,13 @@ export default function ParentalPage() {
     onError: (err: ApiError) => showApiError(err),
   });
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const deleteMutation = useMutation({
     mutationFn: () => profilesApi.deleteParentalControl(selectedProfileId),
     onSuccess: (data) => {
       showApiSuccess(data);
       qc.invalidateQueries({ queryKey: ["parental-control", selectedProfileId] });
+      setConfirmDelete(false);
     },
     onError: (err: ApiError) => showApiError(err),
   });
@@ -205,11 +208,7 @@ export default function ParentalPage() {
               <SettingsGhostButton
                 danger
                 disabled={deleteMutation.isPending}
-                onClick={() => {
-                  if (confirm("Supprimer le contrôle parental pour ce profil ?")) {
-                    deleteMutation.mutate();
-                  }
-                }}
+                onClick={() => setConfirmDelete(true)}
               >
                 {deleteMutation.isPending ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -221,6 +220,15 @@ export default function ParentalPage() {
           </div>
         </form>
       )}
+
+      <ConfirmDeleteModal
+        open={confirmDelete}
+        title="Supprimer le contrôle parental"
+        message="Supprimer le contrôle parental pour ce profil ?"
+        pending={deleteMutation.isPending}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() => deleteMutation.mutate()}
+      />
     </SettingsPanel>
   );
 }

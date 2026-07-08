@@ -9,7 +9,7 @@ export type PollPaymentOptions = {
   onFailed?: () => void;
 };
 
-/** Poll Paystack payment status — aligné sur le web (sync au 1er essai, puis getOne). */
+/** Poll statut paiement — aligné sur le web (sync au 1er essai, puis getOne). */
 export function pollPaymentStatus({
   paymentId,
   intervalMs = 5000,

@@ -3,17 +3,11 @@
 import Link from "next/link";
 import {
   Loader2,
-  Upload,
-  Clapperboard,
-  Users2,
-  Award,
   SendHorizonal,
   Trash2,
   Eye,
   ExternalLink,
 } from "lucide-react";
-
-const PIPELINE_BUSY = new Set(["UPLOADED", "PROBING", "TRANSCODING", "PACKAGING"]);
 
 const btnCls =
   "inline-flex w-full items-center justify-center gap-2 rounded-none border px-3 py-2 text-[12px] font-medium transition-colors";
@@ -81,11 +75,6 @@ function ActionButton({
 type Props = {
   contentId: string;
   contentTitle: string;
-  hasContentVideo: boolean;
-  videoPlayable?: boolean;
-  videoStatus?: string | null;
-  distributionCount: number;
-  awardsCount: number;
   canSubmit: boolean;
   submitPending: boolean;
   deletePending: boolean;
@@ -97,19 +86,13 @@ type Props = {
 export function ContentEditActionsPanel({
   contentId,
   contentTitle,
-  hasContentVideo,
-  distributionCount,
-  awardsCount,
   canSubmit,
   submitPending,
   deletePending,
   onSubmit,
   onDelete,
-  videoPlayable,
-  videoStatus,
   className = "",
 }: Props) {
-  const isEncoding = !!videoStatus && PIPELINE_BUSY.has(videoStatus);
   return (
     <div
       className={`grid w-full grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5 ${className}`}
@@ -123,27 +106,9 @@ export function ContentEditActionsPanel({
         </span>
       </ActionLink>
 
-      {hasContentVideo && (
-        <ActionLink
-          href={`/studio/contents/${contentId}/upload`}
-          icon={isEncoding ? Loader2 : videoPlayable ? Clapperboard : Upload}
-          className={isEncoding ? "pointer-events-none opacity-60" : ""}
-        >
-          {isEncoding ? "Encodage en cours…" : videoPlayable ? "Gérer la vidéo" : "Upload vidéo"}
-        </ActionLink>
-      )}
-
-      <ActionLink href={`/studio/contents/${contentId}/cast`} icon={Users2}>
-        Distribution{distributionCount > 0 ? ` (${distributionCount})` : ""}
-      </ActionLink>
-
-      <ActionLink href={`/studio/contents/${contentId}/awards`} icon={Award}>
-        Palmarès{awardsCount > 0 ? ` (${awardsCount})` : ""}
-      </ActionLink>
-
       {canSubmit && (
         <ActionButton variant="primary" disabled={submitPending} icon={SendHorizonal} onClick={onSubmit}>
-          Soumettre
+          Soumettre pour validation
         </ActionButton>
       )}
 

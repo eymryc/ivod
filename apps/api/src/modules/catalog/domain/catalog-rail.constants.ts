@@ -24,6 +24,9 @@ export const CATALOG_SURFACE_CONTENT_TYPE: Record<DedicatedCatalogSurface, strin
  */
 export const CATALOG_GENRE_RAILS_MIN_PUBLISHED = 12;
 
+/** Nombre maximum de contenus curables manuellement dans un rail éditorial. */
+export const CATALOG_EDITORIAL_RAIL_MAX_ITEMS = 100;
+
 export function isDedicatedCatalogSurface(
   surface: CatalogRailSurface,
 ): surface is DedicatedCatalogSurface {

@@ -14,11 +14,14 @@ export type CheckoutParams = {
 };
 
 /**
- * Flux Paystack WebView (doc officielle) :
- * - callback_url HTTP(S) = même endpoint que le web (/payment/callback)
- * - openAuthSessionAsync intercepte la redirection Paystack
- * - fallback openBrowserAsync si 3DS (standard.paystack.co/close) bloque l'intercept
- * - l'écran callback app poll + sync comme la page web
+ * Flux paiement mobile (doc officielle) :
+ * - Initialiser côté serveur → authorization_url
+ * - callback_url HTTP(S) interceptée par openAuthSessionAsync
+ * - Vérifier via POST /payments/:id/sync après retour (jamais avant le checkout)
+ * - Fallback openBrowserAsync : la page web /payment/callback?mobile=1 rouvre l'app
+ *
+ * @see https://paystack.com/docs/payments/accept-payments/
+ * @see https://paystack.com/docs/payments/verify-payments/
  */
 export function usePaymentCheckout() {
   const router = useRouter();
@@ -35,34 +38,47 @@ export function usePaymentCheckout() {
 
   const openCheckout = useCallback(
     async ({ paymentId, redirectUrl, simulationMode, returnTo }: CheckoutParams) => {
-      const callbackParams: Record<string, string> = { reference: paymentId };
+      const callbackParams: Record<string, string> = { paymentId };
       if (simulationMode) callbackParams.sim = "1";
       if (returnTo) callbackParams.returnTo = returnTo;
 
-      const paystackCallbackPrefix = getPaystackCallbackPrefix();
+      if (simulationMode) {
+        goToAppCallback(callbackParams);
+        return;
+      }
 
-      goToAppCallback(callbackParams);
-
-      if (simulationMode) return;
       if (!redirectUrl) return;
+
+      const paystackCallbackPrefix = getPaystackCallbackPrefix();
 
       const authResult = await WebBrowser.openAuthSessionAsync(
         redirectUrl,
         paystackCallbackPrefix,
       );
 
+      WebBrowser.maybeCompleteAuthSession();
+
       if (authResult.type === "success" && authResult.url) {
         const parsed = parsePaystackReturnUrl(authResult.url);
         goToAppCallback({
-          reference: parsed.reference ?? paymentId,
+          paymentId,
           ...(parsed.returnTo ?? returnTo ? { returnTo: parsed.returnTo ?? returnTo! } : {}),
-          ...(parsed.sim ? { sim: "1" } : {}),
         });
         return;
       }
 
-      // 3DS ou redirect non intercepté — navigateur classique, poll sur callback
-      await WebBrowser.openBrowserAsync(redirectUrl);
+      // iOS ferme parfois la session sans URL après paiement — reprendre dans l'app
+      if (authResult.type === "cancel" || authResult.type === "dismiss") {
+        goToAppCallback({ ...callbackParams, browser: "1" });
+        return;
+      }
+
+      // Navigateur système (Expo Go, 3DS…) : ouvrir l'écran callback AVANT le navigateur
+      // pour que la fermeture manuelle (×) ramène directement à la vérification.
+      goToAppCallback({ ...callbackParams, browser: "1" });
+      await WebBrowser.openBrowserAsync(redirectUrl, {
+        showInRecents: true,
+      });
     },
     [goToAppCallback],
   );

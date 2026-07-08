@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Smartphone } from "lucide-react";
 import { BrandLoader, BrandLoaderMark } from "@/components/ui/BrandLoader";
 import Link from "next/link";
 import { paymentsApi } from "@/lib/api/payments";
@@ -13,12 +13,104 @@ import {
   paymentStatusCode,
 } from "@/lib/utils/payment-status";
 
-function CallbackContent() {
+function buildNativeDeepLink(paymentRef: string, returnTo?: string | null) {
+  const params = new URLSearchParams({ paymentId: paymentRef });
+  if (returnTo) params.set("returnTo", returnTo);
+  return `ivod://payment/callback?${params.toString()}`;
+}
+
+function buildExpoReturnLink(
+  appReturn: string,
+  paymentRef: string,
+  returnTo?: string | null,
+): string {
+  try {
+    const url = new URL(appReturn);
+    url.searchParams.set("paymentId", paymentRef);
+    if (returnTo) url.searchParams.set("returnTo", returnTo);
+    return url.toString();
+  } catch {
+    return buildNativeDeepLink(paymentRef, returnTo);
+  }
+}
+
+/**
+ * Retour paiement depuis l'app mobile : le navigateur in-app n'a pas le JWT web.
+ * Expo Go ne connaît pas ivod:// — on utilise appReturn (exp://…) transmis par l'app.
+ */
+function MobilePaymentReturn({
+  reference,
+  returnTo,
+  appReturn,
+}: {
+  reference: string;
+  returnTo: string | null;
+  appReturn: string | null;
+}) {
+  const primaryLink = useMemo(
+    () =>
+      appReturn
+        ? buildExpoReturnLink(appReturn, reference, returnTo)
+        : buildNativeDeepLink(reference, returnTo),
+    [appReturn, reference, returnTo],
+  );
+  const nativeLink = useMemo(
+    () => buildNativeDeepLink(reference, returnTo),
+    [reference, returnTo],
+  );
+  const isExpoGo = primaryLink.startsWith("exp://");
+
+  useEffect(() => {
+    window.location.href = primaryLink;
+  }, [primaryLink]);
+
+  return (
+    <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4 text-center p-8 max-w-md mx-auto">
+      <BrandLoaderMark size="md" showTagline={false} />
+      <Smartphone className="text-primary" size={36} />
+      <h1 className="text-xl font-bold">Retour vers iVOD…</h1>
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        Votre paiement est terminé. L&apos;application va confirmer votre abonnement.
+      </p>
+      <p className="text-xs text-white/45 leading-relaxed">
+        Si la redirection ne part pas, appuyez sur le bouton ou fermez cette fenêtre (×).
+      </p>
+      <a
+        href={primaryLink}
+        className="px-6 py-3 bg-primary hover:bg-primary-hover text-white text-sm font-semibold"
+      >
+        Ouvrir iVOD
+      </a>
+      {!isExpoGo && appReturn ? (
+        <a href={nativeLink} className="text-xs text-white/40 underline">
+          Lien alternatif (app installée)
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
+function CallbackRouter() {
+  const searchParams = useSearchParams();
+  const reference = searchParams.get("reference") ?? searchParams.get("trxref") ?? "";
+  const isMobileCheckout = searchParams.get("mobile") === "1";
+  const returnTo = searchParams.get("returnTo");
+  const appReturn = searchParams.get("appReturn");
+
+  if (isMobileCheckout && reference) {
+    return (
+      <MobilePaymentReturn reference={reference} returnTo={returnTo} appReturn={appReturn} />
+    );
+  }
+
+  return <WebAuthenticatedCallback />;
+}
+
+function WebAuthenticatedCallback() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const reference = searchParams.get("reference") ?? searchParams.get("trxref") ?? "";
   const isSim = searchParams.get("sim") === "1";
-  const isMobileCheckout = searchParams.get("mobile") === "1";
   const returnTo = searchParams.get("returnTo");
   const [pollCount, setPollCount] = useState(0);
 
@@ -48,17 +140,9 @@ function CallbackContent() {
 
   useEffect(() => {
     if (!isPaymentCompleted(payment?.status)) return;
-
-    if (isMobileCheckout && reference) {
-      const params = new URLSearchParams({ reference });
-      if (returnTo) params.set("returnTo", returnTo);
-      window.location.href = `ivod://payment/callback?${params.toString()}`;
-      return;
-    }
-
     const t = setTimeout(() => router.push("/settings/subscription?paid=1"), 2500);
     return () => clearTimeout(t);
-  }, [payment?.status, router, isMobileCheckout, reference, returnTo]);
+  }, [payment?.status, router]);
 
   const [simConfirmed, setSimConfirmed] = useState(false);
 
@@ -73,7 +157,7 @@ function CallbackContent() {
       <StatePanel
         icon={<Loader2 size={40} className="text-amber-400" />}
         title="Mode simulation (développement)"
-        message="Paystack n’est pas configuré. Aucun débit réel ne sera effectué. Confirmez uniquement pour tester l’activation d’abonnement en local."
+        message="Mode démo : aucun débit réel. Confirmez uniquement pour tester l’activation d’abonnement."
         sub={reference}
         secondaryAction={confirmSimPayment}
         secondaryLabel="Simuler un paiement réussi"
@@ -112,26 +196,19 @@ function CallbackContent() {
       <StatePanel
         icon={<BrandLoaderMark size="md" showTagline={false} />}
         title="Vérification en cours…"
-        message="Nous confirmons votre paiement auprès de Paystack."
+        message="Nous confirmons votre paiement auprès du prestataire."
       />
     );
   }
 
   if (isPaymentCompleted(payment.status)) {
-    const mobileParams = new URLSearchParams({ reference });
-    if (returnTo) mobileParams.set("returnTo", returnTo);
-    const appDeepLink = `ivod://payment/callback?${mobileParams.toString()}`;
     return (
       <StatePanel
         icon={<CheckCircle2 size={48} className="text-green-400" />}
         title="Paiement confirmé"
-        message={
-          isMobileCheckout
-            ? "Retour à l'application iVOD…"
-            : "Votre accès est activé. Redirection automatique…"
-        }
-        actionHref={isMobileCheckout ? appDeepLink : "/settings/subscription?paid=1"}
-        actionLabel={isMobileCheckout ? "Ouvrir l'application" : "Voir mon abonnement"}
+        message="Votre accès est activé. Redirection automatique…"
+        actionHref="/settings/subscription?paid=1"
+        actionLabel="Voir mon abonnement"
       />
     );
   }
@@ -154,7 +231,7 @@ function CallbackContent() {
     <StatePanel
       icon={<BrandLoaderMark size="md" showTagline={false} />}
       title="Paiement en cours…"
-      message="Si vous avez terminé sur Paystack, patientez quelques secondes."
+      message="Si vous avez terminé le paiement, patientez quelques secondes."
       secondaryAction={() => refetch()}
       secondaryLabel="Actualiser"
     />
@@ -181,7 +258,7 @@ function StatePanel({
   secondaryLabel?: string;
 }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center p-8 max-w-md mx-auto">
+    <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4 text-center p-8 max-w-md mx-auto">
       {icon}
       <h1 className="text-xl font-bold">{title}</h1>
       <p className="text-sm text-muted-foreground">{message}</p>
@@ -190,7 +267,7 @@ function StatePanel({
         {actionHref && actionLabel && (
           <Link
             href={actionHref}
-            className="px-6 py-3 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-semibold"
+            className="px-6 py-3 bg-primary hover:bg-primary-hover text-white text-sm font-semibold"
           >
             {actionLabel}
           </Link>
@@ -199,7 +276,7 @@ function StatePanel({
           <button
             type="button"
             onClick={secondaryAction}
-            className="px-6 py-3 border border-white/15 rounded-xl text-sm text-white/80 hover:text-white"
+            className="px-6 py-3 border border-white/15 text-sm text-white/80 hover:text-white"
           >
             {secondaryLabel}
           </button>
@@ -211,10 +288,8 @@ function StatePanel({
 
 export default function PaymentCallbackPage() {
   return (
-    <Suspense
-      fallback={<BrandLoader tagline="Paiement" />}
-    >
-      <CallbackContent />
+    <Suspense fallback={<BrandLoader tagline="Paiement" />}>
+      <CallbackRouter />
     </Suspense>
   );
 }

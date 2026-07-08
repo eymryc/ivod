@@ -13,6 +13,7 @@ export default function SettingsLayout() {
         <Stack.Screen name="security" />
         <Stack.Screen name="parental" />
         <Stack.Screen name="privacy" />
+        <Stack.Screen name="creator" />
       </Stack>
     </SettingsShell>
   );

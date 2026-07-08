@@ -6,7 +6,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { favoriteApi, type FavoriteStatus } from '@/infrastructure/api/modules/favorite.api';
-import { useProfileStore } from '@/store/profile.store';
+import { useProfileReady } from '@/presentation/hooks/use-profile-ready';
 import { QueryKeys } from '@/core/constants/query-keys';
 import { getErrorMessage } from '@/core/errors';
 
@@ -20,7 +20,7 @@ export function useFavorite(
   isFavorite: boolean,
   onError?: (message: string) => void,
 ): UseFavoriteResult {
-  const profileId = useProfileStore((s) => s.activeProfileId);
+  const { profileId } = useProfileReady();
   const qc = useQueryClient();
 
   const statusKey = QueryKeys.favorites.status(contentId ?? '', profileId);

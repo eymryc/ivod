@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { MediaImage } from "@/components/ui/MediaImage";
 import { posterUrl } from "@/lib/utils/assets";
-import { formatDuration, formatRelative } from "@/lib/utils/format";
+import { formatDuration, formatRelative, formatDate } from "@/lib/utils/format";
 import { isVideoPlayable } from "@/lib/utils/video";
 import { adminWatchHref } from "@/lib/utils/admin-watch";
 import { CONTENT_STATUS_UI } from "@/components/admin/AdminShell";
@@ -16,6 +17,8 @@ import {
   Play,
   Loader2,
   Tag,
+  CalendarClock,
+  Archive,
 } from "lucide-react";
 import { isSeriesContentType, resolveContentTypeCode } from "@/lib/utils/content-type";
 import type { AdminContentListItem, AdminEpisodeModerationItem } from "@/lib/types/admin-content";
@@ -32,7 +35,7 @@ function MetaItem({ label, children }: { label: string; children: React.ReactNod
 type Props = {
   content: AdminContentListItem;
   showModerationActions?: boolean;
-  onApprove: () => void;
+  onApprove: (releaseDate?: string) => void;
   onReject: () => void;
   onWatch: () => void;
   watchReturnPath?: string;
@@ -41,6 +44,8 @@ type Props = {
   onRejectEpisode?: (episodeId: string) => void;
   onWatchEpisode?: (episodeId: string) => void;
   approvingEpisodeId?: string | null;
+  onArchive?: () => void;
+  archiving?: boolean;
 };
 
 function groupEpisodesBySeason(episodes: AdminEpisodeModerationItem[]) {
@@ -65,7 +70,10 @@ export function AdminContentDetailPanel({
   onRejectEpisode,
   onWatchEpisode,
   approvingEpisodeId,
+  onArchive,
+  archiving,
 }: Props) {
+  const [scheduleDate, setScheduleDate] = useState("");
   const statusCode = c.status?.code ?? "";
   const typeCode = resolveContentTypeCode(c);
   const isSeries = isSeriesContentType(typeCode);
@@ -142,13 +150,27 @@ export function AdminContentDetailPanel({
           <>
             <button
               type="button"
-              onClick={onApprove}
+              onClick={() => onApprove(scheduleDate || undefined)}
               disabled={approving}
               className="inline-flex items-center gap-1.5 rounded-none border border-emerald-500/30 bg-emerald-500/15 px-4 py-2 text-[12px] font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
             >
               {approving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-              {isSeries ? "Publier le catalogue" : "Approuver"}
+              {scheduleDate
+                ? "Programmer la publication"
+                : isSeries
+                  ? "Publier le catalogue"
+                  : "Approuver"}
             </button>
+            <label className="inline-flex items-center gap-1.5 rounded-none border border-white/10 px-3 py-2 text-[12px] text-white/50">
+              <CalendarClock size={14} className="shrink-0 text-white/30" />
+              <input
+                type="datetime-local"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                className="bg-transparent text-white/70 outline-none [color-scheme:dark]"
+                title="Optionnel — programmer la publication à une date future"
+              />
+            </label>
             <button
               type="button"
               onClick={onReject}
@@ -159,7 +181,25 @@ export function AdminContentDetailPanel({
             </button>
           </>
         )}
+        {!showModerationActions && (statusCode === "PUBLISHED" || statusCode === "APPROVED") && onArchive && (
+          <button
+            type="button"
+            onClick={onArchive}
+            disabled={archiving}
+            className="inline-flex items-center gap-1.5 rounded-none border border-white/15 bg-white/[0.03] px-4 py-2 text-[12px] font-medium text-white/60 hover:border-red-500/25 hover:text-red-300 disabled:opacity-50"
+          >
+            {archiving ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+            Archiver
+          </button>
+        )}
       </div>
+
+      {statusCode === "APPROVED" && c.releaseDate && (
+        <p className="flex items-center gap-1.5 border-b border-white/[0.06] px-5 py-2.5 text-[12px] text-sky-300/80">
+          <CalendarClock size={13} />
+          Publication programmée le {formatDate(c.releaseDate, "dd MMM yyyy 'à' HH:mm")}
+        </p>
+      )}
 
       <div className="grid gap-6 p-5 lg:grid-cols-[200px_1fr]">
         <div className="space-y-3">

@@ -92,7 +92,7 @@ export default function PricingScreen() {
           showBack
           kicker="Offres iVOD"
           title="Choisissez votre expérience"
-          subtitle="Gratuit avec pub, micro-paiement 24h ou 7 jours, ou Premium mensuel — tout en FCFA, paiement Paystack (Mobile Money & carte)."
+          subtitle="Gratuit avec pub, micro-paiement 24h ou 7 jours, ou Premium mensuel — tout en FCFA, paiement sécurisé (Mobile Money & carte selon disponibilité)."
           action={headerAction}
         />
 

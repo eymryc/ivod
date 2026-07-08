@@ -1713,6 +1713,10 @@ model EditorialRail {
   queryJson        Json?
   startsAt         DateTime?
   endsAt           DateTime?
+  /// Codes ref_user_plans autorisés — tableau vide = visible pour tous les plans.
+  targetPlanCodes    String[] @default([])
+  /// Codes ISO pays autorisés — tableau vide = visible dans tous les pays.
+  targetCountryCodes String[] @default([])
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

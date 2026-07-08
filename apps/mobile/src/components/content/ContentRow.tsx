@@ -15,6 +15,8 @@ interface ContentRowProps {
   moreHref?: string;
   /** Vignettes storyboard paysage pour les rails de reprise. */
   useResumeThumbnails?: boolean;
+  /** Si fourni, affiche ce message au lieu de masquer le rail quand `items` est vide. */
+  emptyMessage?: string;
 }
 
 export function ContentRow({
@@ -23,10 +25,23 @@ export function ContentRow({
   cardWidth = 120,
   moreHref,
   useResumeThumbnails = false,
+  emptyMessage,
 }: ContentRowProps) {
   const router = useRouter();
   const rowItems = dedupeContentById(items);
-  if (!rowItems.length) return null;
+  if (!rowItems.length) {
+    if (!emptyMessage) return null;
+    return (
+      <View style={styles.section}>
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <SectionHeader title={title} />
+          </View>
+        </View>
+        <Text style={styles.emptyText}>{emptyMessage}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.section}>
@@ -79,4 +94,9 @@ const styles = StyleSheet.create({
   },
   moreText: { ...typography.caption, fontWeight: "600" },
   list: { paddingHorizontal: layout.pagePaddingX, paddingBottom: 4 },
+  emptyText: {
+    ...typography.caption,
+    color: colors.muted,
+    paddingHorizontal: layout.pagePaddingX,
+  },
 });

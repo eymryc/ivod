@@ -12,9 +12,9 @@ import { isDedicatedCatalogSurface } from "@/core/catalog/surfaces";
 import type { CatalogRailSurface } from "@/infrastructure/api/modules/catalog.api";
 import { QueryKeys } from "@/core/constants/query-keys";
 import { colors } from "@/theme/colors";
-import { layout } from "@/theme/layout";
-import { useAuthStore } from "@/store/auth.store";
-import { useProfileStore } from "@/store/profile.store";
+import { useTabBarOffset } from "@/presentation/hooks/use-tab-bar-layout";
+import { useScrollToTopOnTabReclick } from "@/presentation/hooks/use-scroll-to-top-on-tab-reclick";
+import { useProfileReady } from "@/presentation/hooks/use-profile-ready";
 import { resolveResumeForContent } from "@/core/entities/watch.entity";
 import type { FeaturedResume } from "@/components/catalog/CatalogHeroFeatured";
 
@@ -33,8 +33,9 @@ type HistoryRow = {
 };
 
 export function CatalogScreen({ section }: Props) {
-  const isAuth = useAuthStore((s) => s.isAuthenticated);
-  const profileId = useProfileStore((s) => s.activeProfileId);
+  const tabBarOffset = useTabBarOffset();
+  const scrollRef = useScrollToTopOnTabReclick();
+  const { profileId, isProfileReady } = useProfileReady();
   const useRails = isDedicatedCatalogSurface(section.id);
 
   const { data, isLoading } = useQuery({
@@ -51,8 +52,8 @@ export function CatalogScreen({ section }: Props) {
 
   const { data: historyData } = useQuery({
     queryKey: ["watch-history-catalog", profileId, section.id],
-    queryFn: () => watchApi.getHistory(profileId ?? undefined, 1, 50),
-    enabled: isAuth && useRails,
+    queryFn: () => watchApi.getHistory(profileId!, 1, 50),
+    enabled: isProfileReady && useRails,
     staleTime: 60_000,
   });
 
@@ -104,7 +105,7 @@ export function CatalogScreen({ section }: Props) {
 
   return (
     <PageCanvas minimal>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
         <View style={styles.heroShell}>
           <BackButton floating safeTop />
           <CatalogHero
@@ -127,7 +128,7 @@ export function CatalogScreen({ section }: Props) {
             />
           ) : null}
         </CatalogContentArea>
-        <View style={{ height: layout.tabBarOffset }} />
+        <View style={{ height: tabBarOffset }} />
       </ScrollView>
     </PageCanvas>
   );

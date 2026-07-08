@@ -47,7 +47,7 @@ export const subscriptionApi = {
   getHistory: (): Promise<unknown[]> =>
     api.get<unknown[]>('/subscriptions/me/history'),
 
-  /** Souscrit à un plan (retourne redirect Paystack si paiement requis). */
+  /** Souscrit à un plan (retourne une redirection si paiement requis). */
   subscribe: (data: {
     planCode: string;
     providerCode: string;

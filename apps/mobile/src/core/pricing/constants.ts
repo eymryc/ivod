@@ -9,7 +9,7 @@ export const COMPARE_ROWS = [
 export const PRICING_FAQ = [
   {
     q: "Comment payer ?",
-    a: "Tous les paiements passent par Paystack (passerelle sécurisée) : carte bancaire ou Mobile Money selon les options proposées sur la page de paiement Paystack. Montants en FCFA (XOF). iVOD ne débite pas directement Wave, Orange Money ou MTN.",
+    a: "Tous les paiements passent par une passerelle sécurisée : carte bancaire ou Mobile Money selon les options proposées sur la page de paiement. Montants en FCFA (XOF). iVOD ne débite pas directement Wave, Orange Money ou MTN.",
   },
   {
     q: "Quelle différence entre gratuit et Premium ?",

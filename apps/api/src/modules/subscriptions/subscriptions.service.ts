@@ -338,6 +338,13 @@ export class SubscriptionsService {
           periodEnd: sub.currentPeriodEnd,
         }).catch((err: Error) => this.logger.error('Erreur email annulation abonnement', err.message));
       }
+      await this.notifications.dispatch({
+        userId,
+        type: NotificationType.SUBSCRIPTION_CANCELLED,
+        title: 'Abonnement annulé',
+        body: `Votre abonnement ${sub.plan.label} restera actif jusqu'au ${sub.currentPeriodEnd.toLocaleDateString('fr-FR')}, puis ne sera pas renouvelé.`,
+        data: { subscriptionId: sub.id, planCode: sub.plan.code },
+      }).catch((err: Error) => this.logger.error('Erreur dispatch notification annulation abonnement', err.message));
       return { message: `Abonnement annulé à la fin de la période (${sub.currentPeriodEnd.toLocaleDateString('fr-FR')})`, cancelAtPeriodEnd: true };
     }
 
@@ -349,11 +356,11 @@ export class SubscriptionsService {
 
     await this.notifications.dispatch({
       userId,
-      type: NotificationType.PAYMENT_CONFIRMED,
+      type: NotificationType.SUBSCRIPTION_CANCELLED,
       title: 'Abonnement annulé',
       body: `Votre abonnement ${sub.plan.label} a été annulé immédiatement.`,
       data: { subscriptionId: sub.id, planCode: sub.plan.code },
-    });
+    }).catch((err: Error) => this.logger.error('Erreur dispatch notification annulation abonnement', err.message));
 
     const cancelUserImmediate = await this.prisma.user.findUnique({
       where: { id: userId },

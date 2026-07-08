@@ -10,6 +10,8 @@ export class UpdateProfileDto {
   @IsOptional() @IsString() @Length(2, 101) name?: string;
   @ApiPropertyOptional({ example: 'https://cdn.ivod.ci/avatars/marvel.jpg' })
   @IsOptional() @IsString() avatarUrl?: string;
+  @ApiPropertyOptional({ example: '+2250708090910' })
+  @IsOptional() @IsString() @Length(0, 32) phone?: string;
 }
 
 export class UpdateUserPreferencesDto {

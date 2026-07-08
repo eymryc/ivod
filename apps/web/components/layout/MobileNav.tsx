@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth.store";
 import { notificationsApi } from "@/lib/api/notifications";
+import { isSameNavPath, scrollToTopOnReclick } from "@/lib/navigation/scroll-to-top-on-reclick";
 
 const PRIMARY_ITEMS = [
   { href: "/", icon: Home, label: "Accueil", elevated: true },
@@ -43,7 +44,7 @@ const MORE_AUTH_ONLY = [
 ] as const;
 
 function isActivePath(pathname: string, href: string) {
-  return pathname === href || (href !== "/" && pathname.startsWith(href));
+  return isSameNavPath(pathname, href);
 }
 
 export function MobileNav() {
@@ -90,7 +91,7 @@ export function MobileNav() {
         <button
           type="button"
           aria-label="Fermer le menu"
-          className="fixed inset-0 z-[55] md:hidden bg-black/60 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[55] lg:hidden bg-black/60 backdrop-blur-[2px]"
           onClick={() => setMoreOpen(false)}
         />
       )}
@@ -99,7 +100,7 @@ export function MobileNav() {
         <div
           role="dialog"
           aria-label="Plus de navigation"
-          className="mobile-more-enter fixed bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-[56] md:hidden rounded-none border border-white/[0.1] bg-[#0a0f18]/98 backdrop-blur-xl shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
+          className="mobile-more-enter fixed bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-[56] lg:hidden rounded-none border border-white/[0.1] bg-[#0a0f18]/98 backdrop-blur-xl shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
             <span className="text-caption font-semibold text-secondary-token">
@@ -121,7 +122,10 @@ export function MobileNav() {
                 <Link
                   key={href}
                   href={href}
-                  onClick={() => setMoreOpen(false)}
+                  onClick={(e) => {
+                    setMoreOpen(false);
+                    if (active) scrollToTopOnReclick(e, pathname, href);
+                  }}
                   className={`ivod-btn flex items-center gap-3 px-3 py-3.5 border transition-colors touch-manipulation ${
                     active
                       ? "border-brand-magenta/35 bg-brand-magenta/[0.08] text-brand-magenta"
@@ -138,7 +142,7 @@ export function MobileNav() {
       )}
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-surface/95 backdrop-blur-md border-t border-white/10 pb-safe"
+        className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-surface/95 backdrop-blur-md border-t border-white/10 pb-safe"
         aria-label="Navigation principale"
       >
         <div className="flex items-end justify-around px-1 pt-1.5">
@@ -151,6 +155,9 @@ export function MobileNav() {
                 href={href}
                 aria-label={label}
                 aria-current={active ? "page" : undefined}
+                onClick={(e) => {
+                  if (active) scrollToTopOnReclick(e, pathname, href);
+                }}
                 className={`relative flex flex-1 max-w-[5.5rem] flex-col items-center justify-center gap-0.5 px-2 transition-colors touch-manipulation ${
                   elevated ? "-mt-3 pb-2 min-h-[3.75rem]" : "py-2 min-h-[3.25rem]"
                 } ${active ? "text-brand-magenta" : "text-white/50 hover:text-white/80"}`}

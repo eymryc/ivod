@@ -18,25 +18,30 @@ import { canResumeSession } from "@/core/entities";
 import { PremiumOfferCard } from "@/components/home/PremiumOfferCard";
 import { useAuthStore } from "@/store/auth.store";
 import { useProfileStore } from "@/store/profile.store";
+import { useProfileReady } from "@/presentation/hooks/use-profile-ready";
 import { useContentTypes } from "@/hooks/use-content-types";
 import { QueryKeys } from "@/core/constants/query-keys";
 import { useScreenFocusRefetch } from "@/presentation/hooks/use-screen-focus-refetch";
+import { useTabBarOffset } from "@/presentation/hooks/use-tab-bar-layout";
+import { useScrollToTopOnTabReclick } from "@/presentation/hooks/use-scroll-to-top-on-tab-reclick";
 import { getDefaultCountryCode } from "@/core/config/region";
 import { colors } from "@/theme/colors";
-import { layout } from "@/theme/layout";
 
 export default function HomeScreen() {
   const router = useRouter();
+  const tabBarOffset = useTabBarOffset(16);
+  const scrollRef = useScrollToTopOnTabReclick();
   const qc = useQueryClient();
   const isAuth = useAuthStore((s) => s.isAuthenticated);
   const [refreshing, setRefreshing] = useState(false);
-  const profileId = useProfileStore((s) => s.activeProfileId);
+  const { profileId, isProfileReady } = useProfileReady();
+  const activeProfile = useProfileStore((s) => s.getActiveProfile());
 
   useScreenFocusRefetch([
     ['catalog-rails', 'home'],
     ['watch-history-rails', profileId, 'home'],
     ['favorites-rails', 'home', profileId],
-    ['recommendations-rails', 'home'],
+    ['recommendations-rails', 'home', profileId],
     QueryKeys.favorites.list(profileId),
     ['subscription-me'],
   ]);
@@ -54,8 +59,8 @@ export default function HomeScreen() {
     ]);
     setRefreshing(false);
   }, [qc]);
+
   const user = useAuthStore((s) => s.user);
-  const activeProfile = useProfileStore((s) => s.getActiveProfile());
   const { catalogNavLinks } = useContentTypes();
 
   const heroDisplayName =
@@ -88,9 +93,9 @@ export default function HomeScreen() {
   const bannerList = Array.isArray(banners) ? banners : [];
 
   const { data: historyData } = useQuery({
-    queryKey: ["watch-history-home", activeProfile?.id],
-    queryFn: () => watchApi.getHistory(activeProfile?.id, 1, 50),
-    enabled: isAuth,
+    queryKey: ["watch-history-home", profileId],
+    queryFn: () => watchApi.getHistory(profileId!, 1, 50),
+    enabled: isProfileReady,
     staleTime: 60_000,
   });
 
@@ -110,6 +115,7 @@ export default function HomeScreen() {
   return (
     <PageCanvas minimal>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         bounces
         refreshControl={
@@ -133,31 +139,30 @@ export default function HomeScreen() {
           />
         </View>
 
-        <View style={styles.heroBlock}>
-          <HomeHero
-            banners={bannerList}
-            isLoading={bannersLoading}
-            isAuthenticated={isAuth}
-            displayName={heroDisplayName}
-            planCode={planCode}
-          />
+        <HomeHero
+          banners={bannerList}
+          isLoading={bannersLoading}
+          isAuthenticated={isAuth}
+          displayName={heroDisplayName}
+          planCode={planCode}
+        />
 
-          <PremiumPillDock variant="bare" style={styles.heroPills}>
-            <HorizontalPillBar edgeToEdge style={styles.pillsBar}>
-              <FilterPill label="Explorer" onPress={() => router.push("/browse")} />
-              {catalogNavLinks.map((link) => (
-                <FilterPill
-                  key={link.href}
-                  label={link.label}
-                  onPress={() => router.push(link.href as never)}
-                />
-              ))}
-              {isAuth ? (
-                <FilterPill label="Pour vous" onPress={() => router.push("/recommendations")} />
-              ) : null}
-            </HorizontalPillBar>
-          </PremiumPillDock>
-        </View>
+        {/* Pills sous le hero (comme web) — pas en overlay pour ne pas masquer dots/CTA */}
+        <PremiumPillDock variant="bare" style={styles.pillsBelowHero}>
+          <HorizontalPillBar edgeToEdge style={styles.pillsBar}>
+            <FilterPill label="Explorer" onPress={() => router.push("/browse")} />
+            {catalogNavLinks.map((link) => (
+              <FilterPill
+                key={link.href}
+                label={link.label}
+                onPress={() => router.push(link.href as never)}
+              />
+            ))}
+            {isAuth ? (
+              <FilterPill label="Pour vous" onPress={() => router.push("/recommendations")} />
+            ) : null}
+          </HorizontalPillBar>
+        </PremiumPillDock>
 
         <CatalogContentArea>
           {isAuth && latestResume ? <ResumePromptBanner item={latestResume} /> : null}
@@ -166,7 +171,7 @@ export default function HomeScreen() {
 
         {!isAuth && <PremiumOfferCard onPress={() => router.push("/pricing")} />}
 
-        <View style={{ height: layout.tabBarOffset + 16 }} />
+        <View style={{ height: tabBarOffset }} />
       </ScrollView>
     </PageCanvas>
   );
@@ -180,14 +185,9 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
   },
-  heroBlock: {
-    position: "relative",
-  },
-  heroPills: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 10,
+  pillsBelowHero: {
+    marginTop: 14,
+    marginBottom: 4,
   },
   pillsBar: {
     marginBottom: 0,

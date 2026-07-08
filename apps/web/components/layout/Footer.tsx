@@ -4,7 +4,7 @@ import { PAGE_MAX } from "../public/PublicShell";
 
 export function Footer() {
   return (
-    <footer className="bg-surface/50 border-t border-white/5 mt-auto pb-mobile-nav md:pb-0">
+    <footer className="bg-surface/50 border-t border-white/5 mt-auto pb-mobile-nav lg:pb-0">
       <div className={`${PAGE_MAX} px-4 py-10`}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">

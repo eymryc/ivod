@@ -132,13 +132,10 @@ export function buildResumeWebLink(
   resume?: WatchHistoryEntry | null,
 ): string {
   const params = new URLSearchParams();
-  if (resume?.episodeId) params.set('episodeId', resume.episodeId);
+  if (resume?.episodeId) params.set('ep', resume.episodeId);
   const t = Math.floor(resume?.watchedSeconds ?? 0);
   if (t > 0) params.set('t', String(t));
   const q = params.toString();
-  // EXPO_PUBLIC_WEB_URL — même variable que core/config/payment.ts, définie
-  // par profil dans eas.json. Avant ce correctif, ce domaine était en dur
-  // ("ivod.africa", qui ne résout pas) — tout lien de partage était cassé.
   const base = (process.env.EXPO_PUBLIC_WEB_URL ?? 'http://localhost:3001').replace(/\/$/, '');
   return `${base}/watch/${contentId}${q ? `?${q}` : ''}`;
 }

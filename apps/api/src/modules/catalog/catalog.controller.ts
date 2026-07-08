@@ -25,7 +25,13 @@ export class CatalogController {
     required: true,
     enum: ['home', 'films', 'series', 'web-series', 'animation'],
   })
-  async getRails(@Query('surface') surface: string) {
+  @ApiQuery({ name: 'plan', required: false, description: 'Code plan actif (ciblage rails)' })
+  @ApiQuery({ name: 'country', required: false, description: 'Code ISO pays (ciblage rails)' })
+  async getRails(
+    @Query('surface') surface: string,
+    @Query('plan') plan?: string,
+    @Query('country') country?: string,
+  ) {
     if (!VALID_SURFACES.has(surface as CatalogRailSurface)) {
       throw new BadRequestException({
         code: 'CATALOG_001',
@@ -33,6 +39,43 @@ export class CatalogController {
           'Surface invalide. Valeurs : home, films, series, web-series, animation',
       });
     }
-    return this.catalogRails.listForSurface(surface as CatalogRailSurface);
+    return this.catalogRails.listForSurface(surface as CatalogRailSurface, {
+      planCode: plan,
+      countryCode: country,
+    });
+  }
+
+  @Get('rails/resolved')
+  @Public()
+  @ApiOperation({
+    summary:
+      'Rails + contenus résolus en un seul appel (rails query/editorial uniquement — les rails personnalisés restent à charger séparément par le client)',
+  })
+  @ApiQuery({
+    name: 'surface',
+    required: true,
+    enum: ['home', 'films', 'series', 'web-series', 'animation'],
+  })
+  @ApiQuery({ name: 'maxMaturityRating', required: false })
+  @ApiQuery({ name: 'plan', required: false, description: 'Code plan actif (ciblage rails)' })
+  @ApiQuery({ name: 'country', required: false, description: 'Code ISO pays (ciblage rails)' })
+  async getResolvedRails(
+    @Query('surface') surface: string,
+    @Query('maxMaturityRating') maxMaturityRating?: string,
+    @Query('plan') plan?: string,
+    @Query('country') country?: string,
+  ) {
+    if (!VALID_SURFACES.has(surface as CatalogRailSurface)) {
+      throw new BadRequestException({
+        code: 'CATALOG_001',
+        message:
+          'Surface invalide. Valeurs : home, films, series, web-series, animation',
+      });
+    }
+    return this.catalogRails.resolveForSurface(surface as CatalogRailSurface, {
+      maxMaturityRating,
+      planCode: plan,
+      countryCode: country,
+    });
   }
 }

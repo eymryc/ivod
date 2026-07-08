@@ -99,7 +99,7 @@ export function TvodPurchaseModal({
                 <p className="text-2xl font-bold text-primary mt-2">{formatXOF(ppvPrice)}</p>
                 <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-gold border border-brand-gold/25 bg-brand-gold/10 px-2 py-0.5">
                   <Smartphone size={12} />
-                  Mobile Money · Paystack
+                  Mobile Money · Paiement sécurisé
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">Accès illimité après achat</p>
               </div>
@@ -128,7 +128,7 @@ export function TvodPurchaseModal({
             <BrandLoaderMark size="md" showTagline={false} />
             <h2 className="text-lg font-bold">Paiement en cours…</h2>
             <p className="text-sm text-muted-foreground">
-              Complétez le paiement sur Paystack. Cette fenêtre se met à jour automatiquement.
+              Complétez le paiement. Cette fenêtre se met à jour automatiquement.
             </p>
           </div>
         )}
@@ -158,7 +158,7 @@ export function TvodPurchaseModal({
           <div className="p-8 flex flex-col items-center gap-4 text-center">
             <XCircle size={48} className="text-red-400" />
             <h2 className="text-lg font-bold">Paiement échoué</h2>
-            <p className="text-sm text-muted-foreground">Réessayez avec Paystack.</p>
+            <p className="text-sm text-muted-foreground">Réessayez le paiement.</p>
             <div className="flex gap-3">
               <button
                 type="button"

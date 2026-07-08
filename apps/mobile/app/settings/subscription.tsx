@@ -172,9 +172,7 @@ export default function SubscriptionScreen() {
       }
 
       if (data.simulationMode) {
-        toast.warning(
-          "Mode simulation : aucun débit réel. Configurez Paystack pour un vrai paiement.",
-        );
+        toast.info("Mode démo : aucun débit réel.");
       }
 
       const paymentId = data.payment?.id ?? data.payment?.reference;
@@ -389,7 +387,7 @@ export default function SubscriptionScreen() {
           <SettingsSectionHeader
             icon={CreditCard}
             title="Historique des paiements"
-            description="Transactions Paystack récentes."
+            description="Transactions récentes."
           />
           {paymentItems.map((p) => (
             <ListCard
@@ -407,7 +405,7 @@ export default function SubscriptionScreen() {
           <SettingsSectionHeader
             icon={FileText}
             title="Factures"
-            description="Vos dernières factures Paystack."
+            description="Vos dernières factures."
           />
           {invoiceList.slice(0, 8).map((inv) => (
             <ListCard

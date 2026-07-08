@@ -129,11 +129,11 @@ export function PricingPlans({
         <View style={styles.trustStrip}>
           <View style={styles.trustItem}>
             <Shield color={colors.magenta} size={15} />
-            <Text style={styles.trustText}>Paiement sécurisé Paystack</Text>
+            <Text style={styles.trustText}>Paiement sécurisé</Text>
           </View>
           <View style={styles.trustItem}>
             <Smartphone color={colors.orange} size={15} />
-            <Text style={styles.trustText}>Mobile Money via Paystack</Text>
+            <Text style={styles.trustText}>Mobile Money (si disponible)</Text>
           </View>
           <View style={styles.trustItem}>
             <Sparkles color={colors.gold} size={15} />

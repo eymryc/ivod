@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
 import { RedisService } from '../../common/services/redis.service';
 import { NotificationType } from '../../common/types';
+import { AdminService } from '../admin/admin.service';
 
 @Injectable()
 export class CronService {
@@ -18,6 +19,7 @@ export class CronService {
     private notifications: NotificationsService,
     private mail: MailService,
     private redis: RedisService,
+    private admin: AdminService,
   ) {}
 
   /**
@@ -145,6 +147,26 @@ export class CronService {
         this.logger.log(`Content stats refreshed: ${count}`);
       } catch (e) {
         this.logger.error('Stats cron failed', e);
+      }
+    });
+  }
+
+  // Publier les contenus APPROVED dont la date de sortie programmée est atteinte
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async publishScheduledContent() {
+    await this.withLock('publishScheduledContent', 240, async () => {
+      try {
+        const due = await this.prisma.content.findMany({
+          where: { status: { code: 'APPROVED' }, releaseDate: { lte: new Date() } },
+          select: { id: true },
+          take: 200,
+        });
+        for (const c of due) {
+          await this.admin.publishScheduledContent(c.id);
+        }
+        if (due.length > 0) this.logger.log(`Contenus programmés publiés : ${due.length}`);
+      } catch (e) {
+        this.logger.error('Cron publishScheduledContent échoué', e);
       }
     });
   }

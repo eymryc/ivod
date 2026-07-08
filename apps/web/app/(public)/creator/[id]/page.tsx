@@ -7,11 +7,13 @@ import { getApiErrorMessage, showApiError } from "@/lib/api/feedback";
 import { creatorsApi } from "@/lib/api/creators";
 import { post, del, get } from "@/lib/api/client";
 import { ContentCard } from "@/components/content/ContentCard";
+import { CreatorProfileBanner } from "@/components/content/CreatorProfileBanner";
 import { assetUrl } from "@/lib/utils/assets";
 import { MediaImage } from "@/components/ui/MediaImage";
 import { formatCount } from "@/lib/utils/format";
 import { useAuthStore } from "@/lib/stores/auth.store";
 import { VIEWER_SHELL_WIDTH, VIEWER_GRID_CLASS } from "@/components/public/PublicShell";
+import { CREATOR_PROFILE_HEADER_OVERLAP_CLASS } from "@/lib/constants/hero-layout";
 import { BrandLoader } from "@/components/ui/BrandLoader";
 
 interface CreatorProfile {
@@ -65,7 +67,6 @@ export default function CreatorProfilePage() {
   });
 
   const avatarUrl = assetUrl(creator?.avatarObjectKey);
-  const bannerUrl = assetUrl(creator?.bannerObjectKey);
   const contentsList: any[] = creator?.contents ?? [];
   const publishedCount = creator?.publishedContentsCount ?? contentsList.length;
   const following = followStatus?.following ?? false;
@@ -87,23 +88,15 @@ export default function CreatorProfilePage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      {/* Bannière */}
-      <div className="relative h-48 md:h-64 overflow-hidden bg-background-elevated">
-        {bannerUrl ? (
-          <MediaImage src={bannerUrl} alt="" fill className="object-cover" sizes="100vw" priority />
-        ) : (
-          <>
-            <div className="absolute inset-0 ivod-gradient opacity-[0.22]" />
-            <div className="pointer-events-none absolute -top-16 left-1/4 h-72 w-72 rounded-full bg-brand-magenta/[0.16] blur-[120px]" />
-            <div className="pointer-events-none absolute -top-10 right-1/4 h-72 w-72 rounded-full bg-brand-purple/[0.18] blur-[120px]" />
-          </>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/25 to-transparent" />
-      </div>
+      <CreatorProfileBanner
+        bannerObjectKey={creator.bannerObjectKey}
+        stageName={creator.stageName}
+        priority
+      />
 
       <div className={`relative ${VIEWER_SHELL_WIDTH} pb-20`}>
         {/* En-tête profil */}
-        <div className="-mt-14 mb-8 flex flex-col gap-5 sm:-mt-16 sm:flex-row sm:items-end sm:gap-6">
+        <div className={`${CREATOR_PROFILE_HEADER_OVERLAP_CLASS} mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:gap-6`}>
           <div className="h-24 w-24 shrink-0 border-4 border-background bg-surface shadow-[0_8px_32px_rgba(0,0,0,0.45)] md:h-28 md:w-28">
             {avatarUrl ? (
               <div className="relative h-full w-full">

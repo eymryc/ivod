@@ -27,8 +27,11 @@ export const adminApi = {
   // Contenus modération
   getContents: (params?: { status?: string; page?: number; limit?: number }) =>
     get<any>(`/admin/contents${buildQueryString(params)}`, true),
-  approveContent: (id: string) => put<any>(`/admin/contents/${id}/approve`),
+  approveContent: (id: string, releaseDate?: string) =>
+    put<any>(`/admin/contents/${id}/approve`, releaseDate ? { releaseDate } : undefined),
   rejectContent: (id: string, reason: string) => put<any>(`/admin/contents/${id}/reject`, { reason }),
+  archiveContent: (id: string, reason?: string) =>
+    put<any>(`/admin/contents/${id}/archive`, reason ? { reason } : undefined),
   approveEpisode: (id: string) => put<any>(`/admin/episodes/${id}/approve`),
   rejectEpisode: (id: string, reason: string) => put<any>(`/admin/episodes/${id}/reject`, { reason }),
 
@@ -75,7 +78,7 @@ export const adminApi = {
     return get<any>(`/search/autocomplete?${qs}`, true);
   },
 
-  // Paiements Paystack
+  // Paiements
   getPayments: (params?: {
     page?: number;
     limit?: number;

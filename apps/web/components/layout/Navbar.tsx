@@ -20,6 +20,7 @@ import { useProfileStore } from "@/lib/stores/profile.store";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useAuthHydrated } from "@/lib/hooks/useAuthHydrated";
 import { getViewerNavLinks } from "@/lib/navigation/viewer-nav";
+import { scrollToTopOnReclick } from "@/lib/navigation/scroll-to-top-on-reclick";
 import { subscriptionsApi } from "@/lib/api/subscriptions";
 import { SearchBar } from "@/components/search/SearchBar";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -58,15 +59,20 @@ function NavLinkItem({
   label,
   active,
   compact,
+  pathname,
 }: {
   href: string;
   label: string;
   active: boolean;
   compact?: boolean;
+  pathname: string;
 }) {
   return (
     <Link
       href={href}
+      onClick={(e) => {
+        if (active) scrollToTopOnReclick(e, pathname, href);
+      }}
       className={`
         group relative px-4 py-2.5 rounded-none transition-colors duration-200
         ${compact ? "text-xs" : "text-[13px]"}
@@ -192,6 +198,9 @@ export function Navbar({ serverHasSession = false }: NavbarProps) {
         <div className={`${NAV_BAR_WIDTH} h-full flex items-center gap-6 md:gap-10`}>
           <Link
             href="/"
+            onClick={(e) => {
+              if (isHome) scrollToTopOnReclick(e, pathname, "/");
+            }}
             className="group flex items-center shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-magenta/50 rounded-none"
           >
             <Image
@@ -214,6 +223,7 @@ export function Navbar({ serverHasSession = false }: NavbarProps) {
                 label={item.label}
                 active={activeNav === item.matchType}
                 compact={navElevated}
+                pathname={pathname}
               />
             ))}
           </div>

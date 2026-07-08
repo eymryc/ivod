@@ -87,8 +87,13 @@ const nextConfig: NextConfig = {
       // Sans cette directive, le navigateur retombe sur script-src qui n'autorise
       // pas blob: — bloquait le lecteur HLS en prod. Trouvé le 2026-07-05.
       "worker-src 'self' blob:",
-      // API (fetch) + WebSocket : origines exactes dérivées des env vars
-      `connect-src 'self' ${cspList([apiOrigin, wsOrigin, wsWsOrigin, ...devExtras.api, ...devExtras.ws])}`,
+      // API (fetch) + WebSocket + MinIO (upload direct navigateur → presigned
+      // PUT, ex: bannières admin) : `fetch()` est gouverné par connect-src, pas
+      // img-src/media-src (celles-ci ne couvrent que <img>/<video>) — sans
+      // minioOrigin ici, toute requête fetch/PUT vers MinIO est bloquée par la
+      // CSP (visible en Réseau comme "CSP" au lieu d'un code de statut, pas une
+      // vraie erreur réseau/CORS). Trouvé le 2026-07-07.
+      `connect-src 'self' ${cspList([apiOrigin, wsOrigin, wsWsOrigin, minioOrigin, ...devExtras.api, ...devExtras.ws, ...devExtras.minio])}`,
       "font-src 'self' data:",
       // Bloque le clickjacking (redondant avec X-Frame-Options mais meilleure couverture)
       "frame-ancestors 'none'",
@@ -99,12 +104,10 @@ const nextConfig: NextConfig = {
     ].join("; ");
 
     return [
-      {
-        source: "/_next/static/:path*",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
-      },
+      // Pas de règle custom pour /_next/static/:path* — Next.js applique déjà
+      // son propre Cache-Control immutable (fichiers hashés) en production ;
+      // une règle manuelle est redondante et gênait le HMR en dev (avertissement
+      // "can break Next.js development behavior"). Retiré le 2026-07-06.
       {
         source: "/media",
         headers: [

@@ -195,12 +195,18 @@ export function otpEmailTemplate(
 // 2. Réinitialisation mot de passe
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function resetPasswordEmailPlainText(p: { appName: string; token: string; expiresInMinutes: number }) {
+export function resetPasswordEmailPlainText(p: {
+  appName: string;
+  token: string;
+  expiresInMinutes: number;
+  resetUrl?: string;
+}) {
   return [
     `${p.appName} — réinitialisation mot de passe`,
     '',
     `Code : ${p.token}`,
     `Valide ${p.expiresInMinutes} minutes.`,
+    ...(p.resetUrl ? ['', `Lien : ${p.resetUrl}`] : []),
     '',
     `Si vous n'avez pas demandé cette réinitialisation, ignorez cet e-mail.`,
     `— ${p.appName}`,
@@ -208,13 +214,13 @@ export function resetPasswordEmailPlainText(p: { appName: string; token: string;
 }
 
 export function resetPasswordEmailTemplate(
-  p: { appName: string; token: string; expiresInMinutes: number } & MailBranding,
+  p: { appName: string; token: string; expiresInMinutes: number; resetUrl?: string } & MailBranding,
 ) {
   const tokenSpaced = p.token.split('').join('&thinsp;');
   const inner = `
     <h1 style="margin:0 0 10px;font-size:23px;font-weight:800;color:${C.text};">Réinitialiser votre mot de passe</h1>
     <p style="margin:0 0 22px;font-size:15px;color:${C.muted};">
-      Saisissez ce code sur la page <strong style="color:${C.mutedFg};">Mot de passe oublié</strong> avec votre nouvelle valeur. Il expire dans <strong style="color:${C.orange};">${p.expiresInMinutes} min</strong>.
+      Saisissez ce code sur la page <strong style="color:${C.mutedFg};">Réinitialiser le mot de passe</strong> (après avoir demandé un code) avec votre nouvelle valeur. Il expire dans <strong style="color:${C.orange};">${p.expiresInMinutes} min</strong>.
     </p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;border-collapse:collapse;">
       <tr>
@@ -226,6 +232,15 @@ export function resetPasswordEmailTemplate(
         </td>
       </tr>
     </table>
+    ${
+      p.resetUrl
+        ? `
+    <div style="text-align:center;margin:0 0 14px;">
+      ${ctaButton('Réinitialiser mon mot de passe', p.resetUrl)}
+      <p style="margin:10px 0 0;font-size:11px;color:${C.muted};word-break:break-all;">${escapeHtml(p.resetUrl)}</p>
+    </div>`
+        : ''
+    }
     ${infoBox('', 'Important', 'Si vous n\'êtes pas à l\'origine de cette demande, ignorez cet e-mail — votre mot de passe actuel reste inchangé.', 'warning')}
     <p style="margin:18px 0 0;font-size:13px;color:${C.muted};">— ${escapeHtml(p.appName)}</p>`;
 
@@ -481,6 +496,37 @@ export function contentModerationEmailTemplate(
       ? `"${p.contentTitle}" est maintenant publié — ${p.appName}`
       : `Décision de modération pour "${p.contentTitle}" — ${p.appName}`,
     title: `${isApproved ? 'Contenu publié' : 'Modération'} — ${p.appName}`,
+    innerHtml: inner,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8b. Soumission d'un contenu pour modération (destinataire : admin)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function contentSubmittedEmailTemplate(
+  p: {
+    appName: string; creatorName: string; contentTitle: string;
+    contentType: 'content' | 'episode'; moderationUrl?: string;
+  } & MailBranding,
+) {
+  const typeLabel = p.contentType === 'episode' ? 'épisode' : 'contenu';
+
+  const inner = `
+    <h1 style="margin:0 0 12px;font-size:23px;font-weight:800;color:${C.text};">
+      Nouveau contenu à modérer
+    </h1>
+    <div style="display:inline-block;background:${C.amberBg};border:1px solid ${C.border};padding:5px 14px;font-size:13px;font-weight:700;color:${C.amber};margin:0 0 22px;">En attente de validation</div>
+    <p style="margin:0 0 20px;font-size:15px;color:${C.muted};">
+      <strong style="color:${C.mutedFg};">${escapeHtml(p.creatorName)}</strong> vient de soumettre le ${typeLabel}
+      <strong style="color:${C.mutedFg};">${escapeHtml(p.contentTitle)}</strong> pour validation éditoriale.
+    </p>
+    ${p.moderationUrl ? ctaButton('Voir la file de modération', p.moderationUrl) : ''}
+    <p style="margin:22px 0 0;font-size:13px;color:${C.muted};">— L'équipe ${escapeHtml(p.appName)}</p>`;
+
+  return ivodMailDocument({ appName: p.appName, logoUrl: p.logoUrl }, {
+    preheader: `"${p.contentTitle}" en attente de modération — ${p.appName}`,
+    title: `Nouveau contenu à modérer — ${p.appName}`,
     innerHtml: inner,
   });
 }

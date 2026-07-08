@@ -1,7 +1,9 @@
+import * as Linking from "expo-linking";
+
 /**
- * URL de callback Paystack — aligné web (HTTPS/HTTP accessible depuis le téléphone).
+ * URL de callback paiement — alignée web (HTTPS/HTTP accessible depuis le téléphone).
  *
- * Paystack exige une callback_url HTTP(S) et redirige le navigateur vers cette URL
+ * Le prestataire de paiement exige une callback_url HTTP(S) et redirige le navigateur vers cette URL
  * après paiement (cf. guide WebView). On intercepte cette URL via openAuthSessionAsync.
  *
  * En dev sur appareil physique : EXPO_PUBLIC_WEB_URL=http://<IP-LAN-Mac>:3001
@@ -20,10 +22,19 @@ export function getPaystackCallbackPrefix(): string {
 
 type CallbackOpts = { returnTo?: string; sim?: boolean; mobile?: boolean };
 
-/** URL envoyée à l'API comme callback_url Paystack (l'API ajoute reference=). */
+/**
+ * Deep link de retour dans l'app (Expo Go : exp://…, build natif : ivod://…).
+ * Passé à la page web /payment/callback pour rouvrir l'app après le paiement.
+ */
+export function getAppPaymentReturnUrl(): string {
+  return Linking.createURL("/payment/callback");
+}
+
+/** URL envoyée à l'API comme callback_url (l'API ajoute reference=). */
 export function buildPaystackCallbackBase(opts?: CallbackOpts): string {
   const params = new URLSearchParams();
   params.set("mobile", "1");
+  params.set("appReturn", getAppPaymentReturnUrl());
   if (opts?.returnTo) params.set("returnTo", opts.returnTo);
   if (opts?.sim) params.set("sim", "1");
   const q = params.toString();
@@ -40,7 +51,7 @@ export function buildPaystackCallbackUrl(paymentId: string, opts?: CallbackOpts)
   return `${getPaystackCallbackPrefix()}?${params.toString()}`;
 }
 
-/** Extrait reference / returnTo depuis l'URL de retour Paystack. */
+/** Extrait reference / returnTo depuis l'URL de retour. */
 export function parsePaystackReturnUrl(url: string): {
   reference?: string;
   returnTo?: string;

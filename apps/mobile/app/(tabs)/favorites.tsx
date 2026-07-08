@@ -5,9 +5,10 @@ import { Heart } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { favoritesApi } from "@/infrastructure/api";
 import { useAuthStore } from "@/store/auth.store";
-import { useProfileStore } from "@/store/profile.store";
+import { useProfileReady } from "@/presentation/hooks/use-profile-ready";
 import { QueryKeys } from "@/core/constants/query-keys";
 import { useScreenFocusRefetch } from "@/presentation/hooks/use-screen-focus-refetch";
+import { useTabBarOffset } from "@/presentation/hooks/use-tab-bar-layout";
 import { ContentCard, type ContentItem } from "@/components/content/ContentCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageCanvas } from "@/components/layout/PageCanvas";
@@ -18,9 +19,10 @@ import { layout } from "@/theme/layout";
 
 export default function FavoritesScreen() {
   const router = useRouter();
+  const tabBarOffset = useTabBarOffset();
   const qc = useQueryClient();
   const isAuth = useAuthStore((s) => s.isAuthenticated);
-  const profileId = useProfileStore((s) => s.activeProfileId);
+  const { profileId, isProfileReady } = useProfileReady();
   const [refreshing, setRefreshing] = useState(false);
 
   const favoritesKey = QueryKeys.favorites.list(profileId);
@@ -35,8 +37,8 @@ export default function FavoritesScreen() {
 
   const { data, isLoading } = useQuery({
     queryKey: favoritesKey,
-    queryFn: () => favoritesApi.list(1, profileId ?? undefined),
-    enabled: isAuth,
+    queryFn: () => favoritesApi.list(1, profileId!),
+    enabled: isProfileReady,
   });
 
   if (!isAuth) {
@@ -82,7 +84,7 @@ export default function FavoritesScreen() {
             keyExtractor={(i) => i.id}
             numColumns={2}
             columnWrapperStyle={styles.row}
-            contentContainerStyle={styles.grid}
+            contentContainerStyle={[styles.grid, { paddingBottom: tabBarOffset }]}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
@@ -107,6 +109,6 @@ export default function FavoritesScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   loader: { marginTop: 48 },
-  grid: { paddingHorizontal: layout.pagePaddingX, paddingBottom: layout.tabBarOffset },
+  grid: { paddingHorizontal: layout.pagePaddingX },
   row: { gap: layout.gridGap, marginBottom: layout.gridGap, justifyContent: "space-between" },
 });

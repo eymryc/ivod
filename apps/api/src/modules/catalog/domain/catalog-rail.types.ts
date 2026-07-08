@@ -32,6 +32,10 @@ export type CatalogRailQuery = {
   countryOfOrigin?: string;
   publishedWithinDays?: number;
   minRating?: number;
+  /** Année de sortie minimale (ex. rail « Films des années 90 » → 1990). */
+  releaseYearFrom?: number;
+  /** Année de sortie maximale (ex. rail « Films des années 90 » → 1999). */
+  releaseYearTo?: number;
 };
 
 /** Définition statique d'un rail — registre central. */
@@ -64,4 +68,18 @@ export type CatalogRailDto = {
   link?: string;
   /** Contenus curés (type editorial), ordre préservé. */
   contentIds?: string[];
+  /** Codes ref_user_plans autorisés — vide = tous les plans. */
+  targetPlanCodes?: string[];
+  /** Codes ISO pays autorisés — vide = tous les pays. */
+  targetCountryCodes?: string[];
+};
+
+/**
+ * DTO d'un rail dont les contenus ont déjà été résolus côté serveur —
+ * évite au client un aller-retour /contents séparé par rail.
+ * `items` n'est peuplé que pour les rails `query`/`editorial` ; les rails
+ * `personalized` restent à la charge du client (dépendent du profil actif).
+ */
+export type ResolvedCatalogRailDto = CatalogRailDto & {
+  items: unknown[];
 };

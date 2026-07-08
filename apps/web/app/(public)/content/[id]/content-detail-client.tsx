@@ -20,6 +20,8 @@ import { ReportModal } from "@/components/content/ReportModal";
 import { RailSection } from "@/components/home/ScrollRow";
 import { ContentCard } from "@/components/content/ContentCard";
 import { VIEWER_SHELL_WIDTH, RAIL_SCROLL_CLASS } from "@/components/public/PublicShell";
+import { buildSharePayload } from "@/lib/share/build-share-payload";
+import { executeShare } from "@/lib/share/execute-share";
 import {
   buildResumeWatchHref,
   canResumeSession,
@@ -159,7 +161,7 @@ export function ContentDetailClient({ id, initialContent }: Props) {
   );
   const isResuming = canResumeSession(resumeSession);
   const resumeHref = isResuming
-    ? buildResumeWatchHref(id, resumeSession?.episodeId)
+    ? buildResumeWatchHref(id, resumeSession?.episodeId, resumeSession?.watchedSeconds)
     : undefined;
   const resumePercentage =
     resumeSession?.percentage ?? content?.userProgress?.percentage ?? null;
@@ -218,13 +220,13 @@ export function ContentDetailClient({ id, initialContent }: Props) {
     downloadJob.phase !== "error";
 
   const handleShare = () => {
-    const url = window.location.href;
-    const text = `Regarde "${content?.title}" sur iVOD`;
-    if (navigator.share) {
-      navigator.share({ title: content?.title, text, url }).catch(() => {});
-    } else {
-      window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`, "_blank");
-    }
+    if (!content?.title) return;
+    const payload = buildSharePayload({
+      contentId: id,
+      title: content.title,
+      resume: isResuming ? resumeSession : null,
+    });
+    void executeShare(payload);
   };
 
   const toggleFavMutation = useMutation({

@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete, Param, Body, Query,
+  Controller, Get, Post, Put, Patch, Delete, Param, Body, Query,
   UseGuards, Req,
 } from '@nestjs/common';
 import { Request } from 'express';
@@ -121,9 +121,25 @@ export class ContentsController {
   update(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('roles') userRoles: string[],
     @Body() dto: UpdateContentDto,
   ) {
-    return this.contentsService.update(id, userId, dto);
+    return this.contentsService.update(id, userId, dto, userRoles ?? []);
+  }
+
+  @Patch(':id/submit')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('CREATOR', 'ADMIN')
+  @ApiOperation({ summary: 'Soumettre le contenu pour validation (DRAFT/REJECTED → PENDING_REVIEW)' })
+  @ApiParam({ name: 'id', example: 'cm9z2f5k10001x123abcd4567' })
+  @ApiUnauthorizedResponse({ description: 'JWT required' })
+  @ApiForbiddenResponse({ description: 'Creator/admin owner only' })
+  @ApiNotFoundResponse({ description: 'Content not found' })
+  submit(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.contentsService.submitForReview(id, userId);
   }
 
   @Delete(':id')

@@ -2,8 +2,11 @@ import { Tabs } from "expo-router";
 import { Home, Search, Heart, Download, User } from "lucide-react-native";
 import { colors } from "@/theme/colors";
 import { fontFamily } from "@/theme/typography";
+import { useTabBarLayout } from "@/presentation/hooks/use-tab-bar-layout";
 
 export default function TabsLayout() {
+  const { tabBarStyle } = useTabBarLayout();
+
   return (
     <Tabs
       screenOptions={{
@@ -11,9 +14,7 @@ export default function TabsLayout() {
           backgroundColor: "rgba(0,5,13,0.98)",
           borderTopColor: "rgba(255,255,255,0.08)",
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 4,
+          ...tabBarStyle,
         },
         tabBarActiveTintColor: colors.magenta,
         tabBarInactiveTintColor: colors.muted,
@@ -66,6 +67,8 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen name="catalogue" options={{ href: null }} />
+      {/* Films / Séries / Web-séries / Animation — barre du bas visible, hors icônes */}
+      <Tabs.Screen name="catalog" options={{ href: null, headerShown: false }} />
     </Tabs>
   );
 }

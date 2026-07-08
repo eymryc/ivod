@@ -55,7 +55,7 @@ export function PricingPageClient() {
               Gratuit avec pub, micro-paiement 24h ou 7 jours, ou{" "}
               <strong className="text-white/85 font-medium">Premium</strong> mensuel — tout en
               FCFA, paiement{" "}
-              <strong className="text-white/85 font-medium">Paystack</strong> (Mobile Money & carte).
+              <strong className="text-white/85 font-medium">Paiement sécurisé</strong> (Mobile Money & carte selon disponibilité).
             </>
           }
           action={

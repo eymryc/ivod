@@ -5,6 +5,7 @@ import { Transporter } from 'nodemailer';
 import {
   accountStatusEmailTemplate,
   contentModerationEmailTemplate,
+  contentSubmittedEmailTemplate,
   creatorAccountCreatedEmailTemplate,
   creatorVerifiedEmailTemplate,
   otpEmailPlainText,
@@ -90,11 +91,14 @@ export class MailService {
 
   async sendResetPasswordEmail(to: string, token: string) {
     const expiresInMinutes = 15;
+    const resetUrl = this.getFrontendUrl(
+      `/auth/reset-password?email=${encodeURIComponent(to)}&token=${encodeURIComponent(token)}`,
+    );
     await this.send(
       to,
       `Réinitialisation du mot de passe — ${this.appName}`,
-      resetPasswordEmailTemplate({ ...this.branding, token, expiresInMinutes }),
-      resetPasswordEmailPlainText({ appName: this.appName, token, expiresInMinutes }),
+      resetPasswordEmailTemplate({ ...this.branding, token, expiresInMinutes, resetUrl }),
+      resetPasswordEmailPlainText({ appName: this.appName, token, expiresInMinutes, resetUrl }),
     );
     this.logger.log(`Reset password envoyé → ${to}`);
   }
@@ -216,6 +220,22 @@ export class MailService {
       }),
     );
     this.logger.log(`Modération contenu envoyé → ${params.to} (action=${params.action})`);
+  }
+
+  async sendContentSubmittedEmail(params: {
+    to: string; creatorName: string; contentTitle: string;
+    contentType: 'content' | 'episode';
+  }) {
+    await this.send(
+      params.to,
+      `Nouveau contenu à modérer : "${params.contentTitle}" — ${this.appName}`,
+      contentSubmittedEmailTemplate({
+        ...this.branding,
+        ...params,
+        moderationUrl: this.getFrontendUrl('/admin/moderation'),
+      }),
+    );
+    this.logger.log(`Notification soumission contenu envoyée → ${params.to}`);
   }
 
   // ── Compte utilisateur ────────────────────────────────────────────────────

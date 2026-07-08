@@ -8,13 +8,17 @@ export type ContentTypeRef = {
   typeCode?: string;
 };
 
-/** Slug route catalogue ↔ code base */
+/**
+ * Slug route catalogue ↔ code base — un type sans entrée ici n'a ni pastille
+ * de nav ni page dédiée (voir buildCatalogNavLinks/buildCatalogSections).
+ * SHORT et DOCUMENTAIRE volontairement absents : pas encore de contenu de
+ * ces types au catalogue, pas de page dédiée tant que ce n'est pas le cas.
+ */
 export const CONTENT_TYPE_SLUG: Record<string, string> = {
   FILM: "films",
   SERIE: "series",
   WEB_SERIE: "web-series",
   ANIMATION: "animation",
-  SHORT: "shorts",
 };
 
 const SLUG_TO_CODE = Object.fromEntries(
@@ -105,7 +109,7 @@ export function buildCatalogNavLinks(types: ContentTypeRef[]) {
     .map((t) => {
       const slug = contentTypeToSlug(t.code);
       if (!slug) return null;
-      return { label: t.label, href: `/catalog/${slug}` as const };
+      return { label: t.label, href: `/(tabs)/catalog/${slug}` as const };
     })
     .filter(Boolean) as { label: string; href: string }[];
 }

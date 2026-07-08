@@ -60,13 +60,19 @@ export const NotificationType = {
   NEW_FOLLOWER: 'NEW_FOLLOWER',
   NEW_COMMENT: 'NEW_COMMENT',
   COMMENT_REPLY: 'COMMENT_REPLY',
+  CONTENT_SUBMITTED: 'CONTENT_SUBMITTED',
   CONTENT_APPROVED: 'CONTENT_APPROVED',
   CONTENT_REJECTED: 'CONTENT_REJECTED',
+  CONTENT_ARCHIVED: 'CONTENT_ARCHIVED',
   CREATOR_VERIFIED: 'CREATOR_VERIFIED',
   ACCOUNT_SUSPENDED: 'ACCOUNT_SUSPENDED',
   ACCOUNT_REACTIVATED: 'ACCOUNT_REACTIVATED',
   REFUND_REQUESTED: 'REFUND_REQUESTED',
   REFUND_PROCESSED: 'REFUND_PROCESSED',
+  SUBSCRIPTION_CANCELLED: 'SUBSCRIPTION_CANCELLED',
+  REPORT_REVIEWED: 'REPORT_REVIEWED',
+  REVENUE_PAID: 'REVENUE_PAID',
+  SECURITY_NEW_DEVICE: 'SECURITY_NEW_DEVICE',
 } as const;
 
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
@@ -101,6 +107,7 @@ export interface ModerationNotificationData {
   contentId: string;
   contentTitle: string;
   rejectionReason?: string;
+  releaseDate?: string;
 }
 
 export interface FollowerNotificationData {
@@ -130,6 +137,23 @@ export interface RefundNotificationData {
   currency?: string;
 }
 
+export interface ReportNotificationData {
+  reportId: string;
+  contentId: string;
+  status: string;
+}
+
+export interface RevenueNotificationData {
+  statementId: string;
+  amount?: number;
+  currency?: string;
+}
+
+export interface SecurityNotificationData {
+  deviceId?: string;
+  deviceType?: string;
+}
+
 export type NotificationPayloadMap = {
   [NotificationType.VIDEO_PREVIEW_READY]: VideoNotificationData;
   [NotificationType.VIDEO_READY]: VideoNotificationData;
@@ -141,13 +165,19 @@ export type NotificationPayloadMap = {
   [NotificationType.NEW_FOLLOWER]: FollowerNotificationData;
   [NotificationType.NEW_COMMENT]: CommentNotificationData;
   [NotificationType.COMMENT_REPLY]: CommentNotificationData;
+  [NotificationType.CONTENT_SUBMITTED]: ModerationNotificationData;
   [NotificationType.CONTENT_APPROVED]: ModerationNotificationData;
   [NotificationType.CONTENT_REJECTED]: ModerationNotificationData;
+  [NotificationType.CONTENT_ARCHIVED]: ModerationNotificationData;
   [NotificationType.CREATOR_VERIFIED]: CreatorVerifiedNotificationData;
   [NotificationType.ACCOUNT_SUSPENDED]: AccountNotificationData;
   [NotificationType.ACCOUNT_REACTIVATED]: AccountNotificationData;
   [NotificationType.REFUND_REQUESTED]: RefundNotificationData;
   [NotificationType.REFUND_PROCESSED]: RefundNotificationData;
+  [NotificationType.SUBSCRIPTION_CANCELLED]: SubscriptionNotificationData;
+  [NotificationType.REPORT_REVIEWED]: ReportNotificationData;
+  [NotificationType.REVENUE_PAID]: RevenueNotificationData;
+  [NotificationType.SECURITY_NEW_DEVICE]: SecurityNotificationData;
 };
 
 export interface NotificationWsEvent<T extends keyof NotificationPayloadMap = NotificationType> {

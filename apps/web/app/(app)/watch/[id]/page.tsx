@@ -65,8 +65,15 @@ export default function WatchPage() {
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const episodeId = searchParams.get("ep") ?? undefined;
+  const episodeId =
+    searchParams.get("ep") ?? searchParams.get("episodeId") ?? undefined;
   const returnTo = searchParams.get("return");
+  const linkTimeSec = (() => {
+    const raw = searchParams.get("t");
+    if (!raw) return undefined;
+    const parsed = parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  })();
   const user = useAuthStore((s) => s.user);
   const { isAuthenticated } = useAuthSession();
   const staffReview =
@@ -130,7 +137,12 @@ export default function WatchPage() {
     staleTime: 30_000,
   });
 
-  const startPosition = history?.completed ? 0 : Math.floor(history?.watchedSeconds ?? 0);
+  const startPosition =
+    linkTimeSec != null
+      ? linkTimeSec
+      : history?.completed
+        ? 0
+        : Math.floor(history?.watchedSeconds ?? 0);
 
   const { data: streamData, isLoading: streamLoading, error: streamError } = useQuery({
     queryKey: ["stream", id, episodeId],

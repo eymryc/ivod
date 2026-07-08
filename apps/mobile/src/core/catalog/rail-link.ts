@@ -1,10 +1,10 @@
 import { slugToContentTypeCode } from '@/core/catalog/content-types';
 
 const SURFACE_CATALOG_ROUTE: Record<string, string> = {
-  films: '/catalog/films',
-  series: '/catalog/series',
-  'web-series': '/catalog/web-series',
-  animation: '/catalog/animation',
+  films: '/(tabs)/catalog/films',
+  series: '/(tabs)/catalog/series',
+  'web-series': '/(tabs)/catalog/web-series',
+  animation: '/(tabs)/catalog/animation',
 };
 
 const BROWSE_FILTER_KEYS = ['genre', 'sort', 'country', 'year', 'minRating', 'search'] as const;

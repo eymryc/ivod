@@ -11,6 +11,7 @@ import {
   DollarSign,
   LogOut,
   ChevronLeft,
+  UserCircle,
 } from "lucide-react";
 import { useAuthStore, isCreator, isAdmin } from "@/lib/stores/auth.store";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -21,6 +22,7 @@ import { BrandLoader } from "@/components/ui/BrandLoader";
 const NAV = [
   { href: "/studio", icon: LayoutDashboard, label: "Tableau de bord" },
   { href: "/studio/contents", icon: Film, label: "Mes contenus" },
+  { href: "/studio/profile", icon: UserCircle, label: "Mon profil" },
   { href: "/studio/analytics", icon: BarChart2, label: "Statistiques" },
   { href: "/studio/revenue", icon: DollarSign, label: "Revenus" },
 ] as const;

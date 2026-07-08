@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react-native";
 import { recommendationsApi, contentsApi, catalogApi } from "@/infrastructure/api";
 import { railToListParams } from "@/core/catalog/rail-query";
-import { useProfileStore } from "@/store/profile.store";
+import { useProfileReady } from "@/presentation/hooks/use-profile-ready";
 import { useAuthStore } from "@/store/auth.store";
 import { ContentRow } from "@/components/content/ContentRow";
 import type { ContentItem } from "@/components/content/ContentCard";
@@ -17,7 +17,7 @@ import { layout } from "@/theme/layout";
 export default function RecommendationsScreen() {
   const router = useRouter();
   const isAuth = useAuthStore((s) => s.isAuthenticated);
-  const profileId = useProfileStore((s) => s.activeProfileId);
+  const { profileId, isProfileReady } = useProfileReady();
   const qc = useQueryClient();
 
   const refresh = useMutation({
@@ -27,8 +27,8 @@ export default function RecommendationsScreen() {
 
   const { data: reco, isLoading } = useQuery({
     queryKey: ["recommendations", profileId],
-    queryFn: () => recommendationsApi.list(profileId ?? undefined),
-    enabled: isAuth,
+    queryFn: () => recommendationsApi.list(profileId!),
+    enabled: isProfileReady,
   });
 
   const { data: homeRails } = useQuery({

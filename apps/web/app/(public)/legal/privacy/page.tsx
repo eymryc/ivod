@@ -22,7 +22,7 @@ export default function PrivacyPage() {
           l&apos;amélioration du service (email, historique de visionnage, préférences de profil).
         </p>
         <p>
-          Les paiements sont traités par nos prestataires certifiés (ex. Paystack). Nous ne
+          Les paiements sont traités par nos prestataires certifiés. Nous ne
           stockons pas vos numéros de carte complets sur nos serveurs.
         </p>
         <p>

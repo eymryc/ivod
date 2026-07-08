@@ -17,7 +17,7 @@ import { contentApi } from '@/infrastructure/api/modules/content.api';
 import { favoriteApi } from '@/infrastructure/api/modules/favorite.api';
 import { watchApi } from '@/infrastructure/api/modules/watch.api';
 import { useAuthStore } from '@/store/auth.store';
-import { useProfileStore } from '@/store/profile.store';
+import { useProfileReady } from '@/presentation/hooks/use-profile-ready';
 import { QueryKeys } from '@/core/constants/query-keys';
 import type { PromoVideosBundle } from '@/core/entities/promo.entity';
 import {
@@ -83,7 +83,7 @@ export interface UseContentDetailResult {
  */
 export function useContentDetail(contentId: string | undefined): UseContentDetailResult {
   const isAuth = useAuthStore((s) => s.isAuthenticated);
-  const profileId = useProfileStore((s) => s.activeProfileId);
+  const { profileId, isProfileReady } = useProfileReady();
 
   // ── Query : contenu principal ─────────────────────────────────────────────
   const {
@@ -93,21 +93,21 @@ export function useContentDetail(contentId: string | undefined): UseContentDetai
   } = useQuery({
     queryKey: QueryKeys.content.detail(contentId ?? '', profileId),
     queryFn: () => contentApi.getOne(contentId!, profileId ?? undefined),
-    enabled: !!contentId,
+    enabled: !!contentId && (!isAuth || isProfileReady),
   });
 
   // ── Query : droits d'accès (auth requise) ─────────────────────────────────
   const { data: entitlement } = useQuery({
     queryKey: QueryKeys.content.entitlement(contentId ?? '', profileId),
     queryFn: () => contentApi.getEntitlement(contentId!, profileId ?? undefined),
-    enabled: !!contentId && isAuth,
+    enabled: !!contentId && isProfileReady,
   });
 
   // ── Query : statut favori ─────────────────────────────────────────────────
   const { data: favStatus } = useQuery({
     queryKey: QueryKeys.favorites.status(contentId ?? '', profileId),
     queryFn: () => favoriteApi.getStatus(contentId!, profileId ?? undefined),
-    enabled: !!contentId && isAuth,
+    enabled: !!contentId && isProfileReady,
   });
 
   // ── Query : saisons (séries uniquement) ───────────────────────────────────
@@ -121,8 +121,8 @@ export function useContentDetail(contentId: string | undefined): UseContentDetai
   // ── Query : historique pour reprise ───────────────────────────────────────
   const { data: historyData } = useQuery({
     queryKey: QueryKeys.watch.history(profileId),
-    queryFn: () => watchApi.getHistory(profileId ?? undefined, 1, 20),
-    enabled: isAuth,
+    queryFn: () => watchApi.getHistory(profileId!, 1, 20),
+    enabled: isProfileReady,
   });
 
   const { data: currentSub } = useQuery({

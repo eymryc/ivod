@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsString, IsOptional, MinLength, MaxLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEmail, IsString, IsOptional, MinLength, MaxLength, ValidateIf, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateCreatorDto {
@@ -96,4 +96,59 @@ export class UpdateCreatorDto {
   @IsOptional()
   @IsBoolean()
   verified?: boolean;
+}
+
+/** Mise à jour du profil créateur par le titulaire du compte (sans badge vérifié). */
+export class UpdateMyCreatorDto {
+  @ApiPropertyOptional({ example: 'Awa' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  firstName?: string;
+
+  @ApiPropertyOptional({ example: 'Koné' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  lastName?: string;
+
+  @ApiPropertyOptional({ example: '+2250708090910' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string;
+
+  @ApiPropertyOptional({ example: 'H-STUDIO' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  stageName?: string;
+
+  @ApiPropertyOptional({ example: 'Production cinéma et séries africaines.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  bio?: string;
+
+  @ApiPropertyOptional({ example: 'creators/avatar/uuid.jpg' })
+  @IsOptional()
+  @IsString()
+  avatarObjectKey?: string;
+
+  @ApiPropertyOptional({ example: 'creators/banner/uuid.jpg' })
+  @IsOptional()
+  @IsString()
+  bannerObjectKey?: string;
+}
+
+export class CreatorUploadUrlDto {
+  @ApiProperty({ example: 'image/jpeg' })
+  @IsString()
+  mimeType!: string;
+
+  @ApiProperty({ enum: ['avatar', 'banner'] })
+  @IsIn(['avatar', 'banner'])
+  slot!: 'avatar' | 'banner';
 }

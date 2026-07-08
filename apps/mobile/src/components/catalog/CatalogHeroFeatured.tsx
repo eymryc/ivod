@@ -117,7 +117,7 @@ export function CatalogHeroFeatured({
 
   const genres =
     content.genres ??
-    content.contentGenres?.map((g) => g.genre).filter(Boolean) ??
+    content.contentGenres?.map((g) => g.genre).filter((g): g is NonNullable<typeof g> => Boolean(g)) ??
     [];
 
   const meta = [

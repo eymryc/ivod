@@ -21,7 +21,7 @@ import {
 
 const STATUS_LABELS: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" }> = {
   REQUESTED: { label: "Demandé", variant: "warning" },
-  APPROVED: { label: "En cours Paystack", variant: "warning" },
+  APPROVED: { label: "En cours", variant: "warning" },
   PROCESSED: { label: "Remboursé", variant: "success" },
   REJECTED: { label: "Refusé", variant: "danger" },
 };

@@ -9,15 +9,18 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { hash } from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { MinioService } from '../../common/services/minio.service';
+import { ALLOWED_IMAGE_MIME_TYPES } from '../../common/constants/upload-mime-types';
 import {
   CreateCreatorAdminDto,
   CreateCreatorDto,
   CreateCreatorFullAdminDto,
   UpdateCreatorDto,
+  UpdateMyCreatorDto,
 } from './dto/creators.dto';
 
 const PASSWORD_SETUP_TTL_MS = 72 * 3600 * 1000;
@@ -38,6 +41,7 @@ export class CreatorsService {
     private readonly contentDuration: ContentDurationService,
     private readonly playbackQoE: PlaybackQoEService,
     private readonly redis: RedisService,
+    private readonly minio: MinioService,
   ) {}
 
   /** Invalide le cache RBAC d'un utilisateur après un changement de rôle. */
@@ -284,7 +288,11 @@ export class CreatorsService {
             contentType: { select: { code: true } },
             visibility: { select: { code: true } },
             contentGenres: { include: { genre: { select: { code: true, label: true } } } },
-            mediaAssets: { where: { type: { code: 'THUMBNAIL' }, isPrimary: true }, take: 1, select: { objectKey: true } },
+            mediaAssets: {
+              where: { type: { code: { in: ['POSTER', 'THUMBNAIL'] } } },
+              orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+              select: { objectKey: true, isPrimary: true, type: { select: { code: true } } },
+            },
             publishedAt: true,
           },
         },
@@ -304,14 +312,17 @@ export class CreatorsService {
       where: { creatorId: id, status: { code: 'PUBLISHED' } },
     });
 
-    // Normalize category response shape for the frontend (expects `category` as a string code)
+    // Aplatit contentType/visibility (relations Prisma { code }) en simples
+    // chaînes — ContentCard (frontend) attend `visibility: string` et plante
+    // avec "Objects are not valid as a React child" sinon. Trouvé le 2026-07-07
+    // en cliquant sur un créateur ayant un premier contenu publié.
     const normalized = creator as any;
     if (Array.isArray(normalized.contents)) {
-      normalized.contents = normalized.contents.map((c: any) => {
-        const category = c.category?.code;
-        const { category: _category, ...rest } = c;
-        return { ...rest, category };
-      });
+      normalized.contents = normalized.contents.map((c: any) => ({
+        ...c,
+        contentType: c.contentType?.code ?? null,
+        visibility: c.visibility?.code ?? null,
+      }));
     }
     normalized.publishedContentsCount = publishedContentsCount;
     return normalized;
@@ -500,12 +511,94 @@ export class CreatorsService {
     const creator = await this.prisma.creator.findUnique({
       where: { userId },
       include: {
-        user: { select: { email: true } },
+        user: { select: { email: true, firstName: true, lastName: true, phone: true } },
         _count: { select: { contents: true } },
       },
     });
     if (!creator) throw new NotFoundException({ code: 'CREATOR_001', message: 'Compte créateur introuvable' });
     return creator;
+  }
+
+  async updateMyProfile(userId: string, dto: UpdateMyCreatorDto) {
+    const creator = await this.prisma.creator.findUnique({ where: { userId } });
+    if (!creator) {
+      throw new ForbiddenException({ code: 'CREATOR_002', message: 'Compte créateur requis' });
+    }
+
+    const firstName = dto.firstName?.trim();
+    const lastName = dto.lastName?.trim();
+    const phone =
+      dto.phone !== undefined ? dto.phone.replace(/\s+/g, '').trim() || null : undefined;
+
+    if (phone) {
+      const existingPhone = await this.prisma.user.findFirst({
+        where: { phone, NOT: { id: userId } },
+        select: { id: true },
+      });
+      if (existingPhone) {
+        throw new ConflictException({ code: 'AUTH_008', message: 'Téléphone déjà utilisé' });
+      }
+    }
+
+    const computedName =
+      firstName !== undefined || lastName !== undefined
+        ? `${firstName ?? ''} ${lastName ?? ''}`.trim()
+        : undefined;
+
+    const userSelect = { email: true, firstName: true, lastName: true, phone: true } as const;
+
+    return this.prisma.$transaction(async (tx) => {
+      if (
+        firstName !== undefined ||
+        lastName !== undefined ||
+        phone !== undefined ||
+        computedName
+      ) {
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            ...(firstName !== undefined && { firstName }),
+            ...(lastName !== undefined && { lastName }),
+            ...(computedName && { name: computedName }),
+            ...(phone !== undefined && { phone }),
+          },
+        });
+      }
+
+      return tx.creator.update({
+        where: { id: creator.id },
+        data: {
+          ...(dto.stageName !== undefined && { stageName: dto.stageName.trim() }),
+          ...(dto.bio !== undefined && { bio: dto.bio?.trim() || null }),
+          ...(dto.avatarObjectKey !== undefined && { avatarObjectKey: dto.avatarObjectKey || null }),
+          ...(dto.bannerObjectKey !== undefined && { bannerObjectKey: dto.bannerObjectKey || null }),
+        },
+        include: {
+          user: { select: userSelect },
+          _count: { select: { contents: true } },
+        },
+      });
+    });
+  }
+
+  async getMyUploadUrl(userId: string, mimeType: string, slot: 'avatar' | 'banner') {
+    const creator = await this.prisma.creator.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!creator) {
+      throw new ForbiddenException({ code: 'CREATOR_002', message: 'Compte créateur requis' });
+    }
+    if (!ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) {
+      throw new BadRequestException({
+        code: 'ASSET_002',
+        message: `Type de fichier non autorisé : ${mimeType}`,
+      });
+    }
+    const ext = mimeType.split('/')[1] ?? 'jpg';
+    const objectKey = `creators/${slot}/${creator.id}/${randomUUID()}.${ext}`;
+    const uploadUrl = await this.minio.presignedPutUrl(this.minio.bucketAssets, objectKey);
+    return { uploadUrl, objectKey };
   }
 
   async getMyContents(userId: string, page = 1, limit = 20, status?: string) {

@@ -7,7 +7,7 @@ type Props = {
   compact?: boolean;
 };
 
-/** Bandeau confiance paiement — FCFA, Paystack, Mobile Money */
+/** Bandeau confiance paiement — FCFA, Mobile Money */
 export function TrustPaymentBar({ className = "", compact = false }: Props) {
   return (
     <div
@@ -22,7 +22,6 @@ export function TrustPaymentBar({ className = "", compact = false }: Props) {
       {!compact && (
         <>
           <span className="hidden sm:block h-4 w-px bg-white/10" aria-hidden />
-          <span className="text-body text-secondary-token">Paystack</span>
           <span className="inline-flex items-center gap-1.5 text-body text-secondary-token">
             <Smartphone size={14} className="text-brand-gold shrink-0" />
             Mobile Money

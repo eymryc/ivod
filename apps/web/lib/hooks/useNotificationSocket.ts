@@ -11,7 +11,7 @@ export type NotificationSocketPayload = Omit<NotificationWsEvent, "userId">;
 export type NotificationHandler = (event: NotificationSocketPayload) => void;
 
 const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
-const CONTENT_MODERATION_TYPES = new Set(["CONTENT_APPROVED", "CONTENT_REJECTED"]);
+const CONTENT_MODERATION_TYPES = new Set(["CONTENT_APPROVED", "CONTENT_REJECTED", "CONTENT_ARCHIVED"]);
 
 /**
  * Écoute l'événement Socket.IO `notification`, invalide le cache liste,

@@ -1,6 +1,6 @@
 import './instrument';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { WinstonModule } from 'nest-winston';
 import { AppModule } from './app.module';
@@ -91,6 +91,12 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
       transform: true,
       transformOptions: { enableImplicitConversion: true },
+      // Par défaut, Nest aplatit les erreurs en messages anglais bruts de
+      // class-validator ("email must be an email") avant même qu'ils
+      // n'atteignent GlobalExceptionFilter. On renvoie les ValidationError
+      // brutes (avec leurs `constraints`) pour que le filtre puisse les
+      // traduire en français à partir de la clé de contrainte, pas du texte.
+      exceptionFactory: (errors) => new BadRequestException({ message: errors }),
     }),
   );
 

@@ -73,9 +73,7 @@ export function TvodPurchaseModal({ contentId, contentTitle, ppvPrice, onClose }
       const redirectUrl = result.redirectUrl ?? result.payment?.redirectUrl;
 
       if (result.simulationMode) {
-        toast.warning(
-          "Mode simulation : aucun débit réel. Configurez Paystack pour un vrai paiement.",
-        );
+        toast.info("Mode démo : aucun débit réel.");
       }
 
       if (!pid) {
@@ -129,7 +127,7 @@ export function TvodPurchaseModal({ contentId, contentTitle, ppvPrice, onClose }
                 {contentTitle}
               </Text>
               <Text style={styles.price}>{formatXOF(ppvPrice)}</Text>
-              <Text style={styles.hint}>Accès illimité · Paiement Paystack</Text>
+              <Text style={styles.hint}>Accès illimité · Paiement sécurisé</Text>
               <PaymentForm
                 planLabel={`${contentTitle} — ${formatXOF(ppvPrice)}`}
                 amountFcfa={ppvPrice}

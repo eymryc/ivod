@@ -28,11 +28,11 @@ export type PaystackConfig = {
 };
 
 export const paymentApi = {
-  /** Configuration publique Paystack (aligné web). */
+  /** Configuration publique (aligné web). */
   getPaystackConfig: (): Promise<PaystackConfig> =>
     api.get<PaystackConfig>("/payments/config/paystack", false),
 
-  /** Configuration publique d'un provider de paiement (ex. Paystack). */
+  /** Configuration publique d'un provider de paiement (ex. PAYSTACK). */
   getProviderConfig: (provider: string): Promise<{ publicKey: string; configured: boolean }> =>
     api.get(`/payments/config/${provider}`, false),
 
@@ -47,7 +47,7 @@ export const paymentApi = {
   syncPayment: (paymentId: string): Promise<void> =>
     api.post(`/payments/${paymentId}/sync`, {}),
 
-  /** Dev — simuler succès sans clés Paystack */
+  /** Dev — simuler succès (environnement de test) */
   devComplete: (paymentId: string): Promise<{ ok: boolean; paymentId: string; status: string }> =>
     api.post(`/payments/dev/complete/${paymentId}`, {}),
 

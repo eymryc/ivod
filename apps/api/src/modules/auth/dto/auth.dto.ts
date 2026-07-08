@@ -241,11 +241,11 @@ export class ResetPasswordDto {
   email!: string;
 
   @ApiProperty({
-    example: 'A1B2C3D4',
+    example: 'F1F1D3338776',
     description: 'Code de reinitialisation recu par email',
   })
   @IsString()
-  @Length(8, 8, { message: 'Le code de réinitialisation doit contenir exactement 8 caractères' })
+  @Length(12, 12, { message: 'Le code de réinitialisation doit contenir exactement 12 caractères' })
   token!: string;
 
   @ApiProperty({

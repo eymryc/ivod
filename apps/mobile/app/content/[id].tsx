@@ -26,13 +26,15 @@ import {
 } from 'react-native';
 import { toast } from '@/presentation/utils/toast';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Heart, Download, Share2, Flag, ThumbsUp } from 'lucide-react-native';
+import { Heart, Download, Share2, Flag, ThumbsUp, Check } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
 import { formatXOF } from '@/core/pricing/format';
 import { TvodPurchaseModal } from '@/components/payment/TvodPurchaseModal';
 import { useLike } from '@/presentation/hooks/use-like';
 import { useContentDetail } from '@/presentation/hooks/use-content-detail';
 import { useFavorite } from '@/presentation/hooks/use-favorite';
 import { useDownload } from '@/presentation/hooks/use-download';
+import { getOfflineByContentId } from '@/infrastructure/services/offline-storage';
 import { useAuthStore } from '@/store/auth.store';
 import { useProfileStore } from '@/store/profile.store';
 import { QueryKeys } from '@/core/constants/query-keys';
@@ -41,10 +43,10 @@ import { useContentTypes } from '@/hooks/use-content-types';
 import { getTypeLabel } from '@/core/catalog/content-types';
 import {
   buildWatchHref,
-  buildResumeDeepLink,
-  buildResumeWebLink,
+  canResumeSession,
   formatResumeLabel,
 } from '@/core/entities';
+import { buildSharePayload } from '@/core/share/build-share-payload';
 
 import { ContentHero } from '@/components/content/ContentHero';
 import { ContentBadges } from '@/components/content/ContentBadges';
@@ -143,6 +145,19 @@ export default function ContentDetailScreen() {
     (msg) => toast.error(msg),
   );
 
+  const { data: offlineItem } = useQuery({
+    queryKey: QueryKeys.downloads.offlineStatus(id ?? '', downloadEpisodeId),
+    queryFn: () => getOfflineByContentId(id!, downloadEpisodeId),
+    enabled: !!id && isAuth && canDownload,
+  });
+
+  const isOfflineReady =
+    !!offlineItem && !!(offlineItem.localManifestUri || offlineItem.localVideoUri);
+
+  useScreenFocusRefetch([
+    QueryKeys.downloads.offlineStatus(id ?? '', downloadEpisodeId),
+  ]);
+
   // ── Navigation vers la lecture ─────────────────────────────────────────────
   function handlePlay(resumeEntry?: WatchHistoryEntry | null) {
     if (!isAuth) {
@@ -170,21 +185,16 @@ export default function ContentDetailScreen() {
   }
 
   async function handleShare() {
-    if (!content) return;
-    const url = hasResume && resume
-      ? buildResumeWebLink(id!, resume)
-      : `https://ivod.africa/content/${id}`;
-    const deepLink = hasResume && resume ? buildResumeDeepLink(id!, resume) : null;
+    if (!content || !id) return;
+    const { title, message, url } = buildSharePayload({
+      contentId: id,
+      title: content.title,
+      resume: hasResume && resume && canResumeSession(resume) ? resume : null,
+    });
     try {
-      await Share.share({
-        message: deepLink
-          ? `Reprends "${content.title}" sur iVOD où tu t'es arrêté : ${deepLink}\n${url}`
-          : `Regarde "${content.title}" sur iVOD ${url}`,
-        url,
-        title: content.title,
-      });
+      await Share.share({ title, message, url });
     } catch {
-      /* ignore */
+      /* annulation utilisateur */
     }
   }
 
@@ -350,13 +360,23 @@ export default function ContentDetailScreen() {
                   icon={
                     isDownloading ? (
                       <ActivityIndicator color={colors.magenta} size="small" />
+                    ) : isOfflineReady ? (
+                      <Check color={colors.gold} size={22} />
                     ) : (
                       <Download color={colors.muted} size={22} />
                     )
                   }
-                  label={downloadProgress != null ? `${downloadProgress} %` : 'Télécharger'}
+                  label={
+                    isDownloading
+                      ? downloadProgress != null
+                        ? `${downloadProgress} %`
+                        : 'Téléchargement…'
+                      : isOfflineReady
+                        ? 'Téléchargé'
+                        : 'Télécharger'
+                  }
                   onPress={download}
-                  disabled={isDownloading}
+                  disabled={isDownloading || isOfflineReady}
                 />
               ) : null}
               {isAuth ? (

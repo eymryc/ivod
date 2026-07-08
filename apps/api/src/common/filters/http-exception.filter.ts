@@ -7,6 +7,47 @@ import { Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
 import { ApiResponse } from '@/common/types';
 
+// class-validator (utilisé par presque tous les DTO) renvoie des messages
+// anglais par défaut ("email must be an email"), sauf si chaque décorateur
+// précise un `message` custom — ce qui n'est pas fait sur tous les DTO. Plutôt
+// que d'éditer des dizaines de fichiers, on traduit ici à partir de la clé de
+// contrainte (stable, ex: "isEmail"), pas du texte anglais lui-même. Ajouté le
+// 2026-07-06.
+const VALIDATION_CONSTRAINT_FR: Record<string, (property: string) => string> = {
+  isNotEmpty:      (p) => `${p} est requis`,
+  isDefined:       (p) => `${p} est requis`,
+  isString:        (p) => `${p} doit être une chaîne de caractères`,
+  isEmail:         (p) => `${p} doit être un email valide`,
+  isInt:           (p) => `${p} doit être un nombre entier`,
+  isNumber:        (p) => `${p} doit être un nombre`,
+  isBoolean:       (p) => `${p} doit être vrai ou faux`,
+  isArray:         (p) => `${p} doit être une liste`,
+  isEnum:          (p) => `${p} a une valeur non autorisée`,
+  isUuid:          (p) => `${p} doit être un identifiant valide`,
+  isDateString:    (p) => `${p} doit être une date valide`,
+  isUrl:           (p) => `${p} doit être une URL valide`,
+  isPhoneNumber:   (p) => `${p} doit être un numéro de téléphone valide`,
+  isPositive:      (p) => `${p} doit être un nombre positif`,
+  isIn:            (p) => `${p} a une valeur non autorisée`,
+  matches:         (p) => `${p} a un format invalide`,
+  minLength:       (p) => `${p} est trop court`,
+  maxLength:       (p) => `${p} est trop long`,
+  min:             (p) => `${p} est trop petit`,
+  max:             (p) => `${p} est trop grand`,
+  arrayMinSize:    (p) => `${p} : liste trop courte`,
+  arrayMaxSize:    (p) => `${p} : liste trop longue`,
+};
+
+function translateValidationConstraints(
+  constraints: Record<string, string>,
+  property: string,
+): string {
+  const keys = Object.keys(constraints);
+  const translated = keys.map((key) => VALIDATION_CONSTRAINT_FR[key]?.(property));
+  const first = translated.find(Boolean);
+  return first ?? `Donnée invalide : ${property}`;
+}
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('ExceptionFilter');
@@ -33,8 +74,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         if (typeof first === 'string') {
           message = first;
         } else if (first?.constraints) {
-          message = Object.values(first.constraints as Record<string, string>).join(', ');
           field = first.property;
+          message = translateValidationConstraints(
+            first.constraints as Record<string, string>,
+            first.property,
+          );
         } else if (first?.property) {
           message = `Donnée invalide : ${first.property}`;
           field = first.property;

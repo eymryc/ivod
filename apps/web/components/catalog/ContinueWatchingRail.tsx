@@ -24,14 +24,26 @@ function dedupeWatchHistorySessions(sessions: any[]) {
 type Props = {
   title: string;
   sessions: any[];
+  /** Filtre additionnel (ex. rails "Reprends ce soir" / "Séries non terminées"). */
+  filter?: (session: any) => boolean;
+  hideIfEmpty?: boolean;
 };
 
-export function ContinueWatchingRail({ title, sessions }: Props) {
-  const deduped = dedupeWatchHistorySessions(sessions).filter(
-    (h) => !h.completed && (h.percentage ?? 0) < 92,
-  );
+const defaultFilter = (h: any) => !h.completed && (h.percentage ?? 0) < 92;
 
-  if (!deduped.length) return null;
+export function ContinueWatchingRail({ title, sessions, filter, hideIfEmpty = true }: Props) {
+  const deduped = dedupeWatchHistorySessions(sessions).filter(filter ?? defaultFilter);
+
+  if (!deduped.length) {
+    if (hideIfEmpty) return null;
+    return (
+      <HomeSectionReveal>
+        <RailSection title={title} headerClassName={HOME_RAIL} contentClassName={HOME_RAIL} scrollClassName={ROW_SCROLL}>
+          <p className="text-[13px] text-white/40 font-light">Aucun contenu disponible pour l&apos;instant.</p>
+        </RailSection>
+      </HomeSectionReveal>
+    );
+  }
 
   const items = deduped.map((h: any) => {
     const content = h.content;

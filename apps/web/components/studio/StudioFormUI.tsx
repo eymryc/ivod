@@ -107,26 +107,36 @@ export function StudioTabBar<T extends string>({
   active,
   onChange,
 }: {
-  tabs: { id: T; label: React.ReactNode }[];
+  tabs: { id: T; label: React.ReactNode; href?: string }[];
   active: T;
   onChange: (id: T) => void;
 }) {
   return (
     <div className="flex max-w-full flex-wrap gap-1 rounded-none border border-white/[0.06] bg-white/[0.02] p-1">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          onClick={() => onChange(t.id)}
-          className={`flex items-center gap-2 px-3 py-2 rounded-none text-left text-[12px] sm:text-[13px] font-medium transition-all ${
-            active === t.id
-              ? "bg-primary/15 text-primary border border-primary/25"
-              : "text-readable-dim hover:text-white border border-transparent"
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
+      {tabs.map((t) =>
+        t.href ? (
+          <Link
+            key={t.id}
+            href={t.href}
+            className="flex items-center gap-2 px-3 py-2 rounded-none text-left text-[12px] sm:text-[13px] font-medium text-readable-dim border border-transparent transition-all hover:text-white"
+          >
+            {t.label}
+          </Link>
+        ) : (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onChange(t.id)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-none text-left text-[12px] sm:text-[13px] font-medium transition-all ${
+              active === t.id
+                ? "bg-primary/15 text-primary border border-primary/25"
+                : "text-readable-dim hover:text-white border border-transparent"
+            }`}
+          >
+            {t.label}
+          </button>
+        ),
+      )}
     </div>
   );
 }

@@ -10,6 +10,9 @@ import { isPaidSvodPlan } from '../../common/constants/plans';
 import { isSeriesType } from '../../common/constants/content-types';
 import { resolvePromoVideosBundle, type PromoVideoAssetRow } from '../../common/promo-media';
 import { MediaAssetsService } from '../media-assets/media-assets.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { MailService } from '../mail/mail.service';
+import { NotificationType } from '../../common/types';
 
 @Injectable()
 export class ContentsService {
@@ -17,6 +20,8 @@ export class ContentsService {
     private prisma: PrismaService,
     private readonly contentDuration: ContentDurationService,
     private readonly mediaAssets: MediaAssetsService,
+    private readonly notifications: NotificationsService,
+    private readonly mail: MailService,
   ) {}
 
   async getPromoVideos(contentId: string, locale?: string) {
@@ -232,6 +237,8 @@ export class ContentsService {
       genreCodes,
       sort,
       year,
+      releaseYearFrom,
+      releaseYearTo,
       minRating,
       countryOfOrigin,
       maxMaturityRating,
@@ -281,6 +288,14 @@ export class ContentsService {
     }
     if (creatorId) and.push({ creatorId });
     if (year) and.push({ releaseYear: year });
+    if (releaseYearFrom || releaseYearTo) {
+      and.push({
+        releaseYear: {
+          ...(releaseYearFrom !== undefined && { gte: releaseYearFrom }),
+          ...(releaseYearTo !== undefined && { lte: releaseYearTo }),
+        },
+      });
+    }
     if (minRating) and.push({ averageRating: { gte: minRating } });
     if (countryOfOrigin) and.push({ countryOfOrigin: { isoCode: countryOfOrigin } });
     if (search?.trim()) {
@@ -961,12 +976,31 @@ export class ContentsService {
     };
   }
 
-  async update(id: string, userId: string, dto: UpdateContentDto) {
-    const content = await this.prisma.content.findUnique({ where: { id }, include: { creator: true } });
+  private static readonly SENSITIVE_UPDATE_FIELDS = [
+    'title', 'description', 'shortDescription', 'genreCodes', 'maturityRatingCode', 'contentType',
+  ] as const;
+
+  async update(id: string, userId: string, dto: UpdateContentDto, userRoles: string[] = []) {
+    const content = await this.prisma.content.findUnique({
+      where: { id },
+      include: { creator: true, status: { select: { code: true } } },
+    });
     if (!content) throw new NotFoundException({ code: 'CONTENT_001', message: 'Contenu introuvable' });
     if (content.creator.userId !== userId && content.uploadedByUserId !== userId) {
       throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Accès refusé' });
     }
+
+    // Politique de re-révision : un créateur (pas un admin) qui modifie un
+    // champ sensible d'un contenu déjà PUBLISHED/APPROVED le repasse en
+    // PENDING_REVIEW — évite qu'une fiche publiée dérive silencieusement
+    // sans repasser par la modération.
+    const previousStatus = (content as any).status?.code as string | undefined;
+    const isStaff = userRoles.some((r) => ['ADMIN', 'SUPER_ADMIN'].includes(r));
+    const touchesSensitiveField = ContentsService.SENSITIVE_UPDATE_FIELDS.some(
+      (field) => (dto as Record<string, unknown>)[field] !== undefined,
+    );
+    const triggersReReview =
+      !isStaff && touchesSensitiveField && (previousStatus === 'PUBLISHED' || previousStatus === 'APPROVED');
 
     const resolvedVisibility = dto.visibility?.toUpperCase();
     if (resolvedVisibility === 'PPV') {
@@ -1017,6 +1051,11 @@ export class ContentsService {
       );
     }
 
+    if (triggersReReview) {
+      data.statusId = await this.getRefId(this.prisma.refContentStatus, 'PENDING_REVIEW', 'Statut');
+      data.rejectionReason = null;
+    }
+
     const updated = await this.prisma.content.update({
       where: { id },
       data,
@@ -1037,9 +1076,129 @@ export class ContentsService {
       }
     }
 
-    if ((updated as any).status?.code === 'PENDING_REVIEW') await this.autoEnqueueModeration(id);
+    if ((updated as any).status?.code === 'PENDING_REVIEW') {
+      await this.autoEnqueueModeration(id);
+      if (triggersReReview) {
+        await this.prisma.contentStatusHistory.create({
+          data: {
+            contentId: id,
+            oldStatus: previousStatus!,
+            newStatus: 'PENDING_REVIEW',
+            changedByUserId: userId,
+            comment: 'Modification de champs sensibles par le créateur après publication — repasse en validation',
+          },
+        }).catch(() => {});
+      }
+    }
 
     return updated;
+  }
+
+  /**
+   * Soumission volontaire par le créateur (DRAFT ou REJECTED → PENDING_REVIEW).
+   * Remplace l'ancienne auto-promotion silencieuse déclenchée par la fin
+   * d'encodage vidéo — désormais le créateur garde la main pour compléter
+   * sa fiche (affiche, description, genres) avant de la soumettre.
+   */
+  async submitForReview(id: string, userId: string) {
+    const content = await this.prisma.content.findUnique({
+      where: { id },
+      include: {
+        creator: true,
+        status: { select: { code: true } },
+        contentType: { select: { code: true } },
+        contentGenres: { select: { genreId: true } },
+        mediaAssets: {
+          where: { type: { code: { in: ['POSTER', 'THUMBNAIL'] } } },
+          select: { id: true },
+        },
+        videoAssets: {
+          where: { episodeId: null, status: { in: ['READY', 'PUBLISHED'] } },
+          select: { id: true },
+        },
+        episodes: {
+          select: { videoAssets: { where: { status: { in: ['READY', 'PUBLISHED'] } }, select: { id: true } } },
+        },
+      },
+    });
+    if (!content) throw new NotFoundException({ code: 'CONTENT_001', message: 'Contenu introuvable' });
+    if (content.creator.userId !== userId && content.uploadedByUserId !== userId) {
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Accès refusé' });
+    }
+
+    const previousStatus = (content as any).status?.code as string;
+    if (!['DRAFT', 'REJECTED'].includes(previousStatus)) {
+      throw new BadRequestException({
+        code: 'CONTENT_008',
+        message: 'Seul un contenu en brouillon ou refusé peut être soumis pour validation.',
+      });
+    }
+
+    const missing: string[] = [];
+    if (!content.description?.trim()) missing.push('description');
+    if ((content as any).contentGenres.length === 0) missing.push('genre');
+    if ((content as any).mediaAssets.length === 0) missing.push('affiche');
+    const typeCode = (content as any).contentType?.code;
+    const hasVideo = isSeriesType(typeCode)
+      ? (content as any).episodes.some((ep: any) => ep.videoAssets.length > 0)
+      : (content as any).videoAssets.length > 0;
+    if (!hasVideo) missing.push('vidéo encodée');
+
+    if (missing.length > 0) {
+      throw new BadRequestException({
+        code: 'CONTENT_009',
+        message: `Fiche incomplète pour la soumission : ${missing.join(', ')} manquant(e)(s).`,
+      });
+    }
+
+    const pendingId = await this.getRefId(this.prisma.refContentStatus, 'PENDING_REVIEW', 'Statut');
+    const updated = await this.prisma.content.update({
+      where: { id },
+      data: { statusId: pendingId, rejectionReason: null },
+      include: { status: { select: { code: true, label: true } } },
+    });
+
+    await this.prisma.contentStatusHistory.create({
+      data: {
+        contentId: id,
+        oldStatus: previousStatus,
+        newStatus: 'PENDING_REVIEW',
+        changedByUserId: userId,
+        comment: 'Soumission par le créateur',
+      },
+    }).catch(() => {});
+
+    await this.autoEnqueueModeration(id);
+    await this.notifyAdminsOfSubmission(id, content.title, content.creator.stageName ?? 'Un créateur');
+
+    return updated;
+  }
+
+  /** Notifie tous les admins (in-app + email) qu'un contenu attend leur validation. */
+  private async notifyAdminsOfSubmission(contentId: string, contentTitle: string, creatorName: string) {
+    const admins = await this.prisma.userRole.findMany({
+      where: { role: { code: { in: ['ADMIN', 'SUPER_ADMIN'] } } },
+      select: { userId: true, user: { select: { email: true } } },
+    });
+
+    for (const admin of admins) {
+      this.notifications.dispatch({
+        userId: admin.userId,
+        type: NotificationType.CONTENT_SUBMITTED,
+        title: 'Contenu à modérer',
+        body: `« ${contentTitle} » a été soumis par ${creatorName} et attend votre validation.`,
+        data: { contentId, contentTitle },
+      }).catch(() => {});
+
+      if (admin.user?.email) {
+        this.mail.sendContentSubmittedEmail({
+          to: admin.user.email,
+          creatorName,
+          contentTitle,
+          contentType: 'content',
+        }).catch(() => {});
+      }
+    }
   }
 
   async delete(id: string, userId: string) {

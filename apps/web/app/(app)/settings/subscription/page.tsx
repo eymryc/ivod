@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, CheckCircle2, XCircle, AlertTriangle, FileText, Download, CreditCard } from "lucide-react";
 import { BrandLoader, BrandLoaderMark } from "@/components/ui/BrandLoader";
+import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 import { toast } from "@/lib/toast";
 import { showApiError, showApiSuccess } from "@/lib/api/feedback";
 import { PaymentForm } from "@/components/payment/PaymentForm";
@@ -136,9 +137,7 @@ function SubscriptionPageContent() {
         return;
       }
       if (data.simulationMode) {
-        toast.warning(
-          "Mode simulation : aucun débit réel. Configurez Paystack pour un vrai paiement.",
-        );
+        toast.info("Mode démo : aucun débit réel.");
       }
       const paymentId = data.payment?.id ?? data.payment?.reference;
       const redirectUrl = data.payment?.redirectUrl;
@@ -159,9 +158,14 @@ function SubscriptionPageContent() {
     },
   });
 
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const cancelMutation = useMutation({
     mutationFn: (id: string) => subscriptionsApi.cancel(id, { cancelAtPeriodEnd: true }),
-    onSuccess: (data) => { showApiSuccess(data); qc.invalidateQueries({ queryKey: ["subscription-me"] }); },
+    onSuccess: (data) => {
+      showApiSuccess(data);
+      qc.invalidateQueries({ queryKey: ["subscription-me"] });
+      setConfirmCancel(false);
+    },
     onError: (err: ApiError) => showApiError(err),
   });
 
@@ -292,10 +296,7 @@ function SubscriptionPageContent() {
             {currentSub.id && !currentSub.cancelAtPeriodEnd && (
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm("Annuler votre abonnement à la fin de la période ?"))
-                    cancelMutation.mutate(currentSub.id);
-                }}
+                onClick={() => setConfirmCancel(true)}
                 disabled={cancelMutation.isPending}
                 className="ivod-btn flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
               >
@@ -311,6 +312,17 @@ function SubscriptionPageContent() {
               <SettingsBadge variant="warning">Fin prochaine</SettingsBadge>
             )}
           </div>
+
+          <ConfirmDeleteModal
+            open={confirmCancel}
+            title="Annuler l'abonnement"
+            message="Annuler votre abonnement à la fin de la période ?"
+            description="Vous garderez l'accès jusqu'à la fin de la période déjà payée."
+            confirmLabel="Annuler l'abonnement"
+            pending={cancelMutation.isPending}
+            onClose={() => setConfirmCancel(false)}
+            onConfirm={() => currentSub.id && cancelMutation.mutate(currentSub.id)}
+          />
         </SettingsPanel>
       )}
 
@@ -392,7 +404,7 @@ function SubscriptionPageContent() {
           <SettingsSectionHeader
             icon={CreditCard}
             title="Historique des paiements"
-            description="Transactions Paystack (abonnements et achats)."
+            description="Transactions (abonnements et achats)."
           />
           <SettingsList>
             {((paymentHistory as { items?: any[] })?.items ?? []).map((p: any) => (

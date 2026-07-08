@@ -4,6 +4,8 @@ import { useCallback, useRef, useState } from "react";
 import { Loader2, Upload, X } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { adminApi } from "@/lib/api/admin";
+import { getApiErrorMessage } from "@/lib/api/feedback";
+import { ApiError } from "@/lib/api/client";
 import { assetUrl } from "@/lib/utils/assets";
 import { MediaImage } from "@/components/ui/MediaImage";
 import { labelCls } from "@/lib/ui/cinema-field";
@@ -51,8 +53,15 @@ export function BannerImageUpload({
         const msg = err instanceof Error ? err.message : "";
         if (msg.includes("MinIO")) {
           toast.error("Stockage inaccessible — vérifiez que MinIO tourne (port 9000)");
+        } else if (err instanceof ApiError) {
+          // Affiche le vrai message API (401/403/500…) au lieu d'un message
+          // générique qui masquait la cause réelle (ex: rôle insuffisant vs
+          // API injoignable vs session expirée — trois erreurs très
+          // différentes qui rendaient tout ce catch impossible à diagnostiquer
+          // depuis l'UI). Trouvé le 2026-07-07.
+          toast.error(getApiErrorMessage(err) ?? `Erreur ${err.status}`);
         } else {
-          toast.error("Impossible d'obtenir l'URL d'upload — reconnectez-vous ou redémarrez l'API");
+          toast.error("Impossible de contacter l'API — vérifiez qu'elle est démarrée");
         }
       } finally {
         setUploading(false);

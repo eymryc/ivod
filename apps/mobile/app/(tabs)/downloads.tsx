@@ -10,6 +10,8 @@ import {
   type OfflineItem,
 } from "@/infrastructure/services/offline-storage";
 import { useAuthStore } from "@/store/auth.store";
+import { QueryKeys } from "@/core/constants/query-keys";
+import { useScreenFocusRefetch } from "@/presentation/hooks/use-screen-focus-refetch";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageCanvas } from "@/components/layout/PageCanvas";
 import { TabPageHeader } from "@/components/layout/TabPageHeader";
@@ -27,7 +29,7 @@ import {
 import { formatDownloadEpisodeLabel } from "@/core/downloads/download-labels";
 import { buildDownloadMeta } from "@/core/downloads/download-display";
 import { contentPosterUrl } from "@/utils/assets";
-import { layout } from "@/theme/layout";
+import { useTabBarOffset } from "@/presentation/hooks/use-tab-bar-layout";
 
 type ApiDownloadRow = {
   id: string;
@@ -124,21 +126,27 @@ function countStats(entries: ListEntry[], rows: DownloadRow[]) {
 }
 
 export default function DownloadsScreen() {
+  const tabBarOffset = useTabBarOffset();
   const router = useRouter();
   const isAuth = useAuthStore((s) => s.isAuthenticated);
   const qc = useQueryClient();
 
   const { data: downloads = [], isLoading } = useQuery({
-    queryKey: ["downloads"],
+    queryKey: QueryKeys.downloads.list(),
     queryFn: () => downloadsApi.list(),
     enabled: isAuth,
   });
 
   const { data: offlineItems = [] } = useQuery({
-    queryKey: ["offline-local"],
+    queryKey: QueryKeys.downloads.offlineLocal(),
     queryFn: () => getOfflineItems(),
     enabled: isAuth,
   });
+
+  useScreenFocusRefetch([
+    QueryKeys.downloads.list(),
+    QueryKeys.downloads.offlineLocal(),
+  ]);
 
   const rows: DownloadRow[] = useMemo(() => {
     const offlineKey = (contentId: string, episodeId?: string) =>
@@ -172,8 +180,8 @@ export default function DownloadsScreen() {
       if (row.offline) await removeOfflineItem(row.offline.downloadId);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["downloads"] });
-      qc.invalidateQueries({ queryKey: ["offline-local"] });
+      qc.invalidateQueries({ queryKey: QueryKeys.downloads.list() });
+      qc.invalidateQueries({ queryKey: QueryKeys.downloads.offlineLocal() });
     },
   });
 
@@ -183,8 +191,8 @@ export default function DownloadsScreen() {
         await downloadsApi.remove(row.id);
         if (row.offline) await removeOfflineItem(row.offline.downloadId);
       }
-      qc.invalidateQueries({ queryKey: ["downloads"] });
-      qc.invalidateQueries({ queryKey: ["offline-local"] });
+      qc.invalidateQueries({ queryKey: QueryKeys.downloads.list() });
+      qc.invalidateQueries({ queryKey: QueryKeys.downloads.offlineLocal() });
     },
     [qc],
   );
@@ -242,7 +250,7 @@ export default function DownloadsScreen() {
             keyExtractor={(entry) =>
               entry.kind === "series" ? `series-${entry.contentId}` : entry.row.id
             }
-            contentContainerStyle={styles.list}
+            contentContainerStyle={[styles.list, { paddingBottom: tabBarOffset }]}
             showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={styles.gap} />}
             renderItem={({ item: entry }) => {
@@ -298,7 +306,6 @@ export default function DownloadsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   list: {
-    paddingBottom: layout.tabBarOffset,
     gap: 0,
   },
   gap: { height: 16 },

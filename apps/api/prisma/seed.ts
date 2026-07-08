@@ -167,7 +167,10 @@ async function seedContentTypes() {
   const items = [
     { code: 'FILM', label: 'Film', typeCode: 'FILM' },
     { code: 'SERIE', label: 'Série', typeCode: 'SERIE' },
-    { code: 'WEB_SERIE', label: 'Série web', typeCode: 'WEB_SERIE' }
+    { code: 'WEB_SERIE', label: 'Série web', typeCode: 'WEB_SERIE' },
+    { code: 'DOCUMENTAIRE', label: 'Documentaire', typeCode: 'DOCUMENTAIRE' },
+    { code: 'ANIMATION', label: 'Animation', typeCode: 'ANIMATION' },
+    { code: 'SHORT', label: 'Court métrage', typeCode: 'SHORT' },
   ];
   for (const item of items) {
     await prisma.refContentType.upsert({

@@ -5,6 +5,7 @@ export interface UserProfile {
   email: string;
   firstName?: string;
   lastName?: string;
+  phone?: string | null;
   avatarUrl?: string | null;
 }
 
@@ -17,10 +18,10 @@ export const userApi = {
   me: (): Promise<UserProfile> =>
     api.get<UserProfile>('/users/me'),
 
-  update: (data: { firstName: string; lastName: string; avatarUrl?: string }): Promise<UserProfile> =>
+  update: (data: { firstName: string; lastName: string; phone?: string; avatarUrl?: string }): Promise<UserProfile> =>
     api.put<UserProfile>('/users/me', data),
 
-  updateProfile: (data: { firstName: string; lastName: string; avatarUrl?: string }): Promise<UserProfile> =>
+  updateProfile: (data: { firstName: string; lastName: string; phone?: string; avatarUrl?: string }): Promise<UserProfile> =>
     api.put<UserProfile>('/users/me', data),
 
   getPreferences: (): Promise<UserPreferences> =>

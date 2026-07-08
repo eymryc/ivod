@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
@@ -17,7 +17,12 @@ export class RolesGuard implements CanActivate {
     }
 
     const { user } = context.switchToHttp().getRequest();
-    if (!user) return false;
+    // Retourner `false` ici déclenche le ForbiddenException générique de Nest
+    // ("Forbidden resource", en anglais) — on lève explicitement le nôtre pour
+    // rester cohérent avec le reste de l'API (code + message en français).
+    if (!user) {
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Accès refusé' });
+    }
     const userRoles: string[] = Array.isArray(user.roles) && user.roles.length
       ? user.roles
       : [user.role].filter(Boolean);
@@ -25,6 +30,9 @@ export class RolesGuard implements CanActivate {
     // SUPER_ADMIN bypasse toutes les vérifications de rôle
     if (userRoles.includes('SUPER_ADMIN')) return true;
 
-    return requiredRoles.some((role) => userRoles.includes(role));
+    if (!requiredRoles.some((role) => userRoles.includes(role))) {
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Permissions insuffisantes' });
+    }
+    return true;
   }
 }

@@ -12,7 +12,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import type { SubtitleTrack as ExpoSubtitleTrack, VideoTrack } from 'expo-video';
+import type { SubtitleTrack as ExpoSubtitleTrack } from 'expo-video';
 import { useKeepAwake } from 'expo-keep-awake';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import * as Haptics from 'expo-haptics';
@@ -33,7 +33,6 @@ import {
   ArrowLeft,
   Smartphone,
   Maximize2,
-  MonitorPlay,
   PictureInPicture2,
   Bookmark,
 } from 'lucide-react-native';
@@ -46,17 +45,7 @@ import type { SubtitleTrack } from '@/infrastructure/api/modules/video.api';
 const IDLE_MS = 3200;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 type Speed = (typeof SPEEDS)[number];
-type PlayerMenu = 'speed' | 'subtitles' | 'quality' | null;
-
-function formatQualityLabel(track: VideoTrack): string {
-  const h = track.size?.height;
-  if (h && h >= 2160) return '4K';
-  if (h && h >= 1080) return '1080p';
-  if (h && h >= 720) return '720p';
-  if (h && h >= 480) return '480p';
-  if (h) return `${h}p`;
-  return 'Qualité';
-}
+type PlayerMenu = 'speed' | 'subtitles' | null;
 
 function resolveVideoSource(url: string) {
   if (url.includes('.m3u8') || url.includes('/media?')) {
@@ -239,8 +228,6 @@ export function CinemaPlayer({
   const [speed, setSpeed] = useState<Speed>(1);
   const [locked, setLocked] = useState(false);
   const [menu, setMenu] = useState<PlayerMenu>(null);
-  const [videoTracks, setVideoTracks] = useState<VideoTrack[]>([]);
-  const [activeVideoTrackId, setActiveVideoTrackId] = useState<string | null>(null);
   const [availableSubs, setAvailableSubs] = useState<ExpoSubtitleTrack[]>([]);
   const [activeSub, setActiveSub] = useState<ExpoSubtitleTrack | null>(null);
   const [scrubTime, setScrubTime] = useState<number | null>(null);
@@ -302,9 +289,6 @@ export function CinemaPlayer({
         if (status === 'readyToPlay') {
           const d = player.duration;
           if (d > 0) setDuration(d);
-          const tracks = player.availableVideoTracks ?? [];
-          if (tracks.length > 0) setVideoTracks(tracks);
-          if (player.videoTrack?.id) setActiveVideoTrackId(player.videoTrack.id);
           if (!startupSent.current) {
             startupSent.current = true;
             onQoERef.current?.('startup');
@@ -322,9 +306,6 @@ export function CinemaPlayer({
       }),
       player.addListener('availableSubtitleTracksChange', ({ availableSubtitleTracks }) => {
         setAvailableSubs(availableSubtitleTracks);
-      }),
-      player.addListener('videoTrackChange', ({ videoTrack }) => {
-        setActiveVideoTrackId(videoTrack?.id ?? null);
       }),
     ];
     return () => subs.forEach((s) => s.remove());
@@ -465,24 +446,6 @@ export function CinemaPlayer({
       wakeControls();
     },
     [wakeControls],
-  );
-
-  const selectVideoTrack = useCallback(
-    (track: VideoTrack | null) => {
-      try {
-        player.videoTrack = track;
-        setActiveVideoTrackId(track?.id ?? null);
-        onQoERef.current?.('quality_change', {
-          quality: track ? formatQualityLabel(track) : 'auto',
-        });
-      } catch {
-        // Piste non sélectionnable sur cet appareil
-      }
-      setMenu(null);
-      Haptics.selectionAsync().catch(() => undefined);
-      wakeControls();
-    },
-    [player, wakeControls],
   );
 
   const togglePictureInPicture = useCallback(async () => {
@@ -697,15 +660,6 @@ export function CinemaPlayer({
                       size={17}
                     />
                   </PlayerOptionBtn>
-                  {videoTracks.length > 1 ? (
-                    <PlayerOptionBtn
-                      onPress={() => toggleMenu('quality')}
-                      active={menu === 'quality'}
-                      label="Qualité vidéo"
-                    >
-                      <MonitorPlay color={menu === 'quality' ? colors.magenta : 'rgba(255,255,255,0.85)'} size={17} />
-                    </PlayerOptionBtn>
-                  ) : null}
                   <PlayerOptionBtn
                     onPress={toggleOrientation}
                     active={landscapeLocked}
@@ -795,40 +749,6 @@ export function CinemaPlayer({
                       ))}
                     </View>
                   </ScrollView>
-                </View>
-              ) : null}
-
-              {menu === 'quality' && videoTracks.length > 1 ? (
-                <View style={[styles.inlineMenu, { bottom: Math.max(insets.bottom, 12) + 118 }]}>
-                  <Text style={styles.menuTitle}>Qualité</Text>
-                  <View style={styles.speedRow}>
-                    <TouchableOpacity
-                      style={[styles.speedChip, !activeVideoTrackId && styles.speedChipActive]}
-                      onPress={() => selectVideoTrack(null)}
-                      accessibilityRole="button"
-                    >
-                      <Text style={[styles.speedChipText, !activeVideoTrackId && styles.speedChipTextActive]}>
-                        Auto
-                      </Text>
-                    </TouchableOpacity>
-                    {videoTracks.map((track) => (
-                      <TouchableOpacity
-                        key={track.id}
-                        style={[styles.speedChip, activeVideoTrackId === track.id && styles.speedChipActive]}
-                        onPress={() => selectVideoTrack(track)}
-                        accessibilityRole="button"
-                      >
-                        <Text
-                          style={[
-                            styles.speedChipText,
-                            activeVideoTrackId === track.id && styles.speedChipTextActive,
-                          ]}
-                        >
-                          {formatQualityLabel(track)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
                 </View>
               ) : null}
             </View>

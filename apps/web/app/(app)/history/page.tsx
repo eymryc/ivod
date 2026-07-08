@@ -1,11 +1,12 @@
 "use client";
+import { useState } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { History, Loader2, Trash2 } from "lucide-react";
-import { toast } from "@/lib/toast";
 import { showApiError, showApiSuccess } from "@/lib/api/feedback";
 import Link from "next/link";
 import { ContentCard } from "@/components/content/ContentCard";
 import { ContentCardSkeleton } from "@/components/content/ContentCardSkeleton";
+import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 import { watchApi } from "@/lib/api/watch";
 import { useProfileStore } from "@/lib/stores/profile.store";
 import { formatRelative } from "@/lib/utils/format";
@@ -14,6 +15,7 @@ import { PAGE_X, VIEWER_GRID_CLASS } from "@/components/public/PublicShell";
 export default function HistoryPage() {
   const qc = useQueryClient();
   const activeProfileId = useProfileStore((s) => s.activeProfileId);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
     queryKey: ["watch-history", activeProfileId],
@@ -32,8 +34,10 @@ export default function HistoryPage() {
 
   const clearMutation = useMutation({
     mutationFn: watchApi.clearHistory,
-    onSuccess: (data) => { showApiSuccess(data);
+    onSuccess: (data) => {
+      showApiSuccess(data);
       qc.invalidateQueries({ queryKey: ["watch-history"] });
+      setConfirmClear(false);
     },
     onError: (err) => showApiError(err),
   });
@@ -56,9 +60,7 @@ export default function HistoryPage() {
         </div>
         {items.length > 0 && (
           <button
-            onClick={() => {
-              if (confirm("Effacer tout l'historique de visionnage ?")) clearMutation.mutate();
-            }}
+            onClick={() => setConfirmClear(true)}
             disabled={clearMutation.isPending}
             className="flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-400/50 rounded-xl transition-colors"
           >
@@ -67,6 +69,16 @@ export default function HistoryPage() {
           </button>
         )}
       </div>
+
+      <ConfirmDeleteModal
+        open={confirmClear}
+        title="Effacer l'historique"
+        message="Effacer tout l'historique de visionnage ?"
+        confirmLabel="Effacer"
+        pending={clearMutation.isPending}
+        onClose={() => setConfirmClear(false)}
+        onConfirm={() => clearMutation.mutate()}
+      />
 
       {isLoading ? (
         <div className={VIEWER_GRID_CLASS}>

@@ -45,15 +45,26 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   hydrated: false,
 
   setProfiles: (profiles) => {
-    const currentId = get().activeProfileId;
-    const isCurrentValid = profiles.some((p) => p.id === currentId);
-    const defaultProfile = profiles.find((p) => p.isDefault);
+    const { activeProfileId: currentId, hydrated } = get();
+    const isCurrentValid = !!currentId && profiles.some((p) => p.id === currentId);
+    const defaultProfile = profiles.find((p) => p.isDefault) ?? profiles[0];
 
-    set({
-      profiles,
-      // Conserve le profil actif s'il est toujours valide, sinon prend le défaut
-      activeProfileId: isCurrentValid ? currentId : (defaultProfile?.id ?? null),
-    });
+    let nextActiveId = currentId;
+    if (isCurrentValid) {
+      // conserve le profil actif persisté
+    } else if (currentId != null) {
+      // profil supprimé ou invalide
+      nextActiveId = defaultProfile?.id ?? null;
+    } else if (hydrated) {
+      // pas de profil stocké : défaut uniquement après hydratation
+      nextActiveId = defaultProfile?.id ?? null;
+    }
+
+    set({ profiles, activeProfileId: nextActiveId });
+
+    if (nextActiveId && nextActiveId !== currentId) {
+      void AsyncStorage.setItem(ACTIVE_PROFILE_KEY, nextActiveId);
+    }
   },
 
   setActiveProfile: async (id) => {

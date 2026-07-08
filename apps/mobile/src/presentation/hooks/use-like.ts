@@ -1,15 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { likeApi as likesApi } from '@/infrastructure/api/modules/like.api';
-import { useAuthStore } from '@/store/auth.store';
-import { useProfileStore } from '@/store/profile.store';
+import { useProfileReady } from '@/presentation/hooks/use-profile-ready';
 import { getErrorMessage } from '@/core/errors';
 import { QueryKeys } from '@/core/constants/query-keys';
 
 type LikeStatus = { liked: boolean; likeCount?: number };
 
 export function useLike(contentId: string | undefined, onError?: (message: string) => void) {
-  const isAuth = useAuthStore((s) => s.isAuthenticated);
-  const profileId = useProfileStore((s) => s.activeProfileId);
+  const { profileId, isProfileReady } = useProfileReady();
   const qc = useQueryClient();
 
   const statusKey = QueryKeys.likes.status(contentId ?? '', profileId);
@@ -17,7 +15,7 @@ export function useLike(contentId: string | undefined, onError?: (message: strin
   const { data } = useQuery({
     queryKey: statusKey,
     queryFn: () => likesApi.getStatus(contentId!, profileId ?? undefined),
-    enabled: !!contentId && isAuth,
+    enabled: !!contentId && isProfileReady,
   });
 
   const { mutate, isPending } = useMutation({

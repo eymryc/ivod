@@ -58,7 +58,9 @@ const BTN_WHITE =
   "ivod-btn inline-flex items-center justify-center gap-2 h-11 px-6 bg-white text-black text-sm font-semibold hover:bg-white/90 transition-colors";
 
 const QUICK_LINKS = [
+  { label: "Explorer", href: "/browse", icon: Sparkles },
   { label: "Films", href: "/films", icon: Film },
+  { label: "Animation", href: "/animation", icon: Clapperboard },
   { label: "Séries", href: "/series", icon: Tv },
   { label: "Web-séries", href: "/web-series", icon: MonitorPlay },
 ] as const;
@@ -355,7 +357,7 @@ function HeroCarousel({ banners }: { banners: any[] }) {
   );
 }
 
-function CategoryPills() {
+function CategoryPills({ isAuthenticated }: { isAuthenticated: boolean }) {
   const reduced = useReducedMotion();
   return (
     <motion.div
@@ -368,6 +370,13 @@ function CategoryPills() {
         {QUICK_LINKS.map(({ label, href, icon }) => (
           <CategoryPillLink key={href} href={href} label={label} icon={icon} />
         ))}
+        {isAuthenticated && (
+          <CategoryPillLink
+            href="/recommendations"
+            label="Pour vous"
+            icon={Sparkles}
+          />
+        )}
       </ScrollRow>
     </motion.div>
   );
@@ -470,7 +479,7 @@ function SubscribeCta() {
           </h2>
           <div className="mx-auto ivod-line-accent w-10 mb-4" />
           <p className="text-[14px] text-white/50 font-light max-w-md mx-auto mb-8">
-            Abonnez-vous dès 1 500 FCFA/mois — ou un pass 24h à partir de 150 FCFA, paiement sécurisé via Paystack.
+            Abonnez-vous dès 1 500 FCFA/mois — ou un pass 24h à partir de 150 FCFA, paiement sécurisé.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <Link href="/auth/register" className={`${BTN_PRIMARY} home-btn-lift`}>
@@ -552,7 +561,7 @@ export function HomepageClient() {
 
       <div className="relative z-10 space-y-12 md:space-y-14 pt-2 md:pt-3">
         <HomeContentAmbient />
-        <CategoryPills />
+        <CategoryPills isAuthenticated={isAuthenticated} />
 
         <CatalogRails surface="home" historyMap={historyMap} />
 

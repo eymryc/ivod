@@ -58,7 +58,7 @@ export const paymentsApi = {
 
   adminGetOne: (id: string) => get<any>(`/payments/admin/${id}`, true),
 
-  /** Dev — simuler succès sans clés Paystack */
+  /** Dev — simuler succès (environnement de test) */
   devComplete: (paymentId: string) =>
     post<{ ok: boolean; paymentId: string; status: string }>(
       `/payments/dev/complete/${paymentId}`,

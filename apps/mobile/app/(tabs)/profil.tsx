@@ -1,7 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   Crown,
   History,
@@ -10,26 +9,28 @@ import {
   Bell,
   Shield,
   Smartphone,
-  Users,
   Sparkles,
   CreditCard,
   Baby,
   Lock,
   UserCircle,
+  Clapperboard,
 } from "lucide-react-native";
-import { usersApi, subscriptionApi } from "@/infrastructure/api";
+import { usersApi, subscriptionApi, profilesApi } from "@/infrastructure/api";
 import { useAuthStore } from "@/store/auth.store";
 import { useProfileStore } from "@/store/profile.store";
 import { PageCanvas } from "@/components/layout/PageCanvas";
 import { TabPageHeader } from "@/components/layout/TabPageHeader";
+import { ProfileAccountSection } from "@/components/profile/ProfileAccountSection";
 import { MenuRow } from "@/components/layout/MenuRow";
 import { AccentLine } from "@/components/layout/AccentLine";
 import { PremiumPanel } from "@/components/layout/PremiumPanel";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Button } from "@/components/ui/Button";
-import { colors, gradients } from "@/theme/colors";
+import { colors } from "@/theme/colors";
 import { typography } from "@/theme/typography";
 import { layout } from "@/theme/layout";
+import { useTabBarOffset } from "@/presentation/hooks/use-tab-bar-layout";
 import { shouldShowPricingNavLink } from "@/core/navigation/viewer-nav";
 import type { LucideIcon } from "lucide-react-native";
 
@@ -67,6 +68,7 @@ function MenuSection({ title, items, onPress }: { title: string; items: MenuItem
 
 export default function ProfilScreen() {
   const router = useRouter();
+  const tabBarOffset = useTabBarOffset();
   const { user, isAuthenticated, logout } = useAuthStore();
   const activeProfile = useProfileStore((s) => s.getActiveProfile());
 
@@ -81,6 +83,13 @@ export default function ProfilScreen() {
     queryFn: () => subscriptionApi.getActive(),
     enabled: isAuthenticated,
     staleTime: 5 * 60_000,
+  });
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["profiles"],
+    queryFn: () => profilesApi.list(),
+    enabled: isAuthenticated,
+    staleTime: 60_000,
   });
 
   if (!isAuthenticated) {
@@ -117,7 +126,9 @@ export default function ProfilScreen() {
 
   const menuPrimary: MenuItem[] = [
     { icon: UserCircle, label: "Mon compte", href: "/settings" },
-    { icon: Users, label: "Changer de profil", sub: activeProfile?.name, href: "/(profiles)/select?mode=switch" },
+    ...(user?.role === "CREATOR" || user?.role === "ADMIN"
+      ? [{ icon: Clapperboard, label: "Profil créateur", href: "/settings/creator" }]
+      : []),
     { icon: Crown, label: "Abonnement", sub: "Passes & Premium", href: "/settings/subscription" },
     { icon: History, label: "Historique", href: "/settings/history" },
     { icon: Download, label: "Téléchargements", href: "/(tabs)/downloads" },
@@ -140,36 +151,16 @@ export default function ProfilScreen() {
   return (
     <PageCanvas>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <TabPageHeader title="Mon compte" subtitle={user?.email} kicker="Profil" />
+        <TabPageHeader title="Mon compte" kicker="Profil" />
 
-        <PremiumPanel variant="hero" style={styles.profileCard}>
-          <LinearGradient
-            colors={[...gradients.brand]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.profileAccent}
-          />
-          <View style={styles.avatarRing}>
-            <LinearGradient
-              colors={isPremium ? [colors.gold, colors.magenta] : [...gradients.brand]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.avatarRingGrad}
-            >
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{displayName?.charAt(0)?.toUpperCase()}</Text>
-              </View>
-            </LinearGradient>
-          </View>
-          <Text style={styles.name}>{displayName}</Text>
-          {user?.email ? <Text style={styles.email}>{user.email}</Text> : null}
-          <View style={[styles.planBadge, isPremium && styles.planBadgePremium]}>
-            {isPremium ? <Crown color={colors.gold} size={12} /> : null}
-            <Text style={[styles.planBadgeText, isPremium && styles.planBadgeTextPremium]}>
-              {planLabel}
-            </Text>
-          </View>
-        </PremiumPanel>
+        <ProfileAccountSection
+          displayName={displayName ?? "Compte"}
+          email={user?.email}
+          planLabel={planLabel}
+          isPremium={isPremium}
+          activeProfile={activeProfile}
+          profileCount={Array.isArray(profiles) ? profiles.length : 0}
+        />
 
         <MenuSection title="Mon espace" items={menuPrimary} onPress={navigate} />
         <MenuSection title="Préférences" items={menuSecondary} onPress={navigate} />
@@ -194,7 +185,7 @@ export default function ProfilScreen() {
           <LogOut color={colors.error} size={18} />
           <Text style={styles.logoutText}>Se déconnecter</Text>
         </TouchableOpacity>
-        <View style={{ height: layout.tabBarOffset }} />
+        <View style={{ height: tabBarOffset }} />
       </ScrollView>
     </PageCanvas>
   );
@@ -212,60 +203,6 @@ const styles = StyleSheet.create({
   guestPanel: { width: "100%", maxWidth: 360, marginTop: 8 },
   guestTitle: { ...typography.h2 },
   guestText: { ...typography.bodyMuted, textAlign: "center", maxWidth: 300 },
-  profileCard: {
-    marginHorizontal: layout.pagePaddingX,
-    marginBottom: 20,
-    alignItems: "center",
-    paddingTop: 28,
-  },
-  profileAccent: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-  },
-  avatarRing: { marginBottom: 14 },
-  avatarRingGrad: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    padding: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatar: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    backgroundColor: colors.backgroundElevated,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { fontSize: 28, fontWeight: "800", color: colors.foreground },
-  name: { ...typography.h2, fontSize: 20, textAlign: "center" },
-  email: { ...typography.caption, marginTop: 4, textAlign: "center" },
-  planBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: "rgba(230,0,126,0.35)",
-    backgroundColor: "rgba(123,0,153,0.14)",
-  },
-  planBadgePremium: {
-    borderColor: "rgba(255,179,0,0.45)",
-    backgroundColor: "rgba(255,179,0,0.1)",
-  },
-  planBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: colors.magenta,
-  },
-  planBadgeTextPremium: { color: colors.gold },
   section: { marginBottom: 18, paddingHorizontal: layout.pagePaddingX },
   sectionHead: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   sectionTitle: {

@@ -6,7 +6,7 @@ import { z } from "@/lib/zod";
 import { Loader2, Trash2, Camera } from "lucide-react";
 import { ProfilesShell, ProfilesPanel, PROFILE_INPUT_CLASS, ProfileSecurityPasswordField } from "@/components/profile/ProfilesUI";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import axios from "axios";
 import { toast } from "@/lib/toast";
 import { showApiError, showApiSuccess } from "@/lib/api/feedback";
@@ -15,6 +15,7 @@ import { profilesApi } from "@/lib/api/profiles";
 import { mediaAssetsApi } from "@/lib/api/media-assets";
 import { resolveMediaSrc } from "@/lib/utils/assets";
 import { MediaImage } from "@/components/ui/MediaImage";
+import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 import { ApiError } from "@/lib/api/client";
 
 const schema = z.object({
@@ -65,6 +66,7 @@ export default function EditProfilePage() {
     onError: (err: ApiError) => showApiError(err),
   });
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const deleteMutation = useMutation({
     mutationFn: () => profilesApi.remove(id),
     onSuccess: (data) => { showApiSuccess(data);
@@ -160,9 +162,7 @@ export default function EditProfilePage() {
           <div className="mt-8 pt-6 border-t border-white/[0.06]">
             <button
               type="button"
-              onClick={() => {
-                if (confirm(`Supprimer le profil "${profile.name}" ?`)) deleteMutation.mutate();
-              }}
+              onClick={() => setConfirmDelete(true)}
               disabled={deleteMutation.isPending}
               className="ivod-btn w-full h-11 flex items-center justify-center gap-2 text-sm font-medium border border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-45"
             >
@@ -172,6 +172,15 @@ export default function EditProfilePage() {
           </div>
         )}
       </ProfilesPanel>
+
+      <ConfirmDeleteModal
+        open={confirmDelete}
+        title="Supprimer le profil"
+        message={`Supprimer le profil "${profile.name}" ?`}
+        pending={deleteMutation.isPending}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() => deleteMutation.mutate()}
+      />
     </ProfilesShell>
   );
 }

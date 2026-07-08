@@ -14,6 +14,7 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { setTokens, clearTokens, getAccessToken } from '@/infrastructure/api/client';
 import { registerDeviceOnLogin } from '@/infrastructure/services/device.service';
+import { useProfileStore } from '@/store/profile.store';
 import type { AuthUser } from '@/core/entities';
 
 const USER_STORAGE_KEY = 'ivod_user';
@@ -62,6 +63,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     await clearTokens();
     await SecureStore.deleteItemAsync(USER_STORAGE_KEY);
+    await useProfileStore.getState().clearProfiles();
     set({ user: null, isAuthenticated: false });
   },
 

@@ -41,6 +41,7 @@ export type ContentFormData = {
   ppvPrice?: number;
   tags?: string;
   posterFile?: File;
+  bannerFile?: File;
   primaryRightsholderId?: string;
   distributorId?: string;
   maturityRatingCode?: string;
@@ -185,6 +186,83 @@ function PosterUpload({
   );
 }
 
+function BannerUpload({
+  file,
+  existingBannerSrc,
+  onChange,
+}: {
+  file: File | undefined;
+  /** Bannière déjà enregistrée (mode édition) */
+  existingBannerSrc?: string | null;
+  onChange: (f: File | undefined) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) {
+      setFilePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setFilePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const displaySrc = filePreview ?? existingBannerSrc ?? null;
+  const hasNewFile = !!file;
+
+  return (
+    <div className="relative">
+      <div
+        onClick={() => inputRef.current?.click()}
+        className={`relative w-full aspect-video rounded-none overflow-hidden cursor-pointer group transition-all ring-1 ${
+          displaySrc
+            ? "ring-white/10 hover:ring-primary/30"
+            : "ring-white/[0.08] border border-dashed border-white/10 hover:border-primary/35 hover:ring-primary/20 bg-white/[0.02]"
+        }`}
+      >
+        {displaySrc ? (
+          <>
+            <img src={displaySrc} alt="Bannière hero" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/55 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+              <ImagePlus size={18} className="text-white" />
+              <span className="text-[11px] text-white/90">
+                {hasNewFile ? "Remplacer" : "Changer la bannière"}
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/25 group-hover:text-primary/60 transition-colors px-3">
+            <ImagePlus size={28} strokeWidth={1.25} />
+            <p className="text-[11px] text-center font-light">Bannière hero · 16:9</p>
+          </div>
+        )}
+      </div>
+      {hasNewFile && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onChange(undefined);
+          }}
+          className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-surface border border-white/15 flex items-center justify-center hover:border-red-400/50 hover:text-red-400 transition-colors"
+          title="Annuler le nouveau fichier"
+        >
+          <X size={12} />
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => onChange(e.target.files?.[0])}
+      />
+    </div>
+  );
+}
+
 function GenreSelect({
   genres,
   selected,
@@ -297,6 +375,8 @@ interface ContentFormProps {
   defaultValues?: Partial<ContentFormData>;
   /** URL de l'affiche actuelle (édition) */
   existingPosterSrc?: string | null;
+  /** URL de la bannière hero actuelle (édition) */
+  existingBannerSrc?: string | null;
   onSubmit: (data: ContentFormData) => void;
   isLoading?: boolean;
   submitLabel?: string;
@@ -305,6 +385,7 @@ interface ContentFormProps {
 export function ContentForm({
   defaultValues,
   existingPosterSrc,
+  existingBannerSrc,
   onSubmit,
   isLoading,
   submitLabel = "Enregistrer",
@@ -332,6 +413,7 @@ export function ContentForm({
   });
 
   const [posterFile, setPosterFile] = useState<File | undefined>(defaultValues?.posterFile);
+  const [bannerFile, setBannerFile] = useState<File | undefined>(defaultValues?.bannerFile);
 
   const rightsholderPickOptions = useMemo(
     () =>
@@ -402,6 +484,7 @@ export function ContentForm({
       ppvPrice:         data.ppvPrice,
       tags:             data.tags,
       posterFile,
+      bannerFile,
       primaryRightsholderId: data.primaryRightsholderId || undefined,
       distributorId: data.distributorId || undefined,
       maturityRatingCode: data.maturityRatingCode || undefined,
@@ -410,17 +493,31 @@ export function ContentForm({
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-10">
-      {/* Identité + affiche */}
+      {/* Identité + images */}
       <div className="grid grid-cols-1 lg:grid-cols-[148px_1fr] gap-8">
-        <div>
-          <PosterUpload
-            file={posterFile}
-            existingPosterSrc={existingPosterSrc}
-            onChange={setPosterFile}
-          />
-          <p className="text-[10px] text-white/25 text-center mt-2 font-light">
-            {existingPosterSrc && !posterFile ? "Cliquez pour remplacer" : "Optionnel"}
-          </p>
+        <div className="space-y-4">
+          <div>
+            <PosterUpload
+              file={posterFile}
+              existingPosterSrc={existingPosterSrc}
+              onChange={setPosterFile}
+            />
+            <p className="text-[10px] text-white/25 text-center mt-2 font-light">
+              Affiche · cartes catalogue
+            </p>
+          </div>
+          <div>
+            <BannerUpload
+              file={bannerFile}
+              existingBannerSrc={existingBannerSrc}
+              onChange={setBannerFile}
+            />
+            <p className="text-[10px] text-white/25 text-center mt-2 font-light">
+              {existingBannerSrc || bannerFile
+                ? "Bannière hero"
+                : "Optionnel — sinon l'affiche sera recadrée automatiquement"}
+            </p>
+          </div>
         </div>
 
         <div className="space-y-5">
@@ -440,8 +537,9 @@ export function ContentForm({
                 const active = contentType === t.code;
                 const HINT: Record<string, string> = {
                   FILM: "Long métrage", SERIE: "Saisons & épisodes",
-                  WEB_SERIE: "Format web",
+                  WEB_SERIE: "Format web, épisodes",
                   ANIMATION: "Animé, 3D", SHORT: "< 40 min",
+                  DOCUMENTAIRE: "Culture, société, nature",
                 };
                 return (
                   <button

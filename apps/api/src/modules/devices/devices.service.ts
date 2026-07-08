@@ -1,9 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../common/types';
 
 @Injectable()
 export class DevicesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async list(userId: string) {
     return this.prisma.device.findMany({
@@ -20,7 +25,24 @@ export class DevicesService {
         return this.prisma.device.update({ where: { id: existing.id }, data: { ...dto, lastSeenAt: new Date() } });
       }
     }
-    return this.prisma.device.create({ data: { userId, ...dto, lastSeenAt: new Date() } });
+
+    // Un utilisateur qui possédait déjà au moins un appareil et en enregistre
+    // un nouveau (fingerprint inconnu) reçoit une alerte de sécurité — pas
+    // de notification sur le tout premier appareil (simple connexion initiale).
+    const hadDevicesBefore = (await this.prisma.device.count({ where: { userId } })) > 0;
+    const device = await this.prisma.device.create({ data: { userId, ...dto, lastSeenAt: new Date() } });
+
+    if (hadDevicesBefore) {
+      this.notifications.dispatch({
+        userId,
+        type: NotificationType.SECURITY_NEW_DEVICE,
+        title: 'Nouvel appareil connecté',
+        body: `Un nouvel appareil (${dto.deviceName ?? dto.deviceType}) a été connecté à votre compte.`,
+        data: { deviceId: device.id, deviceType: dto.deviceType },
+      }).catch(() => {});
+    }
+
+    return device;
   }
 
   async revoke(userId: string, deviceId: string) {
